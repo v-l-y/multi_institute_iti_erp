@@ -1,5 +1,5 @@
--- ITI ERP — SCHEMA AND INTEGRITY GUARDS
--- MySQL 9.7 LTS, Bihar private CTS multi-ITI
+-- Bihar CTS Multi-Institute ITI ERP — Base Database Schema
+-- Tables, foreign keys, UNIQUE and CHECK constraints only; runtime validation pending
 
 SET NAMES utf8mb4;
 SET SESSION sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';

@@ -1629,7 +1629,7 @@ CREATE TRIGGER trg_trade_unit_shifts_insert_integrity
 BEFORE INSERT ON trade_unit_shifts
 FOR EACH ROW
 BEGIN
- IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM global_shifts gs JOIN global_regulatory_documents d ON d.id=gs.source_document_id WHERE gs.id=NEW.global_shift_id AND gs.shift_no=NEW.shift_no AND gs.status IN ('active','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1638,7 +1638,7 @@ CREATE TRIGGER trg_trade_unit_shifts_update_integrity
 BEFORE UPDATE ON trade_unit_shifts
 FOR EACH ROW
 BEGIN
- IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM global_shifts gs JOIN global_regulatory_documents d ON d.id=gs.source_document_id WHERE gs.id=NEW.global_shift_id AND gs.shift_no=NEW.shift_no AND gs.status IN ('active','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1647,7 +1647,7 @@ CREATE TRIGGER trg_admission_intakes_insert_integrity
 BEFORE INSERT ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year AND c.status IN ('published','superseded') AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1656,7 +1656,7 @@ CREATE TRIGGER trg_admission_intakes_update_integrity
 BEFORE UPDATE ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year AND c.status IN ('published','superseded') AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1737,7 +1737,7 @@ CREATE TRIGGER trg_training_calendar_entries_insert_integrity
 BEFORE INSERT ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.revision_code=NEW.calendar_revision_code AND c.status IN ('published','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1746,7 +1746,7 @@ CREATE TRIGGER trg_training_calendar_entries_update_integrity
 BEFORE UPDATE ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.revision_code=NEW.calendar_revision_code AND c.status IN ('published','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1871,6 +1871,168 @@ BEGIN
     AND COALESCE(r.valid_to, CAST('9999-12-31 23:59:59' AS DATETIME)) > NEW.valid_from
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping user role assignments';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_regulatory_sources_insert_master
+BEFORE INSERT ON regulatory_sources
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.global_document_id AND d.authority=NEW.authority AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Source requires published global document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_regulatory_sources_update_master
+BEFORE UPDATE ON regulatory_sources
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.global_document_id AND d.authority=NEW.authority AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Source requires published global document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_curriculum_versions_insert_master
+BEFORE INSERT ON global_curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='CTS curriculum requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_curriculum_versions_update_master
+BEFORE UPDATE ON global_curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='CTS curriculum requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_cts_training_calendars_insert_master
+BEFORE INSERT ON cts_training_calendars
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='CTS calendar requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_cts_training_calendars_update_master
+BEFORE UPDATE ON cts_training_calendars
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='CTS calendar requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_shifts_insert_master
+BEFORE INSERT ON global_shifts
+FOR EACH ROW
+BEGIN
+ IF NEW.status='active' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Global shift requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_shifts_update_master
+BEFORE UPDATE ON global_shifts
+FOR EACH ROW
+BEGIN
+ IF NEW.status='active' AND NOT EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Global shift requires official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_curriculum_versions_insert_master
+BEFORE INSERT ON curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_curriculum_versions g WHERE g.id=NEW.global_curriculum_id AND g.trade_id=NEW.trade_id AND g.status IN ('published','superseded') AND g.version_code=NEW.version_code AND g.duration_months=NEW.duration_months AND g.nsqf_level=NEW.nsqf_level AND g.unit_strength=NEW.unit_strength) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local curriculum differs from official CTS';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_curriculum_versions_update_master
+BEFORE UPDATE ON curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_curriculum_versions g WHERE g.id=NEW.global_curriculum_id AND g.trade_id=NEW.trade_id AND g.status IN ('published','superseded') AND g.version_code=NEW.version_code AND g.duration_months=NEW.duration_months AND g.nsqf_level=NEW.nsqf_level AND g.unit_strength=NEW.unit_strength) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local curriculum differs from official CTS';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_curriculum_years_insert_master
+BEFORE INSERT ON curriculum_years
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_curriculum_years g WHERE g.id=NEW.global_curriculum_year_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.year_no=NEW.year_no AND g.trade_practical_minutes=NEW.trade_practical_minutes AND g.trade_theory_minutes=NEW.trade_theory_minutes AND g.employability_minutes=NEW.employability_minutes AND g.ojt_project_minutes=NEW.ojt_project_minutes AND g.credits <=> NEW.credits) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local syllabus hours differ from CTS master';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_curriculum_years_update_master
+BEFORE UPDATE ON curriculum_years
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_curriculum_years g WHERE g.id=NEW.global_curriculum_year_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.year_no=NEW.year_no AND g.trade_practical_minutes=NEW.trade_practical_minutes AND g.trade_theory_minutes=NEW.trade_theory_minutes AND g.employability_minutes=NEW.employability_minutes AND g.ojt_project_minutes=NEW.ojt_project_minutes AND g.credits <=> NEW.credits) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local syllabus hours differ from CTS master';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_learning_outcomes_insert_master
+BEFORE INSERT ON learning_outcomes
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_learning_outcomes g WHERE g.id=NEW.global_learning_outcome_id AND g.global_curriculum_year_id=NEW.global_curriculum_year_id AND g.lo_code=NEW.lo_code AND (g.nos_code <=> NEW.nos_code) AND BINARY g.outcome_text=BINARY NEW.outcome_text AND BINARY g.assessment_criteria=BINARY NEW.assessment_criteria AND (g.formative_max_marks <=> NEW.formative_max_marks)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local learning outcome differs from CTS master';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_learning_outcomes_update_master
+BEFORE UPDATE ON learning_outcomes
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_learning_outcomes g WHERE g.id=NEW.global_learning_outcome_id AND g.global_curriculum_year_id=NEW.global_curriculum_year_id AND g.lo_code=NEW.lo_code AND (g.nos_code <=> NEW.nos_code) AND BINARY g.outcome_text=BINARY NEW.outcome_text AND BINARY g.assessment_criteria=BINARY NEW.assessment_criteria AND (g.formative_max_marks <=> NEW.formative_max_marks)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local learning outcome differs from CTS master';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_resource_requirements_insert_master
+BEFORE INSERT ON resource_requirements
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_resource_requirements g WHERE g.id=NEW.global_resource_requirement_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.resource_code=NEW.resource_code AND BINARY g.resource_name=BINARY NEW.resource_name AND (g.specification <=> NEW.specification) AND g.resource_type=NEW.resource_type AND g.base_quantity=NEW.base_quantity AND g.additional_unit_quantity=NEW.additional_unit_quantity AND g.measurement_unit=NEW.measurement_unit) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local resource requirement differs from CTS';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_resource_requirements_update_master
+BEFORE UPDATE ON resource_requirements
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1 FROM global_resource_requirements g WHERE g.id=NEW.global_resource_requirement_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.resource_code=NEW.resource_code AND BINARY g.resource_name=BINARY NEW.resource_name AND (g.specification <=> NEW.specification) AND g.resource_type=NEW.resource_type AND g.base_quantity=NEW.base_quantity AND g.additional_unit_quantity=NEW.additional_unit_quantity AND g.measurement_unit=NEW.measurement_unit) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local resource requirement differs from CTS';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_batch_years_insert_master
+BEFORE INSERT ON batch_years
+FOR EACH ROW
+BEGIN
+ IF NEW.calendar_status='reviewed' AND NOT EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status IN ('published','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Reviewed batch year requires official calendar';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_batch_years_update_master
+BEFORE UPDATE ON batch_years
+FOR EACH ROW
+BEGIN
+ IF NEW.calendar_status='reviewed' AND NOT EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status IN ('published','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Reviewed batch year requires official calendar';
  END IF;
 END$$
 

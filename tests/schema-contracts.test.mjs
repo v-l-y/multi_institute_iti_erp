@@ -79,7 +79,8 @@ test('five canonical authentication roles have correct scope and identity contra
   contains('auth_user_roles', 'student_link_user_id IS NOT NULL AND student_link_user_id=user_id');
   contains('staff', "staff_category ENUM('teaching','non_teaching') NOT NULL");
   contains('staff', 'designation VARCHAR(120) NOT NULL');
-  contains('staff', "LOWER(TRIM(designation))='principal'");
+  contains('staff', "principal_assignment ENUM('none','principal','acting_principal') NOT NULL DEFAULT 'none'");
+  contains('staff', "principal_assignment IN ('principal','acting_principal')");
   contains('staff', 'CHECK(CHAR_LENGTH(TRIM(designation))>0)');
   assert.ok(!table('staff').includes('role ENUM('), 'Staff designation must be separate from login role');
   contains('auth_user_roles', "role_code IN('principal','administrator','instructor')");
@@ -89,6 +90,41 @@ test('five canonical authentication roles have correct scope and identity contra
   contains('auth_audit_log', 'FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key)');
   contains('auth_user_permissions', 'institute_id BIGINT UNSIGNED NOT NULL');
 });
+test('NIMS IPRN is canonical and staff mapping uses the same institute identity', () => {
+  contains('instructor_identities', 'iprn VARCHAR(120) NOT NULL UNIQUE');
+  contains('staff', 'identity_id BIGINT UNSIGNED NULL');
+  assert.ok(!/\\biprn VARCHAR\\(/.test(table('staff')), 'staff must not duplicate instructor IPRN');
+  contains('staff', 'UNIQUE(id,identity_id,institute_id)');
+  contains('staff', 'identity_id IS NOT NULL AND verification_reference IS NOT NULL');
+  contains('instructor_mappings', 'FOREIGN KEY(staff_id,identity_id,institute_id) REFERENCES staff(id,identity_id,institute_id)');
+});
+
+test('government exam policy flags require explicit source-backed values', () => {
+  for (const field of ['requires_prn', 'requires_cbt_fee', 'requires_practical_fee', 'requires_ojt_for_certificate']) {
+    contains('global_exam_rule_versions', field + ' TINYINT NOT NULL');
+    assert.ok(!table('global_exam_rule_versions').includes(field + ' TINYINT NOT NULL DEFAULT'), field + ' has an assumed default');
+  }
+  contains('global_exam_rule_versions', 'principal_relaxation_cap DECIMAL(5,2) NOT NULL');
+});
+
+test('pre-admission registration fees stay linked to student and within institute', () => {
+  contains('fee_transactions', 'student_id BIGINT UNSIGNED NOT NULL');
+  contains('fee_transactions', 'enrollment_id BIGINT UNSIGNED NULL');
+  contains('fee_transactions', "CHECK(enrollment_id IS NOT NULL OR fee_head='registration')");
+  contains('enrollments', 'UNIQUE(id,student_id,institute_id)');
+  contains('fee_transactions', 'FOREIGN KEY(enrollment_id,student_id,institute_id) REFERENCES enrollments(id,student_id,institute_id)');
+  contains('fee_transactions', 'FOREIGN KEY(reverses_transaction_id,student_id,institute_id) REFERENCES fee_transactions(id,student_id,institute_id)');
+});
+
+test('institute contact and issuer-vs-portal identity are not invented mandatory rules', () => {
+  contains('institute', 'district_name VARCHAR(120) NULL');
+  contains('institute', 'management_type VARCHAR(80) NULL');
+  contains('institute', 'contact_phone VARCHAR(20) NULL');
+  contains('institute', 'contact_email VARCHAR(190) NULL');
+  contains('global_regulatory_documents', "authority ENUM('DGT','NCVET','STATE_UT','SSDEC') NOT NULL");
+  contains('global_regulatory_documents', "source_system ENUM('SIDH','NCVT_MIS','NIMS') NULL");
+});
+
 test('all referenced foreign key tables exist and column counts match', () => {
   const names = new Set([...sql.matchAll(/CREATE TABLE (\w+)/g)].map(x => x[1]));
   for (const [name] of [...names].map(n => [n])) {

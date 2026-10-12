@@ -690,6 +690,7 @@ CREATE TABLE batches (
  UNIQUE(id,curriculum_id,institute_id),
  UNIQUE(id,admission_rule_id,institute_id),
  UNIQUE(id,admission_year,institute_id),
+ UNIQUE(id,intake_id,institute_id),
  UNIQUE(id,calendar_id,institute_id),
  UNIQUE(id,trade_id,institute_id),
  UNIQUE(batch_code,institute_id),
@@ -853,6 +854,8 @@ CREATE TABLE enrollments (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  student_id BIGINT UNSIGNED NOT NULL,
  batch_id BIGINT UNSIGNED NOT NULL,
+ intake_id BIGINT UNSIGNED NOT NULL,
+ admission_intake_revision_id BIGINT UNSIGNED NOT NULL,
  admission_number VARCHAR(80) NOT NULL,
  state_registration_number VARCHAR(100) NULL,
  admitted_on DATE NOT NULL,
@@ -878,6 +881,8 @@ CREATE TABLE enrollments (
  UNIQUE(id,institute_id),
  FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
  FOREIGN KEY(batch_id,admission_rule_id,institute_id) REFERENCES batches(id,admission_rule_id,institute_id),
+ FOREIGN KEY(batch_id,intake_id,institute_id) REFERENCES batches(id,intake_id,institute_id),
+ FOREIGN KEY(admission_intake_revision_id,intake_id,institute_id) REFERENCES admission_intake_revisions(id,intake_id,institute_id),
  FOREIGN KEY(admission_rule_id,institute_id) REFERENCES admission_rules(id,institute_id),
  FOREIGN KEY(qualification_id,student_id,institute_id) REFERENCES student_qualifications(id,student_id,institute_id),
  FOREIGN KEY(vertical_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
@@ -2766,17 +2771,28 @@ CREATE TRIGGER trg_enrollments_insert_admission_window
 BEFORE INSERT ON enrollments
 FOR EACH ROW
 BEGIN
- IF NEW.status NOT IN ('cancelled') AND NOT EXISTS (
+ IF NEW.status<>'cancelled'
+   AND NOT EXISTS (
   SELECT 1 FROM batches b
-  JOIN admission_intake_revisions ir ON ir.intake_id=b.intake_id AND ir.institute_id=b.institute_id
-  JOIN regulatory_sources r ON r.id=ir.source_id AND r.institute_id=ir.institute_id
-  JOIN global_regulatory_documents d ON d.id=r.global_document_id
-  WHERE b.id=NEW.batch_id AND b.institute_id=NEW.institute_id
+  JOIN admission_intake_revisions ir
+   ON ir.id=NEW.admission_intake_revision_id
+   AND ir.intake_id=NEW.intake_id AND ir.institute_id=NEW.institute_id
+  JOIN regulatory_sources rs ON rs.id=ir.source_id AND rs.institute_id=ir.institute_id
+  JOIN global_regulatory_documents d ON d.id=rs.global_document_id
+  WHERE b.id=NEW.batch_id AND b.intake_id=NEW.intake_id AND b.institute_id=NEW.institute_id
     AND NEW.admitted_on BETWEEN ir.opens_on AND ir.closes_on
-    AND ir.status IN ('published','superseded')
     AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL
+    AND d.reviewed_by IS NOT NULL
+    AND (ir.status='published'
+      OR (ir.status='superseded' AND EXISTS (
+        SELECT 1 FROM admission_intake_revisions later
+        WHERE later.supersedes_id=ir.id
+          AND later.intake_id=ir.intake_id AND later.institute_id=ir.institute_id
+          AND later.status IN ('published','superseded')
+          AND later.published_on>NEW.admitted_on
+      )))
  ) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission date is outside documented official window';
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission needs applicable reviewed intake revision';
  END IF;
 END$$
 
@@ -2784,20 +2800,34 @@ CREATE TRIGGER trg_enrollments_update_admission_window
 BEFORE UPDATE ON enrollments
 FOR EACH ROW
 BEGIN
- IF (NOT (NEW.batch_id <=> OLD.batch_id) OR NOT (NEW.admitted_on <=> OLD.admitted_on)
+ IF NEW.status<>'cancelled'
+   AND (NOT (NEW.batch_id <=> OLD.batch_id)
+     OR NOT (NEW.intake_id <=> OLD.intake_id)
+     OR NOT (NEW.admission_intake_revision_id <=> OLD.admission_intake_revision_id)
+     OR NOT (NEW.admitted_on <=> OLD.admitted_on)
      OR NOT (NEW.institute_id <=> OLD.institute_id)
      OR (OLD.status='cancelled' AND NEW.status<>'cancelled'))
-   AND NEW.status<>'cancelled' AND NOT EXISTS (
+   AND NOT EXISTS (
   SELECT 1 FROM batches b
-  JOIN admission_intake_revisions ir ON ir.intake_id=b.intake_id AND ir.institute_id=b.institute_id
-  JOIN regulatory_sources r ON r.id=ir.source_id AND r.institute_id=ir.institute_id
-  JOIN global_regulatory_documents d ON d.id=r.global_document_id
-  WHERE b.id=NEW.batch_id AND b.institute_id=NEW.institute_id
+  JOIN admission_intake_revisions ir
+   ON ir.id=NEW.admission_intake_revision_id
+   AND ir.intake_id=NEW.intake_id AND ir.institute_id=NEW.institute_id
+  JOIN regulatory_sources rs ON rs.id=ir.source_id AND rs.institute_id=ir.institute_id
+  JOIN global_regulatory_documents d ON d.id=rs.global_document_id
+  WHERE b.id=NEW.batch_id AND b.intake_id=NEW.intake_id AND b.institute_id=NEW.institute_id
     AND NEW.admitted_on BETWEEN ir.opens_on AND ir.closes_on
-    AND ir.status IN ('published','superseded')
     AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL
+    AND d.reviewed_by IS NOT NULL
+    AND (ir.status='published'
+      OR (ir.status='superseded' AND EXISTS (
+        SELECT 1 FROM admission_intake_revisions later
+        WHERE later.supersedes_id=ir.id
+          AND later.intake_id=ir.intake_id AND later.institute_id=ir.institute_id
+          AND later.status IN ('published','superseded')
+          AND later.published_on>NEW.admitted_on
+      )))
  ) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission date is outside documented official window';
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission needs applicable reviewed intake revision';
  END IF;
 END$$
 

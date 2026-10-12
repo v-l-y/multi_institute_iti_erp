@@ -2814,4 +2814,131 @@ BEGIN
  END IF;
 END$$
 
+CREATE TRIGGER trg_global_admission_rule_versions_freeze_update
+BEFORE UPDATE ON global_admission_rule_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (NOT (OLD.trade_id <=> NEW.trade_id)
+  OR NOT (OLD.global_curriculum_id <=> NEW.global_curriculum_id)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.state_source_document_id <=> NEW.state_source_document_id)
+  OR NOT (OLD.admission_window_document_id <=> NEW.admission_window_document_id)
+  OR NOT (OLD.version_code <=> NEW.version_code)
+  OR NOT (OLD.state_ut_code <=> NEW.state_ut_code)
+  OR NOT (OLD.minimum_age_years <=> NEW.minimum_age_years)
+  OR NOT (OLD.age_cutoff_date <=> NEW.age_cutoff_date)
+  OR NOT (OLD.qualification_routes_json <=> NEW.qualification_routes_json)
+  OR NOT (OLD.admission_opens_on <=> NEW.admission_opens_on)
+  OR NOT (OLD.admission_closes_on <=> NEW.admission_closes_on)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy must not be rewritten';
+ END IF;
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy cannot return to draft';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
+ END IF;
+END$
+
+CREATE TRIGGER trg_global_admission_rule_versions_freeze_delete
+BEFORE DELETE ON global_admission_rule_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
+ END IF;
+END$
+
+CREATE TRIGGER trg_global_reservation_policies_freeze_update
+BEFORE UPDATE ON global_reservation_policies
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (NOT (OLD.state_ut_code <=> NEW.state_ut_code)
+  OR NOT (OLD.admission_year <=> NEW.admission_year)
+  OR NOT (OLD.version_code <=> NEW.version_code)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.policy_json <=> NEW.policy_json)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy must not be rewritten';
+ END IF;
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy cannot return to draft';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
+ END IF;
+END$
+
+CREATE TRIGGER trg_global_reservation_policies_freeze_delete
+BEFORE DELETE ON global_reservation_policies
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
+ END IF;
+END$
+
+CREATE TRIGGER trg_global_exam_rule_versions_freeze_update
+BEFORE UPDATE ON global_exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.code <=> NEW.code)
+  OR NOT (OLD.cycle_type <=> NEW.cycle_type)
+  OR NOT (OLD.minimum_attendance <=> NEW.minimum_attendance)
+  OR NOT (OLD.minimum_formative <=> NEW.minimum_formative)
+  OR NOT (OLD.principal_relaxation_cap <=> NEW.principal_relaxation_cap)
+  OR NOT (OLD.relaxation_source_document_id <=> NEW.relaxation_source_document_id)
+  OR NOT (OLD.requires_prn <=> NEW.requires_prn)
+  OR NOT (OLD.requires_cbt_fee <=> NEW.requires_cbt_fee)
+  OR NOT (OLD.requires_practical_fee <=> NEW.requires_practical_fee)
+  OR NOT (OLD.requires_ojt_for_certificate <=> NEW.requires_ojt_for_certificate)
+  OR NOT (OLD.practical_upload_hours <=> NEW.practical_upload_hours)
+  OR NOT (OLD.effective_from <=> NEW.effective_from)
+  OR NOT (OLD.effective_to <=> NEW.effective_to)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy must not be rewritten';
+ END IF;
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy cannot return to draft';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
+ END IF;
+END$
+
+CREATE TRIGGER trg_global_exam_rule_versions_freeze_delete
+BEFORE DELETE ON global_exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
+ END IF;
+END$
+
+CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_insert
+BEFORE INSERT ON cts_training_calendar_milestones
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status<>'draft') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official published calendar cannot accept new milestones';
+ END IF;
+END$
+
+CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_update
+BEFORE UPDATE ON cts_training_calendar_milestones
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=OLD.calendar_id AND c.status<>'draft') OR EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status<>'draft') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official calendar milestone history cannot be rewritten';
+ END IF;
+END$
+
+CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_delete
+BEFORE DELETE ON cts_training_calendar_milestones
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=OLD.calendar_id AND c.status<>'draft') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published calendar milestone cannot be deleted';
+ END IF;
+END$
+
 DELIMITER ;

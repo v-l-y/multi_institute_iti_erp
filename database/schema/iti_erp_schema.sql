@@ -1049,36 +1049,49 @@ CREATE TABLE ojt_evaluations (
  CHECK(primary_marks BETWEEN 0 AND primary_max_marks AND external_marks BETWEEN 0 AND external_max_marks)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE exam_rule_versions (
- institute_id BIGINT UNSIGNED NOT NULL,
+-- Examination thresholds and eligibility requirements are official policy versions.
+CREATE TABLE global_exam_rule_versions (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- source_id BIGINT UNSIGNED NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
  code VARCHAR(80) NOT NULL,
  cycle_type ENUM('mains','supplementary','leftover') NOT NULL,
  minimum_attendance DECIMAL(5,2) NOT NULL,
  minimum_formative DECIMAL(5,2) NOT NULL,
  principal_relaxation_cap DECIMAL(5,2) NOT NULL DEFAULT 0,
- relaxation_source_id BIGINT UNSIGNED NULL,
+ relaxation_source_document_id BIGINT UNSIGNED NULL,
  requires_prn TINYINT NOT NULL DEFAULT 1,
  requires_cbt_fee TINYINT NOT NULL DEFAULT 1,
  requires_practical_fee TINYINT NOT NULL DEFAULT 1,
  requires_ojt_for_certificate TINYINT NOT NULL DEFAULT 1,
- practical_upload_hours SMALLINT UNSIGNED NOT NULL DEFAULT 48,
+ practical_upload_hours SMALLINT UNSIGNED NOT NULL,
  effective_from DATE NOT NULL,
  effective_to DATE NULL,
  status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(code,institute_id),
- UNIQUE(id,institute_id),
- FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(relaxation_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(code),
+ UNIQUE(id,cycle_type),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ FOREIGN KEY(relaxation_source_document_id) REFERENCES global_regulatory_documents(id),
  CHECK(minimum_attendance BETWEEN 0 AND 100 AND minimum_formative BETWEEN 0 AND 100),
  CHECK(principal_relaxation_cap BETWEEN 0 AND 100),
- CHECK(principal_relaxation_cap=0 OR relaxation_source_id IS NOT NULL),
+ CHECK(principal_relaxation_cap=0 OR relaxation_source_document_id IS NOT NULL),
  CHECK(requires_prn IN(0,1) AND requires_cbt_fee IN(0,1) AND requires_practical_fee IN(0,1) AND requires_ojt_for_certificate IN(0,1)),
  CHECK(effective_to IS NULL OR effective_to>=effective_from)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE exam_rule_versions (
+ institute_id BIGINT UNSIGNED NOT NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ global_exam_rule_id BIGINT UNSIGNED NOT NULL,
+ cycle_type ENUM('mains','supplementary','leftover') NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(global_exam_rule_id,institute_id),
+ UNIQUE(id,cycle_type,institute_id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(global_exam_rule_id,cycle_type) REFERENCES global_exam_rule_versions(id,cycle_type),
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE exam_cycles (
@@ -1098,7 +1111,7 @@ CREATE TABLE exam_cycles (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(code,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(rule_id,institute_id) REFERENCES exam_rule_versions(id,institute_id),
+ FOREIGN KEY(rule_id,cycle_type,institute_id) REFERENCES exam_rule_versions(id,cycle_type,institute_id),
  FOREIGN KEY(schedule_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1733,8 +1746,17 @@ CREATE TRIGGER trg_exam_rule_versions_insert_integrity
 BEFORE INSERT ON exam_rule_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_exam_rule_versions g
+  JOIN global_regulatory_documents d ON d.id=g.source_document_id
+  LEFT JOIN global_regulatory_documents rd ON rd.id=g.relaxation_source_document_id
+  WHERE g.id=NEW.global_exam_rule_id AND g.cycle_type=NEW.cycle_type
+    AND g.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+    AND (g.relaxation_source_document_id IS NULL OR (rd.status IN ('published','superseded') AND rd.reviewed_at IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Exam rule requires reviewed official policy';
  END IF;
 END$$
 
@@ -1742,8 +1764,17 @@ CREATE TRIGGER trg_exam_rule_versions_update_integrity
 BEFORE UPDATE ON exam_rule_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_exam_rule_versions g
+  JOIN global_regulatory_documents d ON d.id=g.source_document_id
+  LEFT JOIN global_regulatory_documents rd ON rd.id=g.relaxation_source_document_id
+  WHERE g.id=NEW.global_exam_rule_id AND g.cycle_type=NEW.cycle_type
+    AND g.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+    AND (g.relaxation_source_document_id IS NULL OR (rd.status IN ('published','superseded') AND rd.reviewed_at IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Exam rule requires reviewed official policy';
  END IF;
 END$$
 

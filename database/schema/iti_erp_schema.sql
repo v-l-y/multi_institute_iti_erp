@@ -26,7 +26,8 @@ CREATE TABLE institute (
  affiliation_order_reference VARCHAR(190) NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- CHECK(affiliation_to IS NULL OR affiliation_to>=affiliation_from)
+ CHECK(affiliation_to IS NULL OR affiliation_to>=affiliation_from),
+ CHECK(state_ut_code='BR')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE global_regulatory_documents (
@@ -49,7 +50,7 @@ CREATE TABLE global_regulatory_documents (
  UNIQUE(id,authority),
  UNIQUE(authority,reference_no,issued_on),
  FOREIGN KEY(supersedes_id,authority) REFERENCES global_regulatory_documents(id,authority),
- CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code IS NOT NULL),
+ CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code='BR'),
  CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
  CHECK(source_url IS NOT NULL OR evidence_reference IS NOT NULL),
  CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),
@@ -534,7 +535,8 @@ CREATE TABLE admission_rules (
  FOREIGN KEY(state_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(admission_window_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(admission_closes_on>=admission_opens_on)
+ CHECK(admission_closes_on>=admission_opens_on),
+ CHECK(state_ut_code='BR')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE reservation_policies (
@@ -552,7 +554,8 @@ CREATE TABLE reservation_policies (
  UNIQUE(id,admission_year,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id)
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(state_ut_code='BR')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE batches (
@@ -638,14 +641,10 @@ CREATE TABLE training_calendar_entries (
  session_date DATE NOT NULL,
  component ENUM('trade_practical','trade_theory','employability','ojt_project') NOT NULL,
  scheduled_minutes SMALLINT UNSIGNED NOT NULL,
- calendar_source_id BIGINT UNSIGNED NOT NULL,
- calendar_revision_code VARCHAR(80) NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(batch_year_id,session_date,component,institute_id),
  FOREIGN KEY(batch_year_id,calendar_id,institute_id) REFERENCES batch_years(id,calendar_id,institute_id),
- FOREIGN KEY(calendar_id,calendar_revision_code) REFERENCES cts_training_calendars(id,revision_code),
- FOREIGN KEY(calendar_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(scheduled_minutes>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1687,8 +1686,14 @@ CREATE TRIGGER trg_training_calendar_entries_insert_integrity
 BEFORE INSERT ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.revision_code=NEW.calendar_revision_code AND c.status IN ('published','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM cts_training_calendars c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.calendar_id AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Calendar schedule requires reviewed CTS source';
  END IF;
 END$$
 
@@ -1696,8 +1701,14 @@ CREATE TRIGGER trg_training_calendar_entries_update_integrity
 BEFORE UPDATE ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.revision_code=NEW.calendar_revision_code AND c.status IN ('published','superseded') AND d.status IN ('published','superseded')) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM cts_training_calendars c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.calendar_id AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Calendar schedule requires reviewed CTS source';
  END IF;
 END$$
 

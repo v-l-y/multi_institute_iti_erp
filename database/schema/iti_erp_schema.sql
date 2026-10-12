@@ -2323,6 +2323,9 @@ CREATE TRIGGER trg_global_regulatory_documents_freeze_update
 BEFORE UPDATE ON global_regulatory_documents
 FOR EACH ROW
 BEGIN
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('published','superseded','withdrawn') AND (
   NOT (OLD.authority <=> NEW.authority)
   OR NOT (OLD.state_ut_code <=> NEW.state_ut_code)
@@ -2358,6 +2361,9 @@ CREATE TRIGGER trg_global_curriculum_versions_freeze_update
 BEFORE UPDATE ON global_curriculum_versions
 FOR EACH ROW
 BEGIN
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('published','superseded','withdrawn') AND (
   NOT (OLD.trade_id <=> NEW.trade_id)
   OR NOT (OLD.source_document_id <=> NEW.source_document_id)
@@ -2389,6 +2395,9 @@ CREATE TRIGGER trg_cts_training_calendars_freeze_update
 BEFORE UPDATE ON cts_training_calendars
 FOR EACH ROW
 BEGIN
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('published','superseded','withdrawn') AND (
   NOT (OLD.admission_year <=> NEW.admission_year)
   OR NOT (OLD.session_code <=> NEW.session_code)
@@ -2418,6 +2427,9 @@ CREATE TRIGGER trg_trade_master_revisions_freeze_update
 BEFORE UPDATE ON trade_master_revisions
 FOR EACH ROW
 BEGIN
+ IF OLD.status='active' AND NEW.status NOT IN ('active','superseded','retired') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('active','superseded','retired') AND (
   NOT (OLD.trade_id <=> NEW.trade_id)
   OR NOT (OLD.source_document_id <=> NEW.source_document_id)
@@ -2448,6 +2460,9 @@ CREATE TRIGGER trg_global_shifts_freeze_update
 BEFORE UPDATE ON global_shifts
 FOR EACH ROW
 BEGIN
+ IF OLD.status='active' AND NEW.status NOT IN ('active','superseded','retired') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('active','superseded','retired') AND (
   NOT (OLD.shift_no <=> NEW.shift_no)
   OR NOT (OLD.shift_code <=> NEW.shift_code)
@@ -2478,6 +2493,9 @@ CREATE TRIGGER trg_admission_intake_revisions_freeze_update
 BEFORE UPDATE ON admission_intake_revisions
 FOR EACH ROW
 BEGIN
+ IF OLD.status='published' AND NEW.status NOT IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('published','superseded','withdrawn') AND (
   NOT (OLD.institute_id <=> NEW.institute_id)
   OR NOT (OLD.intake_id <=> NEW.intake_id)
@@ -2510,6 +2528,9 @@ CREATE TRIGGER trg_seat_matrix_versions_freeze_update
 BEFORE UPDATE ON seat_matrix_versions
 FOR EACH ROW
 BEGIN
+ IF OLD.status='final' AND NEW.status NOT IN ('final','superseded') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official record cannot return to draft';
+ END IF;
  IF OLD.status IN ('final','superseded') AND (
   NOT (OLD.institute_id <=> NEW.institute_id)
   OR NOT (OLD.admission_year <=> NEW.admission_year)
@@ -2692,7 +2713,9 @@ BEFORE UPDATE ON seat_matrix_entries
 FOR EACH ROW
 BEGIN
  IF EXISTS (SELECT 1 FROM seat_matrix_versions v
-  WHERE v.id=OLD.version_id AND v.institute_id=OLD.institute_id AND v.status IN ('final','superseded')) THEN
+  WHERE v.id=OLD.version_id AND v.institute_id=OLD.institute_id AND v.status IN ('final','superseded'))
+ OR EXISTS (SELECT 1 FROM seat_matrix_versions v
+  WHERE v.id=NEW.version_id AND v.institute_id=NEW.institute_id AND v.status IN ('final','superseded')) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Final Seat Matrix rows cannot be rewritten; create new version';
  END IF;
 END$$

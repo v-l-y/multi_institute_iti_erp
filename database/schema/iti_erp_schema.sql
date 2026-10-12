@@ -116,10 +116,87 @@ CREATE TABLE global_shifts (
  CHECK(effective_to IS NULL OR effective_to>=effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Shared official CTS syllabus, versioned independently of institute data.
+CREATE TABLE global_curriculum_versions (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ version_code VARCHAR(80) NOT NULL,
+ duration_months SMALLINT UNSIGNED NOT NULL,
+ nsqf_level DECIMAL(3,1) NOT NULL,
+ unit_strength SMALLINT UNSIGNED NOT NULL,
+ effective_from DATE NOT NULL,
+ effective_to DATE NULL,
+ status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(trade_id,version_code),
+ UNIQUE(id,trade_id),
+ FOREIGN KEY(trade_id) REFERENCES trades(id),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(duration_months IN(6,12,24)),
+ CHECK(nsqf_level BETWEEN 1 AND 8),
+ CHECK(unit_strength>0),
+ CHECK(effective_to IS NULL OR effective_to>=effective_from)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE global_curriculum_years (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ year_no TINYINT UNSIGNED NOT NULL,
+ trade_practical_minutes INT UNSIGNED NOT NULL,
+ trade_theory_minutes INT UNSIGNED NOT NULL,
+ employability_minutes INT UNSIGNED NOT NULL,
+ ojt_project_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+ credits DECIMAL(7,2) NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(global_curriculum_id,year_no),
+ UNIQUE(id,global_curriculum_id,year_no),
+ FOREIGN KEY(global_curriculum_id) REFERENCES global_curriculum_versions(id),
+ CHECK(year_no IN(1,2)),
+ CHECK(credits IS NULL OR credits>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE global_learning_outcomes (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ global_curriculum_year_id BIGINT UNSIGNED NOT NULL,
+ lo_code VARCHAR(80) NOT NULL,
+ nos_code VARCHAR(80) NULL,
+ outcome_text TEXT NOT NULL,
+ assessment_criteria TEXT NOT NULL,
+ formative_max_marks DECIMAL(7,2) NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(global_curriculum_year_id,lo_code),
+ UNIQUE(id,global_curriculum_year_id,lo_code),
+ FOREIGN KEY(global_curriculum_year_id) REFERENCES global_curriculum_years(id),
+ CHECK(formative_max_marks IS NULL OR formative_max_marks>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE global_resource_requirements (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ resource_code VARCHAR(80) NOT NULL,
+ resource_name VARCHAR(255) NOT NULL,
+ specification TEXT NULL,
+ resource_type ENUM('tool','machine','equipment','power_kw','workshop_area_m2','safety','staff') NOT NULL,
+ base_quantity DECIMAL(10,3) NOT NULL,
+ additional_unit_quantity DECIMAL(10,3) NOT NULL DEFAULT 0,
+ measurement_unit VARCHAR(30) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(global_curriculum_id,resource_code),
+ UNIQUE(id,global_curriculum_id,resource_code),
+ FOREIGN KEY(global_curriculum_id) REFERENCES global_curriculum_versions(id),
+ CHECK(base_quantity>=0 AND additional_unit_quantity>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE curriculum_versions (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  trade_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
  source_id BIGINT UNSIGNED NOT NULL,
  version_code VARCHAR(80) NOT NULL,
  duration_months SMALLINT UNSIGNED NOT NULL,
@@ -132,8 +209,10 @@ CREATE TABLE curriculum_versions (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(trade_id,version_code,institute_id),
  UNIQUE(id,trade_id,institute_id),
+ UNIQUE(id,global_curriculum_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(trade_id) REFERENCES trades(id),
+ FOREIGN KEY(global_curriculum_id,trade_id) REFERENCES global_curriculum_versions(id,trade_id),
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(duration_months IN(6,12,24)),
@@ -146,6 +225,8 @@ CREATE TABLE curriculum_years (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_year_id BIGINT UNSIGNED NOT NULL,
  year_no TINYINT UNSIGNED NOT NULL,
  trade_practical_minutes INT UNSIGNED NOT NULL,
  trade_theory_minutes INT UNSIGNED NOT NULL,
@@ -156,8 +237,10 @@ CREATE TABLE curriculum_years (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(curriculum_id,year_no,institute_id),
  UNIQUE(id,curriculum_id,institute_id),
+ UNIQUE(id,global_curriculum_year_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(curriculum_id,institute_id) REFERENCES curriculum_versions(id,institute_id),
+ FOREIGN KEY(curriculum_id,global_curriculum_id,institute_id) REFERENCES curriculum_versions(id,global_curriculum_id,institute_id),
+ FOREIGN KEY(global_curriculum_year_id,global_curriculum_id,year_no) REFERENCES global_curriculum_years(id,global_curriculum_id,year_no),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(year_no IN(1,2)),
  CHECK(credits IS NULL OR credits>=0)
@@ -167,6 +250,8 @@ CREATE TABLE learning_outcomes (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  curriculum_year_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_year_id BIGINT UNSIGNED NOT NULL,
+ global_learning_outcome_id BIGINT UNSIGNED NOT NULL,
  lo_code VARCHAR(80) NOT NULL,
  nos_code VARCHAR(80) NULL,
  outcome_text TEXT NOT NULL,
@@ -177,7 +262,8 @@ CREATE TABLE learning_outcomes (
  UNIQUE(curriculum_year_id,lo_code,institute_id),
  UNIQUE(id,curriculum_year_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(curriculum_year_id,institute_id) REFERENCES curriculum_years(id,institute_id),
+ FOREIGN KEY(curriculum_year_id,global_curriculum_year_id,institute_id) REFERENCES curriculum_years(id,global_curriculum_year_id,institute_id),
+ FOREIGN KEY(global_learning_outcome_id,global_curriculum_year_id,lo_code) REFERENCES global_learning_outcomes(id,global_curriculum_year_id,lo_code),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -185,6 +271,8 @@ CREATE TABLE resource_requirements (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_resource_requirement_id BIGINT UNSIGNED NOT NULL,
  resource_code VARCHAR(80) NOT NULL,
  resource_name VARCHAR(255) NOT NULL,
  specification TEXT NULL,
@@ -196,7 +284,8 @@ CREATE TABLE resource_requirements (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(curriculum_id,resource_code,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(curriculum_id,institute_id) REFERENCES curriculum_versions(id,institute_id),
+ FOREIGN KEY(curriculum_id,global_curriculum_id,institute_id) REFERENCES curriculum_versions(id,global_curriculum_id,institute_id),
+ FOREIGN KEY(global_resource_requirement_id,global_curriculum_id,resource_code) REFERENCES global_resource_requirements(id,global_curriculum_id,resource_code),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(base_quantity>=0 AND additional_unit_quantity>=0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

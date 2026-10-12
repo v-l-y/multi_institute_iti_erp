@@ -469,6 +469,22 @@ CREATE TABLE cts_training_calendar_milestones (
  FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Portal shift codes are official calendar-specific data, not permanent arithmetic rules.
+CREATE TABLE cts_portal_shift_mappings (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ calendar_id BIGINT UNSIGNED NOT NULL,
+ session_part ENUM('primary','six_month_second') NOT NULL,
+ physical_shift_no TINYINT UNSIGNED NOT NULL,
+ portal_shift_no TINYINT UNSIGNED NOT NULL,
+ document_section_reference VARCHAR(190) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(calendar_id,session_part,physical_shift_no),
+ UNIQUE(calendar_id,session_part,portal_shift_no),
+ FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id),
+ CHECK(physical_shift_no BETWEEN 1 AND 3 AND portal_shift_no>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE admission_intakes (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -566,7 +582,7 @@ CREATE TABLE seat_matrix_entries (
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1)),
  CHECK(admission_allowed=0 OR instructor_mapping_id IS NOT NULL),
- CHECK(portal_shift_no IN(1,2,3,6,7,8))
+ CHECK(portal_shift_no>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Official admission eligibility and admission window: shared policy, not institute-owned values.
@@ -2276,11 +2292,12 @@ BEGIN
  IF NOT EXISTS (
   SELECT 1 FROM trade_unit_shifts u
   JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  JOIN cts_portal_shift_mappings m
+    ON m.calendar_id=ai.calendar_id AND m.session_part=ai.session_part
+    AND m.physical_shift_no=u.shift_no AND m.portal_shift_no=NEW.portal_shift_no
   WHERE u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
-    AND ((ai.session_part='primary' AND NEW.portal_shift_no=u.shift_no)
-      OR (ai.session_part='six_month_second' AND NEW.portal_shift_no=u.shift_no+5))
  ) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift conflicts with CTS intake session and affiliated shift';
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift not listed for official CTS intake calendar';
  END IF;
 END$$
 
@@ -2292,11 +2309,12 @@ BEGIN
  IF NOT EXISTS (
   SELECT 1 FROM trade_unit_shifts u
   JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  JOIN cts_portal_shift_mappings m
+    ON m.calendar_id=ai.calendar_id AND m.session_part=ai.session_part
+    AND m.physical_shift_no=u.shift_no AND m.portal_shift_no=NEW.portal_shift_no
   WHERE u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
-    AND ((ai.session_part='primary' AND NEW.portal_shift_no=u.shift_no)
-      OR (ai.session_part='six_month_second' AND NEW.portal_shift_no=u.shift_no+5))
  ) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift conflicts with CTS intake session and affiliated shift';
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift not listed for official CTS intake calendar';
  END IF;
 END$$
 
@@ -2732,6 +2750,41 @@ BEGIN
     AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission date is outside documented official window';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intakes_freeze_session
+BEFORE UPDATE ON admission_intakes
+FOR EACH ROW
+BEGIN
+ IF (NOT (OLD.session_part <=> NEW.session_part) OR NOT (OLD.calendar_id <=> NEW.calendar_id)
+     OR NOT (OLD.admission_year <=> NEW.admission_year) OR NOT (OLD.intake_code <=> NEW.intake_code))
+   AND EXISTS (SELECT 1 FROM seat_matrix_versions v WHERE v.intake_id=OLD.id AND v.institute_id=OLD.institute_id) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published intake identity cannot change after seat matrix';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_cts_portal_shift_mappings_update_freeze
+BEFORE UPDATE ON cts_portal_shift_mappings
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM admission_intakes ai
+  JOIN seat_matrix_versions v ON v.intake_id=ai.id AND v.institute_id=ai.institute_id
+  WHERE ai.calendar_id=OLD.calendar_id AND ai.session_part=OLD.session_part
+    AND v.status IN ('final','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official portal shift mapping used by final matrix is historical';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_cts_portal_shift_mappings_delete_freeze
+BEFORE DELETE ON cts_portal_shift_mappings
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM admission_intakes ai
+  JOIN seat_matrix_versions v ON v.intake_id=ai.id AND v.institute_id=ai.institute_id
+  WHERE ai.calendar_id=OLD.calendar_id AND ai.session_part=OLD.session_part
+    AND v.status IN ('final','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official portal shift mapping used by final matrix is historical';
  END IF;
 END$$
 

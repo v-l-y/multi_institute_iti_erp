@@ -554,23 +554,35 @@ CREATE TABLE admission_rules (
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Bihar reservation percentages and categories are official shared policy, not institute edits.
+CREATE TABLE global_reservation_policies (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ state_ut_code VARCHAR(20) NOT NULL DEFAULT 'BR',
+ admission_year SMALLINT UNSIGNED NOT NULL,
+ version_code VARCHAR(80) NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ policy_json LONGTEXT NOT NULL CHECK(JSON_VALID(policy_json)),
+ status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(state_ut_code,admission_year,version_code),
+ UNIQUE(id,admission_year),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(state_ut_code='BR')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE reservation_policies (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- state_ut_code VARCHAR(20) NOT NULL,
  admission_year SMALLINT UNSIGNED NOT NULL,
- version_code VARCHAR(80) NOT NULL,
- source_id BIGINT UNSIGNED NOT NULL,
- policy_json LONGTEXT NOT NULL CHECK(JSON_VALID(policy_json)),
- status ENUM('draft','published','superseded') NOT NULL DEFAULT 'draft',
+ global_reservation_policy_id BIGINT UNSIGNED NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(state_ut_code,admission_year,version_code,institute_id),
+ UNIQUE(global_reservation_policy_id,institute_id),
  UNIQUE(id,admission_year,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(state_ut_code='BR')
+ FOREIGN KEY(global_reservation_policy_id,admission_year) REFERENCES global_reservation_policies(id,admission_year),
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE batches (
@@ -1689,8 +1701,15 @@ CREATE TRIGGER trg_reservation_policies_insert_integrity
 BEFORE INSERT ON reservation_policies
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_reservation_policies p
+  JOIN global_regulatory_documents d ON d.id=p.source_document_id
+  WHERE p.id=NEW.global_reservation_policy_id AND p.admission_year=NEW.admission_year
+    AND p.state_ut_code='BR' AND p.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Reservation requires official Bihar policy';
  END IF;
 END$$
 
@@ -1698,8 +1717,15 @@ CREATE TRIGGER trg_reservation_policies_update_integrity
 BEFORE UPDATE ON reservation_policies
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_reservation_policies p
+  JOIN global_regulatory_documents d ON d.id=p.source_document_id
+  WHERE p.id=NEW.global_reservation_policy_id AND p.admission_year=NEW.admission_year
+    AND p.state_ut_code='BR' AND p.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Reservation requires official Bihar policy';
  END IF;
 END$$
 

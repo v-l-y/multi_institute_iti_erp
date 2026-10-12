@@ -22,6 +22,10 @@ CREATE TABLE institute (
  mis_code VARCHAR(40) NOT NULL UNIQUE,
  state_ut_code VARCHAR(20) NOT NULL DEFAULT 'BR',
  address TEXT NOT NULL,
+ district_name VARCHAR(120) NULL,
+ management_type VARCHAR(80) NULL,
+ contact_phone VARCHAR(20) NULL,
+ contact_email VARCHAR(190) NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  CHECK(state_ut_code='BR')
@@ -29,7 +33,8 @@ CREATE TABLE institute (
 
 CREATE TABLE global_regulatory_documents (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- authority ENUM('DGT','NCVET','SIDH','NCVT_MIS','NIMS','STATE_UT','SSDEC') NOT NULL,
+ authority ENUM('DGT','NCVET','STATE_UT','SSDEC') NOT NULL,
+ source_system ENUM('SIDH','NCVT_MIS','NIMS') NULL,
  state_ut_code VARCHAR(20) NULL,
  document_type VARCHAR(60) NOT NULL,
  title VARCHAR(255) NOT NULL,

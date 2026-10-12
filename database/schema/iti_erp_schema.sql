@@ -51,6 +51,8 @@ CREATE TABLE regulatory_sources (
  CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code IS NOT NULL),
  CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
  CHECK(source_url IS NOT NULL OR local_evidence_reference IS NOT NULL),
+ CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),
+ CHECK(supersedes_id IS NULL OR supersedes_id<>id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -228,9 +230,14 @@ CREATE TABLE trade_unit_shifts (
  valid_to DATE NULL,
  source_id BIGINT UNSIGNED NOT NULL,
  approval_reference VARCHAR(190) NOT NULL,
+ current_unit_guard BIGINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN valid_to IS NULL THEN trade_unit_id ELSE NULL END) STORED,
+ current_shift_guard TINYINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN valid_to IS NULL THEN shift_no ELSE NULL END) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(trade_unit_id,shift_no,institute_id),
+ UNIQUE(trade_unit_id,shift_no,valid_from,institute_id),
+ UNIQUE(current_unit_guard,current_shift_guard,institute_id),
  UNIQUE(id,trade_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(trade_unit_id,trade_id,institute_id) REFERENCES trade_units(id,trade_id,institute_id),
@@ -272,6 +279,7 @@ CREATE TABLE instructor_mappings (
  CHECK((mapping_type='trade' AND trade_unit_shift_id IS NOT NULL AND subject_code IS NULL)
     OR (mapping_type='subject' AND trade_unit_shift_id IS NULL AND subject_code IN('ES','WCS','ED','WCS_ED'))),
  CHECK(valid_to IS NULL OR valid_to>=valid_from),
+ UNIQUE(id,trade_unit_shift_id,institute_id),
  UNIQUE(id,institute_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -336,18 +344,21 @@ CREATE TABLE seat_matrix_versions (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(intake_id,version_code,institute_id),
+ UNIQUE(id,intake_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(intake_id,admission_year,institute_id) REFERENCES admission_intakes(id,admission_year,institute_id),
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(supersedes_id,institute_id) REFERENCES seat_matrix_versions(id,institute_id),
+ FOREIGN KEY(supersedes_id,intake_id,institute_id) REFERENCES seat_matrix_versions(id,intake_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(status='draft' OR published_on IS NOT NULL)
+ CHECK(status='draft' OR published_on IS NOT NULL),
+ CHECK(supersedes_id IS NULL OR supersedes_id<>id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE seat_matrix_entries (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  version_id BIGINT UNSIGNED NOT NULL,
+ intake_id BIGINT UNSIGNED NOT NULL,
  trade_unit_shift_id BIGINT UNSIGNED NOT NULL,
  seat_capacity SMALLINT UNSIGNED NOT NULL,
  admission_allowed TINYINT NOT NULL,
@@ -359,11 +370,12 @@ CREATE TABLE seat_matrix_entries (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(version_id,trade_unit_shift_id,institute_id),
+ UNIQUE(id,trade_unit_shift_id,intake_id,institute_id),
  UNIQUE(id,trade_unit_shift_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(version_id,institute_id) REFERENCES seat_matrix_versions(id,institute_id),
+ FOREIGN KEY(version_id,intake_id,institute_id) REFERENCES seat_matrix_versions(id,intake_id,institute_id),
  FOREIGN KEY(trade_unit_shift_id,institute_id) REFERENCES trade_unit_shifts(id,institute_id),
- FOREIGN KEY(instructor_mapping_id,institute_id) REFERENCES instructor_mappings(id,institute_id),
+ FOREIGN KEY(instructor_mapping_id,trade_unit_shift_id,institute_id) REFERENCES instructor_mappings(id,trade_unit_shift_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -446,7 +458,7 @@ CREATE TABLE batches (
  FOREIGN KEY(intake_id,admission_year,institute_id) REFERENCES admission_intakes(id,admission_year,institute_id),
  FOREIGN KEY(trade_unit_shift_id,trade_id,institute_id) REFERENCES trade_unit_shifts(id,trade_id,institute_id),
  FOREIGN KEY(curriculum_id,trade_id,institute_id) REFERENCES curriculum_versions(id,trade_id,institute_id),
- FOREIGN KEY(seat_matrix_entry_id,trade_unit_shift_id,institute_id) REFERENCES seat_matrix_entries(id,trade_unit_shift_id,institute_id),
+ FOREIGN KEY(seat_matrix_entry_id,trade_unit_shift_id,intake_id,institute_id) REFERENCES seat_matrix_entries(id,trade_unit_shift_id,intake_id,institute_id),
  FOREIGN KEY(admission_rule_id,trade_id,curriculum_id,institute_id) REFERENCES admission_rules(id,trade_id,curriculum_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(capacity>0 AND occupied_seats<=capacity AND ends_on>=starts_on)
@@ -491,10 +503,13 @@ CREATE TABLE training_calendar_entries (
  session_date DATE NOT NULL,
  component ENUM('trade_practical','trade_theory','employability','ojt_project') NOT NULL,
  scheduled_minutes SMALLINT UNSIGNED NOT NULL,
+ calendar_source_id BIGINT UNSIGNED NOT NULL,
+ calendar_revision_code VARCHAR(80) NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(batch_year_id,session_date,component,institute_id),
  FOREIGN KEY(batch_year_id,institute_id) REFERENCES batch_years(id,institute_id),
+ FOREIGN KEY(calendar_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(scheduled_minutes>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -584,6 +599,7 @@ CREATE TABLE student_qualifications (
  verified_on DATE NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(id,student_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
@@ -620,7 +636,7 @@ CREATE TABLE enrollments (
  FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
  FOREIGN KEY(batch_id,institute_id) REFERENCES batches(id,institute_id),
  FOREIGN KEY(admission_rule_id,institute_id) REFERENCES admission_rules(id,institute_id),
- FOREIGN KEY(qualification_id,institute_id) REFERENCES student_qualifications(id,institute_id),
+ FOREIGN KEY(qualification_id,student_id,institute_id) REFERENCES student_qualifications(id,student_id,institute_id),
  FOREIGN KEY(vertical_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
  FOREIGN KEY(horizontal_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
@@ -649,6 +665,7 @@ CREATE TABLE attendance_sessions (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  batch_year_id BIGINT UNSIGNED NOT NULL,
+ batch_id BIGINT UNSIGNED NOT NULL,
  session_date DATE NOT NULL,
  component ENUM('trade_practical','trade_theory','employability','ojt_project') NOT NULL,
  scheduled_minutes SMALLINT UNSIGNED NOT NULL,
@@ -657,8 +674,9 @@ CREATE TABLE attendance_sessions (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(batch_year_id,session_date,component,institute_id),
+ UNIQUE(id,batch_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(batch_year_id,institute_id) REFERENCES batch_years(id,institute_id),
+ FOREIGN KEY(batch_year_id,batch_id,institute_id) REFERENCES batch_years(id,batch_id,institute_id),
  FOREIGN KEY(instructor_id,institute_id) REFERENCES staff(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(scheduled_minutes>0)
@@ -667,6 +685,7 @@ CREATE TABLE attendance_sessions (
 CREATE TABLE attendance_records (
  institute_id BIGINT UNSIGNED NOT NULL,
  session_id BIGINT UNSIGNED NOT NULL,
+ batch_id BIGINT UNSIGNED NOT NULL,
  enrollment_id BIGINT UNSIGNED NOT NULL,
  attended_minutes SMALLINT UNSIGNED NOT NULL,
  status ENUM('present','absent','leave','medical_leave','emergency_leave','ojt') NOT NULL,
@@ -675,8 +694,8 @@ CREATE TABLE attendance_records (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(session_id,enrollment_id,institute_id),
- FOREIGN KEY(session_id,institute_id) REFERENCES attendance_sessions(id,institute_id),
- FOREIGN KEY(enrollment_id,institute_id) REFERENCES enrollments(id,institute_id),
+ FOREIGN KEY(session_id,batch_id,institute_id) REFERENCES attendance_sessions(id,batch_id,institute_id),
+ FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -772,13 +791,22 @@ CREATE TABLE working_day_attendance (
  locked_on DATETIME NULL,
  revision_no BIGINT UNSIGNED NOT NULL DEFAULT 1 INVISIBLE,
  register_correction_id BIGINT UNSIGNED NOT NULL DEFAULT 0 INVISIBLE,
+ is_current TINYINT UNSIGNED NOT NULL DEFAULT 1,
+ current_enrollment_guard BIGINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN is_current=1 THEN enrollment_id ELSE NULL END) STORED,
+ current_batch_year_guard BIGINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN is_current=1 THEN batch_year_id ELSE NULL END) STORED,
+ current_date_guard DATE GENERATED ALWAYS AS
+   (CASE WHEN is_current=1 THEN session_date ELSE NULL END) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(enrollment_id,batch_year_id,session_date,institute_id,revision_no),
+ UNIQUE(current_enrollment_guard,current_batch_year_guard,current_date_guard,institute_id),
  FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
  FOREIGN KEY(batch_year_id,batch_id,institute_id) REFERENCES batch_years(id,batch_id,institute_id),
  FOREIGN KEY(certified_by,institute_id) REFERENCES staff(id,institute_id),
  CHECK(counted_present IN(0,1)),
+ CHECK(is_current IN(0,1) AND revision_no>0),
  CHECK(CHAR_LENGTH(TRIM(evidence_reference))>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1021,6 +1049,7 @@ CREATE TABLE exam_eligibility (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(enrollment_id,cycle_id,batch_year_id,institute_id),
  UNIQUE(id,enrollment_id,cycle_id,batch_year_id,institute_id),
+ UNIQUE(id,cycle_id,batch_year_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
  FOREIGN KEY(batch_year_id,batch_id,institute_id) REFERENCES batch_years(id,batch_id,institute_id),
@@ -1065,6 +1094,7 @@ CREATE TABLE practical_sessions (
  question_paper_source_id BIGINT UNSIGNED NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(id,cycle_id,batch_year_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(cycle_id,institute_id) REFERENCES exam_cycles(id,institute_id),
  FOREIGN KEY(batch_year_id,institute_id) REFERENCES batch_years(id,institute_id),
@@ -1076,14 +1106,16 @@ CREATE TABLE practical_marks (
  institute_id BIGINT UNSIGNED NOT NULL,
  practical_session_id BIGINT UNSIGNED NOT NULL,
  eligibility_id BIGINT UNSIGNED NOT NULL,
+ cycle_id BIGINT UNSIGNED NOT NULL,
+ batch_year_id BIGINT UNSIGNED NOT NULL,
  attendance_status ENUM('present','absent') NOT NULL,
  max_marks DECIMAL(7,2) NOT NULL,
  obtained_marks DECIMAL(7,2) NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(practical_session_id,eligibility_id,institute_id),
- FOREIGN KEY(practical_session_id,institute_id) REFERENCES practical_sessions(id,institute_id),
- FOREIGN KEY(eligibility_id,institute_id) REFERENCES exam_eligibility(id,institute_id),
+ FOREIGN KEY(practical_session_id,cycle_id,batch_year_id,institute_id) REFERENCES practical_sessions(id,cycle_id,batch_year_id,institute_id),
+ FOREIGN KEY(eligibility_id,cycle_id,batch_year_id,institute_id) REFERENCES exam_eligibility(id,cycle_id,batch_year_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(max_marks>0),
  CHECK((attendance_status='present' AND obtained_marks IS NOT NULL AND obtained_marks BETWEEN 0 AND max_marks)
@@ -1140,11 +1172,12 @@ CREATE TABLE official_results (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(enrollment_id,batch_year_id,cycle_id,revision_no,institute_id),
+ UNIQUE(id,enrollment_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
  FOREIGN KEY(batch_year_id,batch_id,institute_id) REFERENCES batch_years(id,batch_id,institute_id),
  FOREIGN KEY(cycle_id,institute_id) REFERENCES exam_cycles(id,institute_id),
- FOREIGN KEY(supersedes_result_id,institute_id) REFERENCES official_results(id,institute_id),
+ FOREIGN KEY(supersedes_result_id,enrollment_id,institute_id) REFERENCES official_results(id,enrollment_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(payload_sha256 REGEXP '^[0-9a-fA-F]{64}$')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1171,10 +1204,11 @@ CREATE TABLE certificates (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(certificate_number,revision_no,institute_id),
+ UNIQUE(id,enrollment_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(enrollment_id,institute_id) REFERENCES enrollments(id,institute_id),
- FOREIGN KEY(official_result_id,institute_id) REFERENCES official_results(id,institute_id),
- FOREIGN KEY(supersedes_certificate_id,institute_id) REFERENCES certificates(id,institute_id),
+ FOREIGN KEY(official_result_id,enrollment_id,institute_id) REFERENCES official_results(id,enrollment_id,institute_id),
+ FOREIGN KEY(supersedes_certificate_id,enrollment_id,institute_id) REFERENCES certificates(id,enrollment_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(credits_as_issued IS NULL OR credits_as_issued>=0),
  CHECK(payload_sha256 REGEXP '^[0-9a-fA-F]{64}$')
@@ -1284,14 +1318,20 @@ CREATE TABLE auth_users (
 
 CREATE TABLE auth_user_roles (
  institute_id BIGINT UNSIGNED NOT NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  user_id BIGINT UNSIGNED NOT NULL,
  role_id BIGINT UNSIGNED NOT NULL,
  valid_from DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  valid_to DATETIME NULL,
  granted_by BIGINT UNSIGNED NULL,
+ current_user_guard BIGINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN valid_to IS NULL THEN user_id ELSE NULL END) STORED,
+ current_role_guard BIGINT UNSIGNED GENERATED ALWAYS AS
+   (CASE WHEN valid_to IS NULL THEN role_id ELSE NULL END) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- PRIMARY KEY(user_id,role_id,institute_id),
+ UNIQUE(user_id,role_id,valid_from,institute_id),
+ UNIQUE(current_user_guard,current_role_guard,institute_id),
  FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
  FOREIGN KEY(role_id) REFERENCES auth_roles(id),
  FOREIGN KEY(granted_by,institute_id) REFERENCES auth_users(id,institute_id),

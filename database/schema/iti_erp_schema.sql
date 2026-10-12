@@ -1629,7 +1629,7 @@ CREATE TRIGGER trg_trade_unit_shifts_insert_integrity
 BEFORE INSERT ON trade_unit_shifts
 FOR EACH ROW
 BEGIN
- IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1638,7 +1638,7 @@ CREATE TRIGGER trg_trade_unit_shifts_update_integrity
 BEFORE UPDATE ON trade_unit_shifts
 FOR EACH ROW
 BEGIN
- IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1647,7 +1647,7 @@ CREATE TRIGGER trg_admission_intakes_insert_integrity
 BEFORE INSERT ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1656,7 +1656,7 @@ CREATE TRIGGER trg_admission_intakes_update_integrity
 BEFORE UPDATE ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1665,7 +1665,7 @@ CREATE TRIGGER trg_seat_matrix_versions_insert_integrity
 BEFORE INSERT ON seat_matrix_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1674,7 +1674,7 @@ CREATE TRIGGER trg_seat_matrix_versions_update_integrity
 BEFORE UPDATE ON seat_matrix_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1683,7 +1683,7 @@ CREATE TRIGGER trg_admission_rules_insert_integrity
 BEFORE INSERT ON admission_rules
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL))) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL))) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1692,7 +1692,7 @@ CREATE TRIGGER trg_admission_rules_update_integrity
 BEFORE UPDATE ON admission_rules
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL))) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL))) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1701,7 +1701,7 @@ CREATE TRIGGER trg_reservation_policies_insert_integrity
 BEFORE INSERT ON reservation_policies
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1710,7 +1710,7 @@ CREATE TRIGGER trg_reservation_policies_update_integrity
 BEFORE UPDATE ON reservation_policies
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1719,7 +1719,7 @@ CREATE TRIGGER trg_exam_rule_versions_insert_integrity
 BEFORE INSERT ON exam_rule_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1728,7 +1728,7 @@ CREATE TRIGGER trg_exam_rule_versions_update_integrity
 BEFORE UPDATE ON exam_rule_versions
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1737,7 +1737,7 @@ CREATE TRIGGER trg_training_calendar_entries_insert_integrity
 BEFORE INSERT ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1746,7 +1746,7 @@ CREATE TRIGGER trg_training_calendar_entries_update_integrity
 BEFORE UPDATE ON training_calendar_entries
 FOR EACH ROW
 BEGIN
- IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
  END IF;
 END$$
@@ -1759,6 +1759,7 @@ BEGIN
   FROM seat_matrix_entries e
   JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
   JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority
   WHERE e.id=NEW.seat_matrix_entry_id
     AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
     AND e.intake_id=NEW.intake_id
@@ -1767,7 +1768,7 @@ BEGIN
     AND e.seat_capacity>=NEW.capacity
     AND v.status='final'
     AND r.status IN ('published','superseded')
-    AND r.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
+    AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch requires final permitted seat matrix';
  END IF;
@@ -1781,6 +1782,7 @@ BEGIN
   FROM seat_matrix_entries e
   JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
   JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id AND d.authority=r.authority
   WHERE e.id=NEW.seat_matrix_entry_id
     AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
     AND e.intake_id=NEW.intake_id
@@ -1789,7 +1791,7 @@ BEGIN
     AND e.seat_capacity>=NEW.capacity
     AND v.status='final'
     AND r.status IN ('published','superseded')
-    AND r.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
+    AND r.reviewed_at IS NOT NULL AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch change requires final permitted seat matrix';
  END IF;

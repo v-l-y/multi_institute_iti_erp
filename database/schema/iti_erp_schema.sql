@@ -1,4 +1,4 @@
--- ITI ERP — FINAL SCHEMA (tables only)
+-- ITI ERP — SCHEMA AND INTEGRITY GUARDS
 -- MySQL 9.7 LTS, Bihar private CTS multi-ITI
 
 SET NAMES utf8mb4;
@@ -363,7 +363,7 @@ CREATE TABLE seat_matrix_entries (
  seat_capacity SMALLINT UNSIGNED NOT NULL,
  admission_allowed TINYINT NOT NULL,
  consumed_previous_session TINYINT NOT NULL DEFAULT 0,
- instructor_mapping_id BIGINT UNSIGNED NOT NULL,
+ instructor_mapping_id BIGINT UNSIGNED NULL,
  instructor_mapping_satisfied TINYINT NOT NULL DEFAULT 0,
  eligibility_reason VARCHAR(500) NULL,
  portal_itsu_reference VARCHAR(190) NOT NULL,
@@ -377,7 +377,8 @@ CREATE TABLE seat_matrix_entries (
  FOREIGN KEY(trade_unit_shift_id,institute_id) REFERENCES trade_unit_shifts(id,institute_id),
  FOREIGN KEY(instructor_mapping_id,trade_unit_shift_id,institute_id) REFERENCES instructor_mappings(id,trade_unit_shift_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1))
+ CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1)),
+ CHECK(admission_allowed=0 OR instructor_mapping_id IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE admission_rules (
@@ -1423,3 +1424,181 @@ CREATE TABLE auth_user_permissions (
  FOREIGN KEY(permission_id) REFERENCES auth_permissions(id),
  FOREIGN KEY(granted_by,institute_id) REFERENCES auth_users(id,institute_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------- DATA-INTEGRITY GUARDS ----------
+-- Official source checks occur at record creation/editing. Later source supersession
+-- does not silently rewrite historical records; consumers must re-evaluate currency.
+-- Run this file through the MySQL CLI; DELIMITER is a CLI directive.
+DELIMITER $$
+
+CREATE TRIGGER trg_trade_unit_shifts_insert_integrity
+BEFORE INSERT ON trade_unit_shifts
+FOR EACH ROW
+BEGIN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_trade_unit_shifts_update_integrity
+BEFORE UPDATE ON trade_unit_shifts
+FOR EACH ROW
+BEGIN
+ IF (NEW.affiliation_status='approved') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intakes_insert_integrity
+BEFORE INSERT ON admission_intakes
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intakes_update_integrity
+BEFORE UPDATE ON admission_intakes
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_versions_insert_integrity
+BEFORE INSERT ON seat_matrix_versions
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_versions_update_integrity
+BEFORE UPDATE ON seat_matrix_versions
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='final') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_rules_insert_integrity
+BEFORE INSERT ON admission_rules
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL))) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_rules_update_integrity
+BEFORE UPDATE ON admission_rules
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL))) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_reservation_policies_insert_integrity
+BEFORE INSERT ON reservation_policies
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_reservation_policies_update_integrity
+BEFORE UPDATE ON reservation_policies
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_exam_rule_versions_insert_integrity
+BEFORE INSERT ON exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_exam_rule_versions_update_integrity
+BEFORE UPDATE ON exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_training_calendar_entries_insert_integrity
+BEFORE INSERT ON training_calendar_entries
+FOR EACH ROW
+BEGIN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_training_calendar_entries_update_integrity
+BEFORE UPDATE ON training_calendar_entries
+FOR EACH ROW
+BEGIN
+ IF (TRUE) AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r WHERE r.id=NEW.calendar_source_id AND r.institute_id=NEW.institute_id AND r.status IN ('published','superseded') AND r.reviewed_by IS NOT NULL AND r.reviewed_at IS NOT NULL)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_batches_insert_integrity
+BEFORE INSERT ON batches
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (SELECT 1
+  FROM seat_matrix_entries e
+  JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
+  JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
+  WHERE e.id=NEW.seat_matrix_entry_id
+    AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
+    AND e.intake_id=NEW.intake_id
+    AND e.institute_id=NEW.institute_id
+    AND e.admission_allowed=1
+    AND e.seat_capacity>=NEW.capacity
+    AND v.status='final'
+    AND r.status IN ('published','superseded')
+    AND r.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch requires final permitted seat matrix';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_batches_update_integrity
+BEFORE UPDATE ON batches
+FOR EACH ROW
+BEGIN
+ IF (NEW.seat_matrix_entry_id<>OLD.seat_matrix_entry_id OR NEW.intake_id<>OLD.intake_id OR NEW.trade_unit_shift_id<>OLD.trade_unit_shift_id OR NEW.capacity<>OLD.capacity OR NEW.institute_id<>OLD.institute_id) AND NOT EXISTS (SELECT 1
+  FROM seat_matrix_entries e
+  JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
+  JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
+  WHERE e.id=NEW.seat_matrix_entry_id
+    AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
+    AND e.intake_id=NEW.intake_id
+    AND e.institute_id=NEW.institute_id
+    AND e.admission_allowed=1
+    AND e.seat_capacity>=NEW.capacity
+    AND v.status='final'
+    AND r.status IN ('published','superseded')
+    AND r.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch change requires final permitted seat matrix';
+ END IF;
+END$$
+
+DELIMITER ;

@@ -8,31 +8,31 @@ Only model data needed for (1) Bihar institute administration or (2) the applica
 
 - **Shared official masters:** `global_regulatory_documents`, `trades` with `trade_master_revisions`, `global_shifts`, `global_curriculum_*`, `global_admission_rule_versions`, `global_reservation_policies`, `global_exam_rule_versions`, `cts_training_calendars`, `cts_training_calendar_milestones`, and `cts_portal_shift_mappings`. Official rules, dates and amounts must be loaded from real applicable documents; do not invent default regulatory values.
 - **Institute-managed references and records:** `institute`, `institute_affiliation_history`, `regulatory_sources` (institute-to-global document references, not duplicate documents), `trade_units`, `trade_unit_shifts`, local curriculum references, staff, instructors, ITSU, intakes, seat matrix versions/entries, batch years, students, enrollments, attendance, formative/OJT, examinations, fee ledgers, assets, portal evidence and permissions.
-- **Revision history:** trade master, institute affiliation, admission window, Seat Matrix, curriculum and CTS calendar history are retained by dated versions. Final/official published versions have SQL write guards; corrections must use a new official version rather than in-place rewriting.
+- **Revision history:** trade master, institute affiliation, admission window, Seat Matrix, curriculum and CTS calendar history have versioned tables. **Published-record immutability and regulatory status validations are deferred** until the DATA-INTEGRITY GUARDS are implemented.
 - **Multiple institutes:** operational foreign keys generally include `institute_id`. Shared masters do not become editable institute-specific rules.
 
-## Latest schema-level integrity behavior
+## Current schema relationships (DATA-INTEGRITY GUARDS deferred)
 
 - Local syllabus references point to a global CTS curriculum, curriculum year, LO and resource requirement. Institute rows do not duplicate the official text, hours or tool specifications.
 - Affiliated physical shifts are separate from official portal shift codes, stored by calendar and intake session in `cts_portal_shift_mappings`. No globally hardcoded Session-II portal shift arithmetic is used.
 - ITSU, seat matrix, instructor identity, admission rule, batch, batch year, curriculum and student enrollment have tenant-aware and identity-aware foreign keys.
-- Publishing/finalizing official documents, curriculum, calendars, shifts and policy versions requires a linked reviewed official source. Published government policy facts, syllabus details, calendar milestones and final Seat Matrix entries cannot be edited/deleted in place; transitions from published/final/active status back to draft are blocked.
-- Creating or materially changing a batch requires a final admission-allowed Seat Matrix entry, capacity within both official matrix and applicable affiliation, an approved ITSU, the correct mode/curriculum, reviewed admission intake revision and an institute affiliation valid on the batch start date.
-- `enrollments.admission_intake_revision_id` and `enrollments.intake_id` identify the exact official intake and its reviewed revision. Old superseded windows can support historical admissions only when their successor was published after the recorded admission date; unrelated updates to historic enrollments are not revalidated against new windows.
-- `batches.occupied_seats` starts at zero. Row triggers reserve a seat atomically when a non-cancelled enrollment is inserted/reinstated/transferred in, and release it on cancellation or a qualifying change/delete. **Conservative accounting:** completed, transferred and dropout records remain counted; this does not by itself authorize a new government admission or a vacated-seat replacement.
-- Instructor/staff, attendance, assessments, OJT, exam results, certificate and payment records retain tenant-scoped references and revision/transaction checks.
+- Foreign keys retain official source-document relationships, but the SQL currently **does not prevent** draft/unreviewed source publication, published-row rewriting, status rollback or final Seat Matrix entry edits. These require future integrity guards.
+- A batch references its institute, ITSU, intake, Seat Matrix entry, rule and calendar with relational foreign keys. Eligibility, approval status, applicable affiliation and source verification are **not yet enforced by triggers**.
+- `enrollments.admission_intake_revision_id` and `enrollments.intake_id` link to the recorded intake revision. Admission-window effective-date and revision-status validation are **deferred**.
+- `batches.occupied_seats` is a stored counter with a `CHECK` constraint against capacity. **It is not automatically synchronized with enrollments** until the deferred integrity logic is added.
+- Instructor/staff, attendance, assessments, OJT, exams, results, certificates and payment records retain tenant-scoped foreign keys and defined `CHECK`/`UNIQUE` constraints. Cross-record workflow validation must be added later.
 
 ## Important operational boundaries
 
-The seat counter is maintained by enrollment triggers **when writes follow the intended schema path**. Applications should not directly edit `batches.occupied_seats`; restrict such privileges and reconcile counter vs. actual enrollment rows during an eventual runtime review. Official cancellation/refill authorization is a separate source-governed decision, not inferred from the counter.
+**No DATA-INTEGRITY GUARDS triggers are present.** Source approval checks, published-row immutability, date-overlap prevention, Seat Matrix publication checks, admission-window verification and seat-counter reconciliation are all deferred. Applications must not assume these validations are enforced by this DDL. Database `FOREIGN KEY`, `UNIQUE` and `CHECK` constraints remain in place.
 
-Freezing a regulatory row does not automatically re-certify every historical record after later government orders; workflows must select the applicable official source and preserve recorded evidence. Application roles/authorization, tenant access, auditability, source evidence accuracy, qualifying seat-matrix publication, attendance/marks reconciliations and reconciliation of portal values are outside what DDL alone can prove.
+Workflows must select the applicable official source and preserve historic evidence. Application roles/authorization, tenant access, auditability, source evidence accuracy, Seat Matrix currentness, occupancy and attendance/marks reconciliations are **not certified by this schema alone**.
 
 Some of the latest schema changes are **breaking for existing populated databases and callers**, including new non-null `enrollments.intake_id` and `enrollments.admission_intake_revision_id`. Existing data needs a reviewed, data-preserving migration and caller integration; do not silently fill official references or fabricate historical orders.
 
 ## Installation — fresh, empty database only
 
-Use the MySQL CLI because this script contains `DELIMITER` directives and `CREATE TRIGGER` statements.
+The SQL currently contains table definitions and structural constraints only; the `DATA-INTEGRITY GUARDS`, `DELIMITER` directives and all `CREATE TRIGGER` statements have been removed for later implementation.
 
 ```sh
 mysql -u USER -p -e "CREATE DATABASE multi_institute_iti_erp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"

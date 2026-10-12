@@ -1923,6 +1923,17 @@ BEGIN
     AND u.sanctioned_capacity>=NEW.capacity
     AND u.affiliation_status='approved'
     AND u.status='active'
+    AND EXISTS (
+      SELECT 1 FROM institute_affiliation_history h
+      JOIN regulatory_sources ars ON ars.id=h.source_id AND ars.institute_id=h.institute_id
+      JOIN global_regulatory_documents ad ON ad.id=ars.global_document_id
+      WHERE h.institute_id=NEW.institute_id
+        AND h.affiliation_status='affiliated'
+        AND h.effective_from<=NEW.starts_on
+        AND (h.effective_to IS NULL OR h.effective_to>=NEW.starts_on)
+        AND ad.status IN ('published','superseded')
+        AND ad.reviewed_by IS NOT NULL AND ad.reviewed_at IS NOT NULL
+    )
     AND u.valid_from<=NEW.starts_on
     AND (u.valid_to IS NULL OR u.valid_to>=NEW.starts_on)
     AND u.training_mode=NEW.training_mode
@@ -1946,7 +1957,7 @@ CREATE TRIGGER trg_batches_update_integrity
 BEFORE UPDATE ON batches
 FOR EACH ROW
 BEGIN
- IF (NEW.seat_matrix_entry_id<>OLD.seat_matrix_entry_id OR NEW.intake_id<>OLD.intake_id OR NEW.trade_unit_shift_id<>OLD.trade_unit_shift_id OR NEW.capacity<>OLD.capacity OR NEW.institute_id<>OLD.institute_id OR NEW.starts_on<>OLD.starts_on OR NEW.training_mode<>OLD.training_mode OR NEW.curriculum_id<>OLD.curriculum_id OR NEW.calendar_id<>OLD.calendar_id) AND NOT EXISTS (SELECT 1
+ IF (NEW.seat_matrix_entry_id<>OLD.seat_matrix_entry_id OR NEW.intake_id<>OLD.intake_id OR NEW.trade_unit_shift_id<>OLD.trade_unit_shift_id OR NEW.capacity<>OLD.capacity OR NEW.institute_id<>OLD.institute_id OR NEW.starts_on<>OLD.starts_on OR NEW.training_mode<>OLD.training_mode OR NEW.curriculum_id<>OLD.curriculum_id OR NEW.calendar_id<>OLD.calendar_id OR NEW.trade_id<>OLD.trade_id OR NEW.admission_year<>OLD.admission_year OR NEW.admission_rule_id<>OLD.admission_rule_id) AND NOT EXISTS (SELECT 1
   FROM seat_matrix_entries e
   JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
   JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
@@ -1964,6 +1975,17 @@ BEGIN
     AND u.sanctioned_capacity>=NEW.capacity
     AND u.affiliation_status='approved'
     AND u.status='active'
+    AND EXISTS (
+      SELECT 1 FROM institute_affiliation_history h
+      JOIN regulatory_sources ars ON ars.id=h.source_id AND ars.institute_id=h.institute_id
+      JOIN global_regulatory_documents ad ON ad.id=ars.global_document_id
+      WHERE h.institute_id=NEW.institute_id
+        AND h.affiliation_status='affiliated'
+        AND h.effective_from<=NEW.starts_on
+        AND (h.effective_to IS NULL OR h.effective_to>=NEW.starts_on)
+        AND ad.status IN ('published','superseded')
+        AND ad.reviewed_by IS NOT NULL AND ad.reviewed_at IS NOT NULL
+    )
     AND u.valid_from<=NEW.starts_on
     AND (u.valid_to IS NULL OR u.valid_to>=NEW.starts_on)
     AND u.training_mode=NEW.training_mode

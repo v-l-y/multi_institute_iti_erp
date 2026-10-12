@@ -60,10 +60,10 @@ test('final seat matrix, admission permission, source status and capacity guarde
   assert.ok(sql.includes("SIGNAL SQLSTATE '45000'"));
 });
 test('all referenced foreign key tables exist and column counts match', () => {
-  const names = new Set([...sql.matchAll(/CREATE TABLE (\\w+)/g)].map(x => x[1]));
+  const names = new Set([...sql.matchAll(/CREATE TABLE (\w+)/g)].map(x => x[1]));
   for (const [name] of [...names].map(n => [n])) {
     const ddl = table(name);
-    for (const fk of ddl.matchAll(/FOREIGN KEY\\(([^)]*)\\) REFERENCES (\\w+)\\(([^)]*)\\)/g)) {
+    for (const fk of ddl.matchAll(/FOREIGN KEY\(([^)]*)\) REFERENCES (\w+)\(([^)]*)\)/g)) {
       assert.ok(names.has(fk[2]), name + ' references unknown ' + fk[2]);
       assert.equal(fk[1].split(',').length, fk[3].split(',').length, name + ' invalid FK arity');
     }

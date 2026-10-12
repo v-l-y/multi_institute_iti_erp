@@ -19,13 +19,8 @@ CREATE TABLE institute (
  mis_code VARCHAR(40) NOT NULL UNIQUE,
  state_ut_code VARCHAR(20) NOT NULL DEFAULT 'BR',
  address TEXT NOT NULL,
- affiliation_status ENUM('affiliated','suspended','deactivated','deaffiliated') NOT NULL,
- affiliation_from DATE NOT NULL,
- affiliation_to DATE NULL,
- affiliation_order_reference VARCHAR(190) NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- CHECK(affiliation_to IS NULL OR affiliation_to>=affiliation_from),
  CHECK(state_ut_code='BR')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -69,12 +64,52 @@ CREATE TABLE regulatory_sources (
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Institute approval, renewal and relocation history is operational, not a second regulatory master.
+CREATE TABLE institute_affiliation_history (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ source_id BIGINT UNSIGNED NOT NULL,
+ change_type VARCHAR(60) NOT NULL,
+ affiliation_status ENUM('affiliated','suspended','deactivated','deaffiliated') NOT NULL,
+ affiliation_order_reference VARCHAR(190) NOT NULL,
+ effective_from DATE NOT NULL,
+ effective_to DATE NULL,
+ current_institute_guard BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN effective_to IS NULL THEN institute_id ELSE NULL END) STORED,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(institute_id,effective_from),
+ UNIQUE(current_institute_guard),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ CHECK(effective_to IS NULL OR effective_to>=effective_from),
+ CHECK(CHAR_LENGTH(TRIM(change_type))>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE trades (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- dgt_code VARCHAR(80) NOT NULL UNIQUE,
- name VARCHAR(190) NOT NULL,
+ dgt_code VARCHAR(80) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DGT global Trade Master versions; trade ID/code remain stable for institute history.
+CREATE TABLE trade_master_revisions (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ version_code VARCHAR(80) NOT NULL,
+ official_name VARCHAR(190) NOT NULL,
  trade_type ENUM('engineering','non_engineering','divyang') NOT NULL,
- active TINYINT NOT NULL DEFAULT 1 CHECK(active IN(0,1))
+ effective_from DATE NOT NULL,
+ effective_to DATE NULL,
+ status ENUM('draft','active','superseded','retired') NOT NULL DEFAULT 'draft',
+ active_trade_guard BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status='active' THEN trade_id ELSE NULL END) STORED,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(trade_id,version_code),
+ UNIQUE(active_trade_guard),
+ FOREIGN KEY(trade_id) REFERENCES trades(id),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(effective_to IS NULL OR effective_to>=effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE global_shifts (
@@ -722,7 +757,7 @@ CREATE TABLE students (
  gender VARCHAR(30) NOT NULL,
  mobile VARCHAR(20) NULL,
  address TEXT NOT NULL,
- category_code VARCHAR(40) NOT NULL DEFAULT 'GENERAL',
+ category_code VARCHAR(40) NULL,
  is_ews TINYINT NOT NULL DEFAULT 0,
  disability_percent DECIMAL(5,2) NULL,
  identity_mode ENUM('aadhaar','non_aadhaar') NOT NULL,
@@ -1120,7 +1155,7 @@ CREATE TABLE fee_transactions (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  enrollment_id BIGINT UNSIGNED NOT NULL,
  cycle_id BIGINT UNSIGNED NULL,
- fee_head ENUM('admission','tuition','cbt','practical','other') NOT NULL,
+ fee_head ENUM('registration','admission','tuition','caution_deposit','cbt','practical','other') NOT NULL,
  transaction_type ENUM('payment','refund','reversal') NOT NULL,
  amount DECIMAL(10,2) NOT NULL,
  paid_on DATETIME NOT NULL,

@@ -1,5 +1,5 @@
 // Static schema contracts. Run: node --test tests/schema-contracts.test.mjs
-// These tests do not replace executing the SQL on MySQL 9.7.
+// These structural checks do not replace a MySQL/MariaDB SQL import or runtime tests.
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

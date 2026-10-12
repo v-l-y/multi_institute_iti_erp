@@ -7,7 +7,7 @@
 Only model data needed for (1) Bihar institute administration or (2) the applicable official DGT/NCVET/Bihar State authority documents, CTS trade syllabus, affiliation, admission and training calendar.
 
 - **Shared official masters:** `global_regulatory_documents`, `trades` with `trade_master_revisions`, `global_shifts`, `global_curriculum_*`, `global_admission_rule_versions`, `global_reservation_policies`, `global_exam_rule_versions`, `cts_training_calendars`, `cts_training_calendar_milestones`, and `cts_portal_shift_mappings`. Official rules, dates and amounts must be loaded from real applicable documents; do not invent default regulatory values.
-- **Single Staff Master:** `staff` includes both teaching and non-teaching employees, with `staff_category ENUM('teaching','non_teaching')` and a free-text `designation` (e.g. Principal, Administrator, Instructor, Accountant, Clerk, Storekeeper, Lab Assistant, Attendant). No duplicate staff table or invented designation master is needed; the category is recorded explicitly rather than inferred. Staff designation is different from ERP login role. An employee need not have an ERP login.
+- **Single Staff Master:** `staff` includes teaching and non-teaching employees, with a `staff_category`, free-text `designation` and a separate `principal_assignment` (`none`, `principal`, `acting_principal`). No separate staff/administration masters are needed. A staff designation is not an ERP login role; many employees need no login. `active_principal_guard` enforces at most one current Principal or Acting Principal assignment per institute (it does not establish who is authorized to appoint them).
 - **Institute-managed references and records:** `institute`, `institute_affiliation_history`, `regulatory_sources` (institute-to-global document references, not duplicate documents), `trade_units`, `trade_unit_shifts`, local curriculum references, staff, instructors, ITSU, intakes, seat matrix versions/entries, batch years, students, enrollments, attendance, formative/OJT, examinations, fee ledgers, assets, portal evidence and permissions.
 - **Revision history:** trade master, institute affiliation, admission window, Seat Matrix, curriculum and CTS calendar history have versioned tables. **Published-record immutability and regulatory status validations are deferred** until the DATA-INTEGRITY GUARDS are implemented.
 - **Multiple institutes:** operational foreign keys generally include `institute_id`. Shared masters do not become editable institute-specific rules.
@@ -23,6 +23,16 @@ Only model data needed for (1) Bihar institute administration or (2) the applica
 - `batches.occupied_seats` is a stored counter with a `CHECK` constraint against capacity. **It is not automatically synchronized with enrollments** until the deferred integrity logic is added.
 - Instructor/staff, attendance, assessments, OJT, exams, results, certificates and payment records retain tenant-scoped foreign keys and defined `CHECK`/`UNIQUE` constraints. Cross-record workflow validation must be added later.
 
+## Reviewed schema design choices (October 2026)
+
+- **NIMS/IPRN identity:** `instructor_identities.iprn` is the one stored instructor registration number. `staff.identity_id` references it and a verified staff record must have that identity plus a verification reference/date. `instructor_mappings` has a composite staff/identity/institute foreign key so non-null instructor identities cannot silently differ from the staff record. No duplicate `staff.iprn` column remains.
+- **Exam rule provenance:** `global_exam_rule_versions` requires explicit values for PRN, CBT fee, practical fee, OJT certificate requirement and the principal relaxation cap. The schema does not invent universal TRUE/zero defaults; load each value from the applicable official order.
+- **Registration fees:** An institute trainee/student record can exist before an enrollment. `fee_transactions.student_id` is mandatory; `enrollment_id` is optional **only for registration** records. When provided, the enrollment must belong to the same student and institute; registration refunds/reversals refer to the same student. This is not a separate applicant master, fee master or automated payment workflow.
+- **Institute directory:** `district_name`, `management_type`, `contact_phone` and `contact_email` are optional institute-management fields; no invented administrative classification or district code list was imposed.
+- **Issuing authority vs source portal:** `global_regulatory_documents.authority` identifies the issuing authority (DGT, NCVET, Bihar State/SSDEC when applicable). `source_system` records NIMS/SIDH/NCVT-MIS when a record was obtained through an official portal, not as a separate rule-making authority.
+- **Instructor mapping scope remains source-dependent:** The existing uniqueness of active NIMS instructor and staff mappings is unchanged until the applicable current NIMS rule is checked for each scenario. Do not relax or expand it by assumption.
+- **Formative assessment representations:** `formative_assessments` stores learning-outcome assessments; `formative_template_items`/`formative_template_scores` support a source-backed weighted template only where applicable. `batch_years.formative_method` and `formative_scheme_source_id` identify the selected method and supporting source. Use neither mode with invented default weights; cross-mode reconciliation is deferred along with DATA-INTEGRITY GUARDS.
+
 ## Authentication — five application roles
 
 The SQL schema now uses **one shared authentication model**, not five separate login systems, with **11 existing `auth_*` tables** (no extra authentication tables).
@@ -35,7 +45,7 @@ The SQL schema now uses **one shared authentication model**, not five separate l
 | `instructor` | Institute | Same-institute `auth_staff_links` record | Only assigned instructional records |
 | `student` | Institute | Same-institute `auth_student_links` record | Only the student's own records |
 
-- The seeded canonical role codes are `developer`, `principal`, `administrator`, `instructor`, `student`. The old `administration` code is no longer used in new schemas.
+- The seeded canonical role codes are `developer`, `principal`, `administrator`, `instructor`, `student`. The old `administration` code is no longer used in new schemas. The Staff Master `principal_assignment` is independent of the login role.
 - `auth_roles.scope` and the matching role-assignment columns structurally separate platform from institute roles. Platform accounts do not need a synthetic institute. `auth_users.tenant_key` and `auth_user_roles.tenant_key` are stored/generated values used for composite foreign keys; this also prevents assigning a role in the wrong institute.
 - `auth_staff_links` and `auth_student_links` precede role assignments so required Principal/Administrator/Instructor staff links and Student identity links can be enforced by foreign keys and `CHECK` constraints. Administrator is always linked to institute staff; `staff.designation` records the employment designation separately from `auth_roles.code`.
 - Sessions, password resets and audit entries can be platform-scoped or institute-scoped; token hashes are unique across institutes. Expiry, revocation, password verification, MFA, rate limits, login lockouts and logout must be handled by the authentication service.
@@ -46,7 +56,7 @@ The SQL schema now uses **one shared authentication model**, not five separate l
 
 **Existing-data note:** Changing `auth_users.institute_id` to nullable, generated tenant FKs, moving `auth_user_roles` after subject-link tables and renaming the role code require a controlled migration for populated databases. Do not execute this create-only SQL on existing data.
 
-**Principal designation and migration note:** `staff.active_principal_guard` still allows only one current designation exactly equivalent to `Principal` after case folding and trimming. This is a structural identity guard, not a rule assigning teaching/non-teaching category. Staff with other titles such as `Principal (In-Charge)` need explicit workflow treatment; do not silently map their designation. For a populated database, migrate `staff.role` values to reviewed `staff_category` and `designation` values before dropping the old column; this create-only schema is **not** an in-place migration.
+**Principal staff assignment and migration note:** `staff.active_principal_guard` now uses the explicit `principal_assignment`, not matching arbitrary designation text. `principal` and `acting_principal` are assignment identities, not extra login roles. Existing data requires reviewed mapping of previous `staff.role` and `designation` to `staff_category`, `designation` and `principal_assignment`; never guess Principal appointment history from the title alone.
 
 ## Important operational boundaries
 
@@ -54,7 +64,7 @@ The SQL schema now uses **one shared authentication model**, not five separate l
 
 Workflows must select the applicable official source and preserve historic evidence. Application roles/authorization, tenant access, auditability, source evidence accuracy, Seat Matrix currentness, occupancy and attendance/marks reconciliations are **not certified by this schema alone**.
 
-Some of the latest schema changes are **breaking for existing populated databases and callers**, including new non-null `enrollments.intake_id` and `enrollments.admission_intake_revision_id`. Existing data needs a reviewed, data-preserving migration and caller integration; do not silently fill official references or fabricate historical orders.
+Some schema changes **break existing populated databases and callers**, including new non-null `enrollments.intake_id` and `enrollments.admission_intake_revision_id`, canonical instructor identity changes, nullable pre-enrollment fees and structured Principal assignments. Existing data needs a reviewed, data-preserving migration and caller integration; do not silently fill official references or fabricate historical orders.
 
 ## Installation — fresh, empty database only
 

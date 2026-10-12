@@ -78,3 +78,30 @@ mysql -u USER -p multi_institute_iti_erp < database/schema/iti_erp_schema.sql
 **Do not run the create-only SQL directly on a populated database.** This schema has not been certified by a MySQL runtime import/negative-data test in this review. Structural inspection of text, foreign keys and trigger references is **not** runtime verification and must not be described as “0 gaps,” regulatory approval or production readiness.
 
 The repository may have external generator or migration sources not present here; if so, align those upstream sources before regenerating the SQL.
+
+## API implementation gate after whole-schema re-review
+
+The auth role identity CHECK syntax and whitespace handling in static tests have been corrected. Students now have nullable email and PWD category fields; enrollments have a nullable trainee type. These are reviewed payload inputs, not invented defaults or mandatory values for every draft local record. Resolve allowed values, required fields and category mappings from the applicable official upload specification before submission. An absent attendance record must have zero attended minutes.
+
+The schema remains a fresh-database baseline, not a production-ready API or an in-place migration. The following requirements remain unimplemented and must be verified in service transactions or future integrity guards before enabling the corresponding write endpoints:
+
+- Instructor mappings: require the staff's canonical identity wherever the applicable NIMS mapping rule requires IPRN; a NULL identity bypasses the composite identity FK. Do not assume one mapping policy for every subject/scenario.
+- Attendance: enforce attended minutes no greater than the session duration, applicable calendar dates, enrollment status, staff assignment, lock/correction authorization and denominator reconciliation.
+- Formative assessment: enforce each score no greater than its template maximum, complete applicable template weights and source-backed method selection. Changing a template must not silently invalidate existing scores.
+- Admissions: validate effective affiliation, final Seat Matrix, applicable curriculum/rule/window, age and qualifications, portal shift, quota type/category and evidence. Lock batch and quota rows while changing enrollment status and counters in one transaction; test simultaneous admissions and cancellations.
+- Fees: refunds/reversals must target a payment for the same student, applicable enrollment, fee head and exam cycle; reconcile balances atomically and prohibit over-refunding.
+- Published/frozen records: protect sources, Seat Matrix, eligibility, assessments, results and certificates with explicit correction/revision workflows and audit evidence.
+- DST: validate applicable MoU, affiliated base-unit limits and expiry behavior against the official affiliation order. Do not treat the third-shift DST CHECK as full DST compliance.
+- OJT/project: validate source-backed start eligibility, completed hours, evaluator roles, weighting and computed grade. Official result imports must validate the permitted scope of Promoted with Back and retain the original portal status/payload evidence.
+- Authorization: define approved role/permission policy, institute boundaries, student self-access, instructor assignments and platform grant authority; database foreign keys do not authorize requests.
+- Release verification: select a supported database engine/version, import the complete SQL into a disposable empty database, and run negative-data, tenant-isolation and concurrency tests. Static tests alone do not establish database compatibility or regulatory compliance.
+
+Official references for applicability review:
+
+- [DGT CTS-2026 Calendar and upload annexures](https://dgt.gov.in/en/node/4394)
+- [DGT Affiliation Norms 2025](https://dgt.gov.in/en/node/3975)
+- [DGT examination, OJT and certificate orders](https://dgt.gov.in/en/exam-corner)
+- [DGT CTS trade-specific syllabi](https://dgt.gov.in/en/cts-details)
+- [Bihar ITICAT notices](https://bceceboard.bihar.gov.in/ITICATIndex.php): establish applicability to the institute and admission route; do not apply every counselling rule to private direct admissions by assumption.
+
+Existing databases require a reviewed migration for added fields and CHECK changes. New nullable payload fields must be backfilled from verified evidence before any submission that requires them.

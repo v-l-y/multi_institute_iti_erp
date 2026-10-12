@@ -2941,4 +2941,75 @@ BEGIN
  END IF;
 END$
 
+CREATE TRIGGER trg_batches_insert_empty_occupancy
+BEFORE INSERT ON batches
+FOR EACH ROW
+BEGIN
+ IF NEW.occupied_seats<>0 THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='New batch occupancy starts at zero; enroll trainees through enrollments';
+ END IF;
+END$
+
+-- Reserve one seat for every non-cancelled enrollment. Capacity is guarded by a
+-- single atomic parent-row UPDATE, so competing admissions cannot overbook.
+CREATE TRIGGER trg_enrollments_insert_occupancy
+AFTER INSERT ON enrollments
+FOR EACH ROW
+BEGIN
+ IF NEW.status<>'cancelled' THEN
+  UPDATE batches SET occupied_seats=occupied_seats+1
+   WHERE id=NEW.batch_id AND institute_id=NEW.institute_id AND occupied_seats<capacity;
+  IF ROW_COUNT()<>1 THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch has no unoccupied sanctioned seat';
+  END IF;
+ END IF;
+END$
+
+CREATE TRIGGER trg_enrollments_update_occupancy
+AFTER UPDATE ON enrollments
+FOR EACH ROW
+BEGIN
+ IF NOT (OLD.batch_id <=> NEW.batch_id) OR NOT (OLD.institute_id <=> NEW.institute_id) THEN
+  IF OLD.status<>'cancelled' THEN
+   UPDATE batches SET occupied_seats=occupied_seats-1
+    WHERE id=OLD.batch_id AND institute_id=OLD.institute_id AND occupied_seats>0;
+   IF ROW_COUNT()<>1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Old batch seat counter is inconsistent';
+   END IF;
+  END IF;
+  IF NEW.status<>'cancelled' THEN
+   UPDATE batches SET occupied_seats=occupied_seats+1
+    WHERE id=NEW.batch_id AND institute_id=NEW.institute_id AND occupied_seats<capacity;
+   IF ROW_COUNT()<>1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Destination batch has no unoccupied seat';
+   END IF;
+  END IF;
+ ELSEIF OLD.status='cancelled' AND NEW.status<>'cancelled' THEN
+  UPDATE batches SET occupied_seats=occupied_seats+1
+   WHERE id=NEW.batch_id AND institute_id=NEW.institute_id AND occupied_seats<capacity;
+  IF ROW_COUNT()<>1 THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch has no unoccupied seat for reinstatement';
+  END IF;
+ ELSEIF OLD.status<>'cancelled' AND NEW.status='cancelled' THEN
+  UPDATE batches SET occupied_seats=occupied_seats-1
+   WHERE id=OLD.batch_id AND institute_id=OLD.institute_id AND occupied_seats>0;
+  IF ROW_COUNT()<>1 THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch seat counter is inconsistent';
+  END IF;
+ END IF;
+END$
+
+CREATE TRIGGER trg_enrollments_delete_occupancy
+AFTER DELETE ON enrollments
+FOR EACH ROW
+BEGIN
+ IF OLD.status<>'cancelled' THEN
+  UPDATE batches SET occupied_seats=occupied_seats-1
+   WHERE id=OLD.batch_id AND institute_id=OLD.institute_id AND occupied_seats>0;
+  IF ROW_COUNT()<>1 THEN
+   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch seat counter is inconsistent';
+  END IF;
+ END IF;
+END$
+
 DELIMITER ;

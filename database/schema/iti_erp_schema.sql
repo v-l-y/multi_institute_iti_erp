@@ -11,6 +11,9 @@ CREATE TABLE schema_migrations(
  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- Self-reference checks involving AUTO_INCREMENT ids must be implemented by
+-- the deferred integrity guards; MySQL does not allow them in CHECK expressions.
+
 -- ---------- CORE ----------
 
 CREATE TABLE institute (
@@ -47,8 +50,7 @@ CREATE TABLE global_regulatory_documents (
  CHECK(authority NOT IN('STATE_UT','SSDEC') OR (state_ut_code IS NOT NULL AND state_ut_code='BR')),
  CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
  CHECK(source_url IS NOT NULL OR evidence_reference IS NOT NULL),
- CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),
- CHECK(supersedes_id IS NULL OR supersedes_id<>id)
+ CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE regulatory_sources (
@@ -406,7 +408,7 @@ CREATE TABLE instructor_mappings (
  FOREIGN KEY(qualification_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK((mapping_type='trade' AND trade_unit_shift_id IS NOT NULL AND subject_code IS NULL)
-    OR (mapping_type='subject' AND trade_unit_shift_id IS NULL AND subject_code IN('ES','WCS','ED','WCS_ED'))),
+    OR (mapping_type='subject' AND trade_unit_shift_id IS NULL AND subject_code IS NOT NULL AND subject_code IN('ES','WCS','ED','WCS_ED'))),
  CHECK(valid_to IS NULL OR valid_to>=valid_from),
  UNIQUE(id,staff_id,institute_id),
  UNIQUE(id,trade_unit_shift_id,institute_id),
@@ -525,8 +527,7 @@ CREATE TABLE admission_intake_revisions (
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(supersedes_id,intake_id,institute_id) REFERENCES admission_intake_revisions(id,intake_id,institute_id),
  CHECK(closes_on>=opens_on),
- CHECK(status='draft' OR published_on IS NOT NULL),
- CHECK(supersedes_id IS NULL OR supersedes_id<>id)
+ CHECK(status='draft' OR published_on IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE seat_matrix_versions (
@@ -552,8 +553,7 @@ CREATE TABLE seat_matrix_versions (
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(supersedes_id,intake_id,institute_id) REFERENCES seat_matrix_versions(id,intake_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(status='draft' OR published_on IS NOT NULL),
- CHECK(supersedes_id IS NULL OR supersedes_id<>id)
+ CHECK(status='draft' OR published_on IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE seat_matrix_entries (
@@ -1227,8 +1227,7 @@ CREATE TABLE fee_transactions (
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(amount>0),
  CHECK(transaction_type='payment' OR reverses_transaction_id IS NOT NULL),
- CHECK(transaction_type<>'payment' OR reverses_transaction_id IS NULL),
- CHECK(reverses_transaction_id IS NULL OR reverses_transaction_id<>id)
+ CHECK(transaction_type<>'payment' OR reverses_transaction_id IS NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE fee_payment_balances (

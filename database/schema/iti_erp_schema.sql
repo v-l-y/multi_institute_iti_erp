@@ -1554,10 +1554,14 @@ CREATE TABLE auth_permissions (
 
 CREATE TABLE auth_roles (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- code ENUM('principal','administration','instructor','student') NOT NULL UNIQUE,
+ code ENUM('developer','principal','administrator','instructor','student') NOT NULL UNIQUE,
+ scope ENUM('platform','institute') NOT NULL,
  name VARCHAR(120) NOT NULL,
  description VARCHAR(500) NULL,
- is_system TINYINT NOT NULL DEFAULT 1 CHECK(is_system IN(0,1))
+ is_system TINYINT NOT NULL DEFAULT 1,
+ UNIQUE(id,code,scope),
+ CHECK(is_system IN(0,1)),
+ CHECK((code='developer' AND scope='platform') OR (code IN('principal','administrator','instructor','student') AND scope='institute'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_role_permissions (
@@ -1569,42 +1573,23 @@ CREATE TABLE auth_role_permissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_users (
- institute_id BIGINT UNSIGNED NOT NULL,
+ institute_id BIGINT UNSIGNED NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  username VARCHAR(120) NOT NULL,
  password_hash VARCHAR(255) NOT NULL,
- must_change_password TINYINT NOT NULL DEFAULT 0 CHECK(must_change_password IN(0,1)),
+ must_change_password TINYINT NOT NULL DEFAULT 0,
  failed_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
  locked_until DATETIME NULL,
  status ENUM('active','locked','disabled') NOT NULL DEFAULT 'active',
  last_login_at DATETIME NULL,
+ tenant_key BIGINT UNSIGNED GENERATED ALWAYS AS (IFNULL(institute_id,0)) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(username,institute_id),
+ UNIQUE(username,tenant_key),
+ UNIQUE(id,tenant_key),
  UNIQUE(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE auth_user_roles (
- institute_id BIGINT UNSIGNED NOT NULL,
- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id BIGINT UNSIGNED NOT NULL,
- role_id BIGINT UNSIGNED NOT NULL,
- valid_from DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
- valid_to DATETIME NULL,
- granted_by BIGINT UNSIGNED NULL,
- current_user_guard BIGINT UNSIGNED GENERATED ALWAYS AS
-   (CASE WHEN valid_to IS NULL THEN user_id ELSE NULL END) STORED,
- current_role_guard BIGINT UNSIGNED GENERATED ALWAYS AS
-   (CASE WHEN valid_to IS NULL THEN role_id ELSE NULL END) STORED,
- created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(user_id,role_id,valid_from,institute_id),
- UNIQUE(current_user_guard,current_role_guard,institute_id),
- FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
- FOREIGN KEY(role_id) REFERENCES auth_roles(id),
- FOREIGN KEY(granted_by,institute_id) REFERENCES auth_users(id,institute_id),
- CHECK(valid_to IS NULL OR valid_to>valid_from)
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(must_change_password IN(0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_staff_links (
@@ -1631,8 +1616,41 @@ CREATE TABLE auth_student_links (
  FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE auth_user_roles (
+ institute_id BIGINT UNSIGNED NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT UNSIGNED NOT NULL,
+ role_id BIGINT UNSIGNED NOT NULL,
+ role_code ENUM('developer','principal','administrator','instructor','student') NOT NULL,
+ scope ENUM('platform','institute') NOT NULL,
+ staff_link_user_id BIGINT UNSIGNED NULL,
+ student_link_user_id BIGINT UNSIGNED NULL,
+ valid_from DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ valid_to DATETIME NULL,
+ granted_by BIGINT UNSIGNED NULL,
+ tenant_key BIGINT UNSIGNED GENERATED ALWAYS AS (IFNULL(institute_id,0)) STORED,
+ current_user_guard BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN valid_to IS NULL THEN user_id ELSE NULL END) STORED,
+ current_role_guard BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN valid_to IS NULL THEN role_id ELSE NULL END) STORED,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(user_id,role_id,valid_from,tenant_key),
+ UNIQUE(current_user_guard,current_role_guard,tenant_key),
+ FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key),
+ FOREIGN KEY(role_id,role_code,scope) REFERENCES auth_roles(id,code,scope),
+ FOREIGN KEY(staff_link_user_id,institute_id) REFERENCES auth_staff_links(user_id,institute_id),
+ FOREIGN KEY(student_link_user_id,institute_id) REFERENCES auth_student_links(user_id,institute_id),
+ FOREIGN KEY(granted_by) REFERENCES auth_users(id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(valid_to IS NULL OR valid_to>valid_from),
+ CHECK((scope='platform' AND institute_id IS NULL) OR (scope='institute' AND institute_id IS NOT NULL)),
+ CHECK((role_code='developer' AND scope='platform' AND staff_link_user_id IS NULL AND student_link_user_id IS NULL),
+  OR (role_code IN('principal','instructor') AND scope='institute' AND staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id AND student_link_user_id IS NULL),
+  OR (role_code='administrator' AND scope='institute' AND student_link_user_id IS NULL AND (staff_link_user_id IS NULL OR staff_link_user_id=user_id)),
+  OR (role_code='student' AND scope='institute' AND student_link_user_id IS NOT NULL AND student_link_user_id=user_id AND staff_link_user_id IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE auth_sessions (
- institute_id BIGINT UNSIGNED NOT NULL,
+ institute_id BIGINT UNSIGNED NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  user_id BIGINT UNSIGNED NOT NULL,
  session_token_hash CHAR(64) NOT NULL,
@@ -1642,30 +1660,37 @@ CREATE TABLE auth_sessions (
  revoked_at DATETIME NULL,
  ip_address VARCHAR(45) NULL,
  user_agent VARCHAR(500) NULL,
+ tenant_key BIGINT UNSIGNED GENERATED ALWAYS AS (IFNULL(institute_id,0)) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(session_token_hash,institute_id),
- FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
- CHECK(expires_at>issued_at)
+ UNIQUE(session_token_hash),
+ UNIQUE(refresh_token_hash),
+ FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(expires_at>issued_at),
+ CHECK(revoked_at IS NULL OR revoked_at>=issued_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_password_resets (
- institute_id BIGINT UNSIGNED NOT NULL,
+ institute_id BIGINT UNSIGNED NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  user_id BIGINT UNSIGNED NOT NULL,
  token_hash CHAR(64) NOT NULL,
  issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  expires_at DATETIME NOT NULL,
  used_at DATETIME NULL,
+ tenant_key BIGINT UNSIGNED GENERATED ALWAYS AS (IFNULL(institute_id,0)) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(token_hash,institute_id),
- FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
- CHECK(expires_at>issued_at)
+ UNIQUE(token_hash),
+ FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(expires_at>issued_at),
+ CHECK(used_at IS NULL OR used_at>=issued_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_audit_log (
- institute_id BIGINT UNSIGNED NOT NULL,
+ institute_id BIGINT UNSIGNED NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  user_id BIGINT UNSIGNED NULL,
  event_type VARCHAR(80) NOT NULL,
@@ -1673,8 +1698,10 @@ CREATE TABLE auth_audit_log (
  ip_address VARCHAR(45) NULL,
  user_agent VARCHAR(500) NULL,
  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ tenant_key BIGINT UNSIGNED GENERATED ALWAYS AS (IFNULL(institute_id,0)) STORED,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1690,5 +1717,13 @@ CREATE TABLE auth_user_permissions (
  PRIMARY KEY(user_id,permission_id,institute_id),
  FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
  FOREIGN KEY(permission_id) REFERENCES auth_permissions(id),
- FOREIGN KEY(granted_by,institute_id) REFERENCES auth_users(id,institute_id)
+ FOREIGN KEY(granted_by) REFERENCES auth_users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Role identities only. No permissions are auto-granted: authorization remains deny-by-default.
+INSERT INTO auth_roles (code,scope,name,description,is_system) VALUES
+ ('developer','platform','Developer','ERP technical platform administration, not a government regulator',1),
+ ('principal','institute','Principal','Institute principal account',1),
+ ('administrator','institute','Administrator','Institute administration account',1),
+ ('instructor','institute','Instructor','Institute instructor assigned to staff identity',1),
+ ('student','institute','Student','Institute student linked to learner identity',1);

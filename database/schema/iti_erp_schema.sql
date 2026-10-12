@@ -2890,7 +2890,7 @@ BEGIN
  IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_global_admission_rule_versions_freeze_delete
 BEFORE DELETE ON global_admission_rule_versions
@@ -2899,7 +2899,7 @@ BEGIN
  IF OLD.status IN ('published','superseded','withdrawn') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_global_reservation_policies_freeze_update
 BEFORE UPDATE ON global_reservation_policies
@@ -2918,7 +2918,7 @@ BEGIN
  IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_global_reservation_policies_freeze_delete
 BEFORE DELETE ON global_reservation_policies
@@ -2927,7 +2927,7 @@ BEGIN
  IF OLD.status IN ('published','superseded','withdrawn') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_global_exam_rule_versions_freeze_update
 BEFORE UPDATE ON global_exam_rule_versions
@@ -2955,7 +2955,7 @@ BEGIN
  IF OLD.status IN ('superseded','withdrawn') AND NEW.status<>OLD.status THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Superseded policy cannot be reactivated';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_global_exam_rule_versions_freeze_delete
 BEFORE DELETE ON global_exam_rule_versions
@@ -2964,7 +2964,7 @@ BEGIN
  IF OLD.status IN ('published','superseded','withdrawn') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official policy cannot be deleted';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_insert
 BEFORE INSERT ON cts_training_calendar_milestones
@@ -2973,7 +2973,7 @@ BEGIN
  IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status<>'draft') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official published calendar cannot accept new milestones';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_update
 BEFORE UPDATE ON cts_training_calendar_milestones
@@ -2982,7 +2982,7 @@ BEGIN
  IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=OLD.calendar_id AND c.status<>'draft') OR EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status<>'draft') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official calendar milestone history cannot be rewritten';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_cts_training_calendar_milestones_freeze_delete
 BEFORE DELETE ON cts_training_calendar_milestones
@@ -2991,7 +2991,7 @@ BEGIN
  IF EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=OLD.calendar_id AND c.status<>'draft') THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published calendar milestone cannot be deleted';
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_batches_insert_empty_occupancy
 BEFORE INSERT ON batches
@@ -3000,7 +3000,7 @@ BEGIN
  IF NEW.occupied_seats<>0 THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='New batch occupancy starts at zero; enroll trainees through enrollments';
  END IF;
-END$
+END$$
 
 -- Reserve one seat for every non-cancelled enrollment. Capacity is guarded by a
 -- single atomic parent-row UPDATE, so competing admissions cannot overbook.
@@ -3015,7 +3015,7 @@ BEGIN
    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch has no unoccupied sanctioned seat';
   END IF;
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_enrollments_update_occupancy
 AFTER UPDATE ON enrollments
@@ -3049,7 +3049,7 @@ BEGIN
    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch seat counter is inconsistent';
   END IF;
  END IF;
-END$
+END$$
 
 CREATE TRIGGER trg_enrollments_delete_occupancy
 AFTER DELETE ON enrollments
@@ -3062,6 +3062,6 @@ BEGIN
    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch seat counter is inconsistent';
   END IF;
  END IF;
-END$
+END$$
 
 DELIMITER ;

@@ -2297,4 +2297,277 @@ BEGIN
  END IF;
 END$$
 
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_global_regulatory_documents_freeze_update
+BEFORE UPDATE ON global_regulatory_documents
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (
+  NOT (OLD.authority <=> NEW.authority)
+  OR NOT (OLD.state_ut_code <=> NEW.state_ut_code)
+  OR NOT (OLD.document_type <=> NEW.document_type)
+  OR NOT (OLD.title <=> NEW.title)
+  OR NOT (OLD.reference_no <=> NEW.reference_no)
+  OR NOT (OLD.issued_on <=> NEW.issued_on)
+  OR NOT (OLD.source_url <=> NEW.source_url)
+  OR NOT (OLD.evidence_reference <=> NEW.evidence_reference)
+  OR NOT (OLD.sha256 <=> NEW.sha256)
+  OR NOT (OLD.supersedes_id <=> NEW.supersedes_id)
+  OR NOT (OLD.reviewed_by <=> NEW.reviewed_by)
+  OR NOT (OLD.reviewed_at <=> NEW.reviewed_at)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_regulatory_documents_freeze_delete
+BEFORE DELETE ON global_regulatory_documents
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_global_curriculum_versions_freeze_update
+BEFORE UPDATE ON global_curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (
+  NOT (OLD.trade_id <=> NEW.trade_id)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.version_code <=> NEW.version_code)
+  OR NOT (OLD.duration_months <=> NEW.duration_months)
+  OR NOT (OLD.nsqf_level <=> NEW.nsqf_level)
+  OR NOT (OLD.unit_strength <=> NEW.unit_strength)
+  OR NOT (OLD.effective_from <=> NEW.effective_from)
+  OR (NOT (OLD.effective_to <=> NEW.effective_to) AND NOT (OLD.effective_to IS NULL AND NEW.effective_to IS NOT NULL AND NEW.status IN ('superseded','withdrawn')))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_curriculum_versions_freeze_delete
+BEFORE DELETE ON global_curriculum_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_cts_training_calendars_freeze_update
+BEFORE UPDATE ON cts_training_calendars
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (
+  NOT (OLD.admission_year <=> NEW.admission_year)
+  OR NOT (OLD.session_code <=> NEW.session_code)
+  OR NOT (OLD.revision_code <=> NEW.revision_code)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.training_starts_on <=> NEW.training_starts_on)
+  OR NOT (OLD.training_ends_on <=> NEW.training_ends_on)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_cts_training_calendars_freeze_delete
+BEFORE DELETE ON cts_training_calendars
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_trade_master_revisions_freeze_update
+BEFORE UPDATE ON trade_master_revisions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('active','superseded','retired') AND (
+  NOT (OLD.trade_id <=> NEW.trade_id)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.version_code <=> NEW.version_code)
+  OR NOT (OLD.official_name <=> NEW.official_name)
+  OR NOT (OLD.trade_type <=> NEW.trade_type)
+  OR NOT (OLD.effective_from <=> NEW.effective_from)
+  OR (NOT (OLD.effective_to <=> NEW.effective_to) AND NOT (OLD.effective_to IS NULL AND NEW.effective_to IS NOT NULL AND NEW.status IN ('superseded','retired')))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_trade_master_revisions_freeze_delete
+BEFORE DELETE ON trade_master_revisions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('active','superseded','retired') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_global_shifts_freeze_update
+BEFORE UPDATE ON global_shifts
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('active','superseded','retired') AND (
+  NOT (OLD.shift_no <=> NEW.shift_no)
+  OR NOT (OLD.shift_code <=> NEW.shift_code)
+  OR NOT (OLD.display_name <=> NEW.display_name)
+  OR NOT (OLD.revision_code <=> NEW.revision_code)
+  OR NOT (OLD.source_document_id <=> NEW.source_document_id)
+  OR NOT (OLD.effective_from <=> NEW.effective_from)
+  OR (NOT (OLD.effective_to <=> NEW.effective_to) AND NOT (OLD.effective_to IS NULL AND NEW.effective_to IS NOT NULL AND NEW.status IN ('superseded','retired')))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_shifts_freeze_delete
+BEFORE DELETE ON global_shifts
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('active','superseded','retired') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_admission_intake_revisions_freeze_update
+BEFORE UPDATE ON admission_intake_revisions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') AND (
+  NOT (OLD.institute_id <=> NEW.institute_id)
+  OR NOT (OLD.intake_id <=> NEW.intake_id)
+  OR NOT (OLD.source_id <=> NEW.source_id)
+  OR NOT (OLD.revision_code <=> NEW.revision_code)
+  OR NOT (OLD.opens_on <=> NEW.opens_on)
+  OR NOT (OLD.closes_on <=> NEW.closes_on)
+  OR NOT (OLD.approval_reference <=> NEW.approval_reference)
+  OR NOT (OLD.published_on <=> NEW.published_on)
+  OR NOT (OLD.supersedes_id <=> NEW.supersedes_id)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intake_revisions_freeze_delete
+BEFORE DELETE ON admission_intake_revisions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('published','superseded','withdrawn') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+-- Previously published official rows preserve all factual fields; status may move only forward.
+CREATE TRIGGER trg_seat_matrix_versions_freeze_update
+BEFORE UPDATE ON seat_matrix_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('final','superseded') AND (
+  NOT (OLD.institute_id <=> NEW.institute_id)
+  OR NOT (OLD.admission_year <=> NEW.admission_year)
+  OR NOT (OLD.intake_id <=> NEW.intake_id)
+  OR NOT (OLD.version_code <=> NEW.version_code)
+  OR NOT (OLD.source_id <=> NEW.source_id)
+  OR NOT (OLD.portal_reference <=> NEW.portal_reference)
+  OR NOT (OLD.dgt_circular_no <=> NEW.dgt_circular_no)
+  OR NOT (OLD.published_on <=> NEW.published_on)
+  OR NOT (OLD.supersedes_id <=> NEW.supersedes_id)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official historic record must not be rewritten';
+ END IF;
+ IF OLD.status IN ('superseded','withdrawn','retired') AND NEW.status<>OLD.status THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Official retired revision cannot be reactivated';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_versions_freeze_delete
+BEFORE DELETE ON seat_matrix_versions
+FOR EACH ROW
+BEGIN
+ IF OLD.status IN ('final','superseded') THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published official revision cannot be deleted';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_curriculum_years_freeze_update
+BEFORE UPDATE ON global_curriculum_years
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_versions c WHERE c.id=OLD.global_curriculum_id AND c.status IN ('published','superseded','withdrawn')) AND (NOT (OLD.global_curriculum_id <=> NEW.global_curriculum_id) OR NOT (OLD.year_no <=> NEW.year_no) OR NOT (OLD.trade_practical_minutes <=> NEW.trade_practical_minutes) OR NOT (OLD.trade_theory_minutes <=> NEW.trade_theory_minutes) OR NOT (OLD.employability_minutes <=> NEW.employability_minutes) OR NOT (OLD.ojt_project_minutes <=> NEW.ojt_project_minutes) OR NOT (OLD.credits <=> NEW.credits)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be changed';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_curriculum_years_freeze_delete
+BEFORE DELETE ON global_curriculum_years
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_versions c WHERE c.id=OLD.global_curriculum_id AND c.status IN ('published','superseded','withdrawn')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be deleted';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_learning_outcomes_freeze_update
+BEFORE UPDATE ON global_learning_outcomes
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_years cy JOIN global_curriculum_versions c ON c.id=cy.global_curriculum_id WHERE cy.id=OLD.global_curriculum_year_id AND c.status IN ('published','superseded','withdrawn')) AND (NOT (OLD.global_curriculum_year_id <=> NEW.global_curriculum_year_id) OR NOT (OLD.lo_code <=> NEW.lo_code) OR NOT (OLD.nos_code <=> NEW.nos_code) OR NOT (OLD.outcome_text <=> NEW.outcome_text) OR NOT (OLD.assessment_criteria <=> NEW.assessment_criteria) OR NOT (OLD.formative_max_marks <=> NEW.formative_max_marks)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be changed';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_learning_outcomes_freeze_delete
+BEFORE DELETE ON global_learning_outcomes
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_years cy JOIN global_curriculum_versions c ON c.id=cy.global_curriculum_id WHERE cy.id=OLD.global_curriculum_year_id AND c.status IN ('published','superseded','withdrawn')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be deleted';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_resource_requirements_freeze_update
+BEFORE UPDATE ON global_resource_requirements
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_versions c WHERE c.id=OLD.global_curriculum_id AND c.status IN ('published','superseded','withdrawn')) AND (NOT (OLD.global_curriculum_id <=> NEW.global_curriculum_id) OR NOT (OLD.resource_code <=> NEW.resource_code) OR NOT (OLD.resource_name <=> NEW.resource_name) OR NOT (OLD.specification <=> NEW.specification) OR NOT (OLD.resource_type <=> NEW.resource_type) OR NOT (OLD.base_quantity <=> NEW.base_quantity) OR NOT (OLD.additional_unit_quantity <=> NEW.additional_unit_quantity) OR NOT (OLD.measurement_unit <=> NEW.measurement_unit)) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be changed';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_resource_requirements_freeze_delete
+BEFORE DELETE ON global_resource_requirements
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM global_curriculum_versions c WHERE c.id=OLD.global_curriculum_id AND c.status IN ('published','superseded','withdrawn')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be deleted';
+ END IF;
+END$$
+
 DELIMITER ;

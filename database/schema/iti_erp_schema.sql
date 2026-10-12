@@ -179,28 +179,14 @@ CREATE TABLE curriculum_versions (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  trade_id BIGINT UNSIGNED NOT NULL,
  global_curriculum_id BIGINT UNSIGNED NOT NULL,
- source_id BIGINT UNSIGNED NOT NULL,
- version_code VARCHAR(80) NOT NULL,
- duration_months SMALLINT UNSIGNED NOT NULL,
- nsqf_level DECIMAL(3,1) NOT NULL,
- unit_strength SMALLINT UNSIGNED NOT NULL,
- effective_from DATE NOT NULL,
- effective_to DATE NULL,
- status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(trade_id,version_code,institute_id),
+ UNIQUE(global_curriculum_id,institute_id),
  UNIQUE(id,trade_id,institute_id),
  UNIQUE(id,global_curriculum_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(trade_id) REFERENCES trades(id),
  FOREIGN KEY(global_curriculum_id,trade_id) REFERENCES global_curriculum_versions(id,trade_id),
- FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(duration_months IN(6,12,24)),
- CHECK(nsqf_level BETWEEN 1 AND 8),
- CHECK(unit_strength>0),
- CHECK(effective_to IS NULL OR effective_to>=effective_from)
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE curriculum_years (
@@ -210,11 +196,6 @@ CREATE TABLE curriculum_years (
  global_curriculum_id BIGINT UNSIGNED NOT NULL,
  global_curriculum_year_id BIGINT UNSIGNED NOT NULL,
  year_no TINYINT UNSIGNED NOT NULL,
- trade_practical_minutes INT UNSIGNED NOT NULL,
- trade_theory_minutes INT UNSIGNED NOT NULL,
- employability_minutes INT UNSIGNED NOT NULL,
- ojt_project_minutes INT UNSIGNED NOT NULL DEFAULT 0,
- credits DECIMAL(7,2) NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(curriculum_id,year_no,institute_id),
@@ -223,9 +204,7 @@ CREATE TABLE curriculum_years (
  UNIQUE(id,institute_id),
  FOREIGN KEY(curriculum_id,global_curriculum_id,institute_id) REFERENCES curriculum_versions(id,global_curriculum_id,institute_id),
  FOREIGN KEY(global_curriculum_year_id,global_curriculum_id,year_no) REFERENCES global_curriculum_years(id,global_curriculum_id,year_no),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(year_no IN(1,2)),
- CHECK(credits IS NULL OR credits>=0)
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE learning_outcomes (
@@ -235,10 +214,6 @@ CREATE TABLE learning_outcomes (
  global_curriculum_year_id BIGINT UNSIGNED NOT NULL,
  global_learning_outcome_id BIGINT UNSIGNED NOT NULL,
  lo_code VARCHAR(80) NOT NULL,
- nos_code VARCHAR(80) NULL,
- outcome_text TEXT NOT NULL,
- assessment_criteria TEXT NOT NULL,
- formative_max_marks DECIMAL(7,2) NULL CHECK(formative_max_marks IS NULL OR formative_max_marks>0),
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(curriculum_year_id,lo_code,institute_id),
@@ -256,20 +231,13 @@ CREATE TABLE resource_requirements (
  global_curriculum_id BIGINT UNSIGNED NOT NULL,
  global_resource_requirement_id BIGINT UNSIGNED NOT NULL,
  resource_code VARCHAR(80) NOT NULL,
- resource_name VARCHAR(255) NOT NULL,
- specification TEXT NULL,
- resource_type ENUM('tool','machine','equipment','power_kw','workshop_area_m2','safety','staff') NOT NULL,
- base_quantity DECIMAL(10,3) NOT NULL,
- additional_unit_quantity DECIMAL(10,3) NOT NULL DEFAULT 0,
- measurement_unit VARCHAR(30) NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(curriculum_id,resource_code,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(curriculum_id,global_curriculum_id,institute_id) REFERENCES curriculum_versions(id,global_curriculum_id,institute_id),
  FOREIGN KEY(global_resource_requirement_id,global_curriculum_id,resource_code) REFERENCES global_resource_requirements(id,global_curriculum_id,resource_code),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(base_quantity>=0 AND additional_unit_quantity>=0)
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE instructor_identities (
@@ -1930,8 +1898,15 @@ CREATE TRIGGER trg_curriculum_versions_insert_master
 BEFORE INSERT ON curriculum_versions
 FOR EACH ROW
 BEGIN
- IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_curriculum_versions g WHERE g.id=NEW.global_curriculum_id AND g.trade_id=NEW.trade_id AND g.status IN ('published','superseded') AND g.version_code=NEW.version_code AND g.duration_months=NEW.duration_months AND g.nsqf_level=NEW.nsqf_level AND g.unit_strength=NEW.unit_strength) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local curriculum differs from official CTS';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_curriculum_versions c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.global_curriculum_id AND c.trade_id=NEW.trade_id
+    AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Institute curriculum requires official CTS master';
  END IF;
 END$$
 
@@ -1939,62 +1914,15 @@ CREATE TRIGGER trg_curriculum_versions_update_master
 BEFORE UPDATE ON curriculum_versions
 FOR EACH ROW
 BEGIN
- IF NEW.status='published' AND NOT EXISTS (SELECT 1 FROM global_curriculum_versions g WHERE g.id=NEW.global_curriculum_id AND g.trade_id=NEW.trade_id AND g.status IN ('published','superseded') AND g.version_code=NEW.version_code AND g.duration_months=NEW.duration_months AND g.nsqf_level=NEW.nsqf_level AND g.unit_strength=NEW.unit_strength) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local curriculum differs from official CTS';
- END IF;
-END$$
-
-CREATE TRIGGER trg_curriculum_years_insert_master
-BEFORE INSERT ON curriculum_years
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_curriculum_years g WHERE g.id=NEW.global_curriculum_year_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.year_no=NEW.year_no AND g.trade_practical_minutes=NEW.trade_practical_minutes AND g.trade_theory_minutes=NEW.trade_theory_minutes AND g.employability_minutes=NEW.employability_minutes AND g.ojt_project_minutes=NEW.ojt_project_minutes AND g.credits <=> NEW.credits) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local syllabus hours differ from CTS master';
- END IF;
-END$$
-
-CREATE TRIGGER trg_curriculum_years_update_master
-BEFORE UPDATE ON curriculum_years
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_curriculum_years g WHERE g.id=NEW.global_curriculum_year_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.year_no=NEW.year_no AND g.trade_practical_minutes=NEW.trade_practical_minutes AND g.trade_theory_minutes=NEW.trade_theory_minutes AND g.employability_minutes=NEW.employability_minutes AND g.ojt_project_minutes=NEW.ojt_project_minutes AND g.credits <=> NEW.credits) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local syllabus hours differ from CTS master';
- END IF;
-END$$
-
-CREATE TRIGGER trg_learning_outcomes_insert_master
-BEFORE INSERT ON learning_outcomes
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_learning_outcomes g WHERE g.id=NEW.global_learning_outcome_id AND g.global_curriculum_year_id=NEW.global_curriculum_year_id AND g.lo_code=NEW.lo_code AND (g.nos_code <=> NEW.nos_code) AND BINARY g.outcome_text=BINARY NEW.outcome_text AND BINARY g.assessment_criteria=BINARY NEW.assessment_criteria AND (g.formative_max_marks <=> NEW.formative_max_marks)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local learning outcome differs from CTS master';
- END IF;
-END$$
-
-CREATE TRIGGER trg_learning_outcomes_update_master
-BEFORE UPDATE ON learning_outcomes
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_learning_outcomes g WHERE g.id=NEW.global_learning_outcome_id AND g.global_curriculum_year_id=NEW.global_curriculum_year_id AND g.lo_code=NEW.lo_code AND (g.nos_code <=> NEW.nos_code) AND BINARY g.outcome_text=BINARY NEW.outcome_text AND BINARY g.assessment_criteria=BINARY NEW.assessment_criteria AND (g.formative_max_marks <=> NEW.formative_max_marks)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local learning outcome differs from CTS master';
- END IF;
-END$$
-
-CREATE TRIGGER trg_resource_requirements_insert_master
-BEFORE INSERT ON resource_requirements
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_resource_requirements g WHERE g.id=NEW.global_resource_requirement_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.resource_code=NEW.resource_code AND BINARY g.resource_name=BINARY NEW.resource_name AND (g.specification <=> NEW.specification) AND g.resource_type=NEW.resource_type AND g.base_quantity=NEW.base_quantity AND g.additional_unit_quantity=NEW.additional_unit_quantity AND g.measurement_unit=NEW.measurement_unit) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local resource requirement differs from CTS';
- END IF;
-END$$
-
-CREATE TRIGGER trg_resource_requirements_update_master
-BEFORE UPDATE ON resource_requirements
-FOR EACH ROW
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM global_resource_requirements g WHERE g.id=NEW.global_resource_requirement_id AND g.global_curriculum_id=NEW.global_curriculum_id AND g.resource_code=NEW.resource_code AND BINARY g.resource_name=BINARY NEW.resource_name AND (g.specification <=> NEW.specification) AND g.resource_type=NEW.resource_type AND g.base_quantity=NEW.base_quantity AND g.additional_unit_quantity=NEW.additional_unit_quantity AND g.measurement_unit=NEW.measurement_unit) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Local resource requirement differs from CTS';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_curriculum_versions c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.global_curriculum_id AND c.trade_id=NEW.trade_id
+    AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Institute curriculum requires official CTS master';
  END IF;
 END$$
 

@@ -28,8 +28,8 @@ test('attendance record must match session batch and enrollment batch', () => {
 });
 test('certificates and superseded results share enrollment identity', () => {
   contains('certificates', 'FOREIGN KEY(official_result_id,enrollment_id,institute_id)');
-  contains('certificates', 'FOREIGN KEY(supersedes_certificate_id,enrollment_id,institute_id)');
-  contains('official_results', 'FOREIGN KEY(supersedes_result_id,enrollment_id,institute_id)');
+  contains('certificates', 'FOREIGN KEY(supersedes_certificate_id,enrollment_id,document_type,institute_id)');
+  contains('official_results', 'FOREIGN KEY(supersedes_result_id,enrollment_id,batch_year_id,cycle_id,institute_id)');
 });
 test('seat matrix pointer is for the same instructor ITSU and intake', () => {
   contains('seat_matrix_entries', 'FOREIGN KEY(instructor_mapping_id,trade_unit_shift_id,institute_id)');

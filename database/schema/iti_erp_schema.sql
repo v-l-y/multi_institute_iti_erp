@@ -129,7 +129,7 @@ CREATE TABLE global_shifts (
  UNIQUE(id,shift_no),
  UNIQUE(current_shift_guard),
  FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
- CHECK(shift_no>0),
+ CHECK(shift_no BETWEEN 1 AND 3),
  CHECK(effective_to IS NULL OR effective_to>=effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -544,6 +544,7 @@ CREATE TABLE seat_matrix_entries (
  version_id BIGINT UNSIGNED NOT NULL,
  intake_id BIGINT UNSIGNED NOT NULL,
  trade_unit_shift_id BIGINT UNSIGNED NOT NULL,
+ portal_shift_no TINYINT UNSIGNED NOT NULL,
  seat_capacity SMALLINT UNSIGNED NOT NULL,
  admission_allowed TINYINT NOT NULL,
  consumed_previous_session TINYINT NOT NULL DEFAULT 0,
@@ -562,7 +563,8 @@ CREATE TABLE seat_matrix_entries (
  FOREIGN KEY(instructor_mapping_id,trade_unit_shift_id,institute_id) REFERENCES instructor_mappings(id,trade_unit_shift_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1)),
- CHECK(admission_allowed=0 OR instructor_mapping_id IS NOT NULL)
+ CHECK(admission_allowed=0 OR instructor_mapping_id IS NOT NULL),
+ CHECK(portal_shift_no IN(1,2,3,6,7,8))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Official admission eligibility and admission window: shared policy, not institute-owned values.
@@ -1889,12 +1891,31 @@ BEGIN
   JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
   JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
   JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  JOIN trade_unit_shifts u ON u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
+  JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  JOIN curriculum_versions ic ON ic.id=NEW.curriculum_id AND ic.institute_id=NEW.institute_id
+  JOIN global_curriculum_versions cur ON cur.id=ic.global_curriculum_id
   WHERE e.id=NEW.seat_matrix_entry_id
     AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
     AND e.intake_id=NEW.intake_id
     AND e.institute_id=NEW.institute_id
     AND e.admission_allowed=1
     AND e.seat_capacity>=NEW.capacity
+    AND u.sanctioned_capacity>=NEW.capacity
+    AND u.affiliation_status='approved'
+    AND u.status='active'
+    AND u.valid_from<=NEW.starts_on
+    AND (u.valid_to IS NULL OR u.valid_to>=NEW.starts_on)
+    AND u.training_mode=NEW.training_mode
+    AND (ai.session_part='primary' OR cur.duration_months=6)
+    AND EXISTS (
+      SELECT 1 FROM admission_intake_revisions ir
+      JOIN regulatory_sources rs ON rs.id=ir.source_id AND rs.institute_id=ir.institute_id
+      JOIN global_regulatory_documents rd ON rd.id=rs.global_document_id
+      WHERE ir.intake_id=NEW.intake_id AND ir.institute_id=NEW.institute_id
+        AND ir.status IN ('published','superseded')
+        AND rd.status IN ('published','superseded') AND rd.reviewed_at IS NOT NULL
+    )
     AND v.status='final'
     AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
  ) THEN
@@ -1906,17 +1927,36 @@ CREATE TRIGGER trg_batches_update_integrity
 BEFORE UPDATE ON batches
 FOR EACH ROW
 BEGIN
- IF (NEW.seat_matrix_entry_id<>OLD.seat_matrix_entry_id OR NEW.intake_id<>OLD.intake_id OR NEW.trade_unit_shift_id<>OLD.trade_unit_shift_id OR NEW.capacity<>OLD.capacity OR NEW.institute_id<>OLD.institute_id) AND NOT EXISTS (SELECT 1
+ IF (NEW.seat_matrix_entry_id<>OLD.seat_matrix_entry_id OR NEW.intake_id<>OLD.intake_id OR NEW.trade_unit_shift_id<>OLD.trade_unit_shift_id OR NEW.capacity<>OLD.capacity OR NEW.institute_id<>OLD.institute_id OR NEW.starts_on<>OLD.starts_on OR NEW.training_mode<>OLD.training_mode OR NEW.curriculum_id<>OLD.curriculum_id OR NEW.calendar_id<>OLD.calendar_id) AND NOT EXISTS (SELECT 1
   FROM seat_matrix_entries e
   JOIN seat_matrix_versions v ON v.id=e.version_id AND v.intake_id=e.intake_id AND v.institute_id=e.institute_id
   JOIN regulatory_sources r ON r.id=v.source_id AND r.institute_id=v.institute_id
   JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  JOIN trade_unit_shifts u ON u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
+  JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  JOIN curriculum_versions ic ON ic.id=NEW.curriculum_id AND ic.institute_id=NEW.institute_id
+  JOIN global_curriculum_versions cur ON cur.id=ic.global_curriculum_id
   WHERE e.id=NEW.seat_matrix_entry_id
     AND e.trade_unit_shift_id=NEW.trade_unit_shift_id
     AND e.intake_id=NEW.intake_id
     AND e.institute_id=NEW.institute_id
     AND e.admission_allowed=1
     AND e.seat_capacity>=NEW.capacity
+    AND u.sanctioned_capacity>=NEW.capacity
+    AND u.affiliation_status='approved'
+    AND u.status='active'
+    AND u.valid_from<=NEW.starts_on
+    AND (u.valid_to IS NULL OR u.valid_to>=NEW.starts_on)
+    AND u.training_mode=NEW.training_mode
+    AND (ai.session_part='primary' OR cur.duration_months=6)
+    AND EXISTS (
+      SELECT 1 FROM admission_intake_revisions ir
+      JOIN regulatory_sources rs ON rs.id=ir.source_id AND rs.institute_id=ir.institute_id
+      JOIN global_regulatory_documents rd ON rd.id=rs.global_document_id
+      WHERE ir.intake_id=NEW.intake_id AND ir.institute_id=NEW.institute_id
+        AND ir.status IN ('published','superseded')
+        AND rd.status IN ('published','superseded') AND rd.reviewed_at IS NOT NULL
+    )
     AND v.status='final'
     AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
  ) THEN
@@ -2222,6 +2262,38 @@ BEGIN
     AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission revision requires reviewed official order';
+ END IF;
+END$$
+
+-- CTS 2026 Annexure II: 6-month Session II uses portal 6,7,8 for affiliated shifts 1,2,3.
+CREATE TRIGGER trg_seat_matrix_entries_insert_portal_shift
+BEFORE INSERT ON seat_matrix_entries
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM trade_unit_shifts u
+  JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  WHERE u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
+    AND ((ai.session_part='primary' AND NEW.portal_shift_no=u.shift_no)
+      OR (ai.session_part='six_month_second' AND NEW.portal_shift_no=u.shift_no+5))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift conflicts with CTS intake session and affiliated shift';
+ END IF;
+END$$
+
+-- CTS 2026 Annexure II: 6-month Session II uses portal 6,7,8 for affiliated shifts 1,2,3.
+CREATE TRIGGER trg_seat_matrix_entries_update_portal_shift
+BEFORE UPDATE ON seat_matrix_entries
+FOR EACH ROW
+BEGIN
+ IF NOT EXISTS (
+  SELECT 1 FROM trade_unit_shifts u
+  JOIN admission_intakes ai ON ai.id=NEW.intake_id AND ai.institute_id=NEW.institute_id
+  WHERE u.id=NEW.trade_unit_shift_id AND u.institute_id=NEW.institute_id
+    AND ((ai.session_part='primary' AND NEW.portal_shift_no=u.shift_no)
+      OR (ai.session_part='six_month_second' AND NEW.portal_shift_no=u.shift_no+5))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Portal shift conflicts with CTS intake session and affiliated shift';
  END IF;
 END$$
 

@@ -19,7 +19,6 @@ CREATE TABLE institute (
  mis_code VARCHAR(40) NOT NULL UNIQUE,
  state_ut_code VARCHAR(20) NOT NULL DEFAULT 'BR',
  address TEXT NOT NULL,
- principal_name VARCHAR(190) NOT NULL,
  affiliation_status ENUM('affiliated','suspended','deactivated','deaffiliated') NOT NULL,
  affiliation_from DATE NOT NULL,
  affiliation_to DATE NULL,
@@ -2048,6 +2047,78 @@ FOR EACH ROW
 BEGIN
  IF NEW.calendar_status='reviewed' AND NOT EXISTS (SELECT 1 FROM cts_training_calendars c WHERE c.id=NEW.calendar_id AND c.status IN ('published','superseded')) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Reviewed batch year requires official calendar';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_admission_rule_versions_insert_source
+BEFORE INSERT ON global_admission_rule_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+    AND EXISTS (SELECT 1 FROM global_regulatory_documents w WHERE w.id=NEW.admission_window_document_id AND w.status IN ('published','superseded') AND w.reviewed_at IS NOT NULL AND w.reviewed_by IS NOT NULL)
+    AND (NEW.state_source_document_id IS NULL OR EXISTS (SELECT 1 FROM global_regulatory_documents ext WHERE ext.id=NEW.state_source_document_id AND ext.status IN ('published','superseded') AND ext.reviewed_at IS NOT NULL AND ext.reviewed_by IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_admission_rule_versions_update_source
+BEFORE UPDATE ON global_admission_rule_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+    AND EXISTS (SELECT 1 FROM global_regulatory_documents w WHERE w.id=NEW.admission_window_document_id AND w.status IN ('published','superseded') AND w.reviewed_at IS NOT NULL AND w.reviewed_by IS NOT NULL)
+    AND (NEW.state_source_document_id IS NULL OR EXISTS (SELECT 1 FROM global_regulatory_documents ext WHERE ext.id=NEW.state_source_document_id AND ext.status IN ('published','superseded') AND ext.reviewed_at IS NOT NULL AND ext.reviewed_by IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_reservation_policies_insert_source
+BEFORE INSERT ON global_reservation_policies
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_reservation_policies_update_source
+BEFORE UPDATE ON global_reservation_policies
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_exam_rule_versions_insert_source
+BEFORE INSERT ON global_exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+    AND (NEW.relaxation_source_document_id IS NULL OR EXISTS (SELECT 1 FROM global_regulatory_documents ext WHERE ext.id=NEW.relaxation_source_document_id AND ext.status IN ('published','superseded') AND ext.reviewed_at IS NOT NULL AND ext.reviewed_by IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_global_exam_rule_versions_update_source
+BEFORE UPDATE ON global_exam_rule_versions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT (
+    EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL)
+    AND (NEW.relaxation_source_document_id IS NULL OR EXISTS (SELECT 1 FROM global_regulatory_documents ext WHERE ext.id=NEW.relaxation_source_document_id AND ext.status IN ('published','superseded') AND ext.reviewed_at IS NOT NULL AND ext.reviewed_by IS NOT NULL))
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
  END IF;
 END$$
 

@@ -14,8 +14,8 @@ function contains(name, fragment) {
   assert.ok(table(name).includes(fragment), name + ' missing: ' + fragment);
 }
 test('expected table/trigger count', () => {
-  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 66);
-  assert.equal((sql.match(/CREATE TRIGGER /g) || []).length, 16);
+  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 81);
+  assert.equal((sql.match(/CREATE TRIGGER /g) || []).length, 0);
 });
 test('enrollment qualification cannot refer to another student', () => {
   contains('student_qualifications', 'UNIQUE(id,student_id,institute_id)');
@@ -45,19 +45,43 @@ test('historical ITSU and role revisions have one current identity', () => {
   contains('trade_unit_shifts', 'UNIQUE(trade_unit_id,shift_no,valid_from,institute_id)');
   contains('trade_unit_shifts', 'UNIQUE(current_unit_guard,current_shift_guard,institute_id)');
   contains('auth_user_roles', 'id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY');
-  contains('auth_user_roles', 'UNIQUE(current_user_guard,current_role_guard,institute_id)');
+  contains('auth_user_roles', 'UNIQUE(current_user_guard,current_role_guard,tenant_key)');
 });
 test('calendar sources and certified day register versions are traceable', () => {
-  contains('training_calendar_entries', 'calendar_source_id BIGINT UNSIGNED NOT NULL');
-  contains('training_calendar_entries', 'calendar_revision_code VARCHAR(80) NOT NULL');
+  contains('training_calendar_entries', 'calendar_id BIGINT UNSIGNED NOT NULL');
+  contains('training_calendar_entries', 'FOREIGN KEY(batch_year_id,calendar_id,institute_id) REFERENCES batch_years(id,calendar_id,institute_id)');
   contains('working_day_attendance', 'UNIQUE(current_enrollment_guard,current_batch_year_guard,current_date_guard,institute_id)');
 });
-test('final seat matrix, admission permission, source status and capacity guarded', () => {
-  assert.ok(sql.includes("v.status='final'"));
-  assert.ok(sql.includes('e.admission_allowed=1'));
-  assert.ok(sql.includes('e.seat_capacity>=NEW.capacity'));
-  assert.ok(sql.includes("r.status IN ('published','superseded')"));
-  assert.ok(sql.includes("SIGNAL SQLSTATE '45000'"));
+test('seat matrix and intake revisions retain relational constraints without deferred guards', () => {
+  contains('seat_matrix_entries', 'FOREIGN KEY(version_id,intake_id,institute_id)');
+  contains('seat_matrix_entries', 'FOREIGN KEY(trade_unit_shift_id,institute_id)');
+  contains('admission_intake_revisions', 'FOREIGN KEY(intake_id,institute_id)');
+  contains('enrollments', 'FOREIGN KEY(admission_intake_revision_id,intake_id,institute_id)');
+  assert.ok(!sql.includes('CREATE TRIGGER '), 'DATA-INTEGRITY GUARDS are deferred');
+});
+
+test('five canonical authentication roles have correct scope and identity contracts', () => {
+  const roles = table('auth_roles');
+  for (const code of ['developer', 'principal', 'administrator', 'instructor', 'student']) {
+    assert.ok(roles.includes("'" + code + "'"), 'auth_roles missing ' + code);
+    assert.ok(sql.includes("'" + code + "'"), 'role seed missing ' + code);
+  }
+  assert.ok(!roles.includes("'administration'"), 'legacy administration role should be renamed');
+  contains('auth_roles', "scope ENUM('platform','institute') NOT NULL");
+  contains('auth_roles', "code='developer' AND scope='platform'");
+  contains('auth_users', 'institute_id BIGINT UNSIGNED NULL');
+  contains('auth_users', 'UNIQUE(username,tenant_key)');
+  contains('auth_users', 'UNIQUE(id,tenant_key)');
+  contains('auth_user_roles', 'FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key)');
+  contains('auth_user_roles', 'FOREIGN KEY(role_id,role_code,scope) REFERENCES auth_roles(id,code,scope)');
+  contains('auth_user_roles', 'FOREIGN KEY(staff_link_user_id,institute_id) REFERENCES auth_staff_links(user_id,institute_id)');
+  contains('auth_user_roles', 'FOREIGN KEY(student_link_user_id,institute_id) REFERENCES auth_student_links(user_id,institute_id)');
+  contains('auth_user_roles', 'student_link_user_id IS NOT NULL AND student_link_user_id=user_id');
+  contains('auth_user_roles', 'staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id');
+  contains('auth_sessions', 'UNIQUE(session_token_hash)');
+  contains('auth_password_resets', 'UNIQUE(token_hash)');
+  contains('auth_audit_log', 'FOREIGN KEY(user_id,tenant_key) REFERENCES auth_users(id,tenant_key)');
+  contains('auth_user_permissions', 'institute_id BIGINT UNSIGNED NOT NULL');
 });
 test('all referenced foreign key tables exist and column counts match', () => {
   const names = new Set([...sql.matchAll(/CREATE TABLE (\w+)/g)].map(x => x[1]));

@@ -77,6 +77,8 @@ test('five canonical authentication roles have correct scope and identity contra
   contains('auth_user_roles', 'FOREIGN KEY(staff_link_user_id,institute_id) REFERENCES auth_staff_links(user_id,institute_id)');
   contains('auth_user_roles', 'FOREIGN KEY(student_link_user_id,institute_id) REFERENCES auth_student_links(user_id,institute_id)');
   contains('auth_user_roles', 'student_link_user_id IS NOT NULL AND student_link_user_id=user_id');
+  contains('staff', "role ENUM('principal','administrator','trade_instructor'");
+  contains('auth_user_roles', "role_code IN('principal','administrator','instructor')");
   contains('auth_user_roles', 'staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id');
   contains('auth_sessions', 'UNIQUE(session_token_hash)');
   contains('auth_password_resets', 'UNIQUE(token_hash)');

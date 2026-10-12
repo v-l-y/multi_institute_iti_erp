@@ -473,20 +473,42 @@ CREATE TABLE admission_intakes (
  admission_year SMALLINT UNSIGNED NOT NULL,
  calendar_id BIGINT UNSIGNED NOT NULL,
  intake_code VARCHAR(80) NOT NULL,
- opens_on DATE NOT NULL,
- closes_on DATE NOT NULL,
- source_id BIGINT UNSIGNED NOT NULL,
- approval_reference VARCHAR(190) NOT NULL,
- status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ session_part ENUM('primary','six_month_second') NOT NULL DEFAULT 'primary',
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(admission_year,intake_code,institute_id),
  UNIQUE(id,admission_year,institute_id),
+ UNIQUE(id,calendar_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(calendar_id,admission_year) REFERENCES cts_training_calendars(id,admission_year),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(closes_on>=opens_on)
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- CTS admission closing-date orders and amendments are stored as dated source-linked revisions.
+CREATE TABLE admission_intake_revisions (
+ institute_id BIGINT UNSIGNED NOT NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ intake_id BIGINT UNSIGNED NOT NULL,
+ source_id BIGINT UNSIGNED NOT NULL,
+ revision_code VARCHAR(80) NOT NULL,
+ opens_on DATE NOT NULL,
+ closes_on DATE NOT NULL,
+ approval_reference VARCHAR(190) NOT NULL,
+ published_on DATE NULL,
+ status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ supersedes_id BIGINT UNSIGNED NULL,
+ current_intake_guard BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status='published' THEN intake_id ELSE NULL END) STORED,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(intake_id,revision_code,institute_id),
+ UNIQUE(id,intake_id,institute_id),
+ UNIQUE(current_intake_guard,institute_id),
+ FOREIGN KEY(intake_id,institute_id) REFERENCES admission_intakes(id,institute_id),
+ FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(supersedes_id,intake_id,institute_id) REFERENCES admission_intake_revisions(id,intake_id,institute_id),
+ CHECK(closes_on>=opens_on),
+ CHECK(status='draft' OR published_on IS NOT NULL),
+ CHECK(supersedes_id IS NULL OR supersedes_id<>id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE seat_matrix_versions (
@@ -630,6 +652,7 @@ CREATE TABLE batches (
  admission_rule_id BIGINT UNSIGNED NOT NULL,
  admission_year SMALLINT UNSIGNED NOT NULL,
  intake_id BIGINT UNSIGNED NOT NULL,
+ calendar_id BIGINT UNSIGNED NOT NULL,
  starts_on DATE NOT NULL,
  ends_on DATE NOT NULL,
  training_mode ENUM('CTS','DST') NOT NULL DEFAULT 'CTS',
@@ -647,10 +670,12 @@ CREATE TABLE batches (
  UNIQUE(id,curriculum_id,institute_id),
  UNIQUE(id,admission_rule_id,institute_id),
  UNIQUE(id,admission_year,institute_id),
+ UNIQUE(id,calendar_id,institute_id),
  UNIQUE(id,trade_id,institute_id),
  UNIQUE(batch_code,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(intake_id,admission_year,institute_id) REFERENCES admission_intakes(id,admission_year,institute_id),
+ FOREIGN KEY(intake_id,calendar_id,institute_id) REFERENCES admission_intakes(id,calendar_id,institute_id),
  FOREIGN KEY(trade_unit_shift_id,trade_id,institute_id) REFERENCES trade_unit_shifts(id,trade_id,institute_id),
  FOREIGN KEY(curriculum_id,trade_id,institute_id) REFERENCES curriculum_versions(id,trade_id,institute_id),
  FOREIGN KEY(seat_matrix_entry_id,trade_unit_shift_id,intake_id,institute_id) REFERENCES seat_matrix_entries(id,trade_unit_shift_id,intake_id,institute_id),
@@ -689,6 +714,7 @@ CREATE TABLE batch_years (
  FOREIGN KEY(formative_scheme_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id),
  FOREIGN KEY(batch_id,curriculum_id,institute_id) REFERENCES batches(id,curriculum_id,institute_id),
+ FOREIGN KEY(batch_id,calendar_id,institute_id) REFERENCES batches(id,calendar_id,institute_id),
  FOREIGN KEY(curriculum_year_id,curriculum_id,institute_id) REFERENCES curriculum_years(id,curriculum_id,institute_id),
  FOREIGN KEY(attendance_basis_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
@@ -1670,8 +1696,14 @@ CREATE TRIGGER trg_admission_intakes_insert_integrity
 BEFORE INSERT ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year AND c.status IN ('published','superseded') AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM cts_training_calendars c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year
+    AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Intake requires applicable official CTS calendar';
  END IF;
 END$$
 
@@ -1679,8 +1711,14 @@ CREATE TRIGGER trg_admission_intakes_update_integrity
 BEFORE UPDATE ON admission_intakes
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM cts_training_calendars c JOIN global_regulatory_documents d ON d.id=c.source_document_id WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year AND c.status IN ('published','superseded') AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL)) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM cts_training_calendars c
+  JOIN global_regulatory_documents d ON d.id=c.source_document_id
+  WHERE c.id=NEW.calendar_id AND c.admission_year=NEW.admission_year
+    AND c.status IN ('published','superseded')
+    AND d.status IN ('published','superseded')
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Intake requires applicable official CTS calendar';
  END IF;
 END$$
 
@@ -2154,6 +2192,36 @@ BEGIN
     AND (NEW.relaxation_source_document_id IS NULL OR EXISTS (SELECT 1 FROM global_regulatory_documents ext WHERE ext.id=NEW.relaxation_source_document_id AND ext.status IN ('published','superseded') AND ext.reviewed_at IS NOT NULL AND ext.reviewed_by IS NOT NULL))
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published policy needs reviewed official document';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intake_revisions_insert_source
+BEFORE INSERT ON admission_intake_revisions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (
+  SELECT 1 FROM regulatory_sources r
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission revision requires reviewed official order';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_admission_intake_revisions_update_source
+BEFORE UPDATE ON admission_intake_revisions
+FOR EACH ROW
+BEGIN
+ IF NEW.status='published' AND NOT EXISTS (
+  SELECT 1 FROM regulatory_sources r
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id
+    AND d.status IN ('published','superseded')
+    AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission revision requires reviewed official order';
  END IF;
 END$$
 

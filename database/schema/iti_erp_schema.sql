@@ -291,7 +291,7 @@ CREATE TABLE staff (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  employee_code VARCHAR(50) NOT NULL,
  full_name VARCHAR(190) NOT NULL,
- role ENUM('principal','trade_instructor','es_instructor','wcs_ed_instructor','office','other') NOT NULL,
+ role ENUM('principal','administrator','trade_instructor','es_instructor','wcs_ed_instructor','office','other') NOT NULL,
  joined_on DATE NOT NULL,
  left_on DATE NULL,
  iprn VARCHAR(120) NULL,
@@ -1644,8 +1644,7 @@ CREATE TABLE auth_user_roles (
  CHECK(valid_to IS NULL OR valid_to>valid_from),
  CHECK((scope='platform' AND institute_id IS NULL) OR (scope='institute' AND institute_id IS NOT NULL)),
  CHECK((role_code='developer' AND scope='platform' AND staff_link_user_id IS NULL AND student_link_user_id IS NULL),
-  OR (role_code IN('principal','instructor') AND scope='institute' AND staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id AND student_link_user_id IS NULL),
-  OR (role_code='administrator' AND scope='institute' AND student_link_user_id IS NULL AND (staff_link_user_id IS NULL OR staff_link_user_id=user_id)),
+  OR (role_code IN('principal','administrator','instructor') AND scope='institute' AND staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id AND student_link_user_id IS NULL),
   OR (role_code='student' AND scope='institute' AND student_link_user_id IS NOT NULL AND student_link_user_id=user_id AND staff_link_user_id IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -1530,7 +1530,7 @@ CREATE TABLE auth_user_roles (
  FOREIGN KEY(user_id,institute_id) REFERENCES auth_users(id,institute_id),
  FOREIGN KEY(role_id) REFERENCES auth_roles(id),
  FOREIGN KEY(granted_by,institute_id) REFERENCES auth_users(id,institute_id),
- CHECK(valid_to IS NULL OR valid_to>=valid_from)
+ CHECK(valid_to IS NULL OR valid_to>valid_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_staff_links (
@@ -1792,6 +1792,83 @@ BEGIN
     AND r.reviewed_at IS NOT NULL AND r.reviewed_by IS NOT NULL
  ) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Batch change requires final permitted seat matrix';
+ END IF;
+END$$
+
+-- Affiliation effective date is inclusive: adjacent revisions start the following day.
+CREATE TRIGGER trg_trade_unit_shifts_insert_period
+BEFORE INSERT ON trade_unit_shifts
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM trade_units
+  WHERE id=NEW.trade_unit_id AND institute_id=NEW.institute_id FOR UPDATE;
+ IF EXISTS (
+  SELECT 1 FROM trade_unit_shifts s
+  WHERE s.institute_id=NEW.institute_id
+    AND s.trade_unit_id=NEW.trade_unit_id
+    AND s.shift_no=NEW.shift_no
+    AND s.valid_from <= COALESCE(NEW.valid_to, CAST('9999-12-31' AS DATE))
+    AND COALESCE(s.valid_to, CAST('9999-12-31' AS DATE)) >= NEW.valid_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping ITSU affiliation dates';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_trade_unit_shifts_update_period
+BEFORE UPDATE ON trade_unit_shifts
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM trade_units
+  WHERE id=NEW.trade_unit_id AND institute_id=NEW.institute_id FOR UPDATE;
+ IF EXISTS (
+  SELECT 1 FROM trade_unit_shifts s
+  WHERE s.id<>OLD.id
+    AND s.institute_id=NEW.institute_id
+    AND s.trade_unit_id=NEW.trade_unit_id
+    AND s.shift_no=NEW.shift_no
+    AND s.valid_from <= COALESCE(NEW.valid_to, CAST('9999-12-31' AS DATE))
+    AND COALESCE(s.valid_to, CAST('9999-12-31' AS DATE)) >= NEW.valid_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping ITSU affiliation dates';
+ END IF;
+END$$
+
+-- Role assignment timestamps follow [valid_from, valid_to); adjacent ranges are allowed.
+CREATE TRIGGER trg_auth_user_roles_insert_period
+BEFORE INSERT ON auth_user_roles
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM auth_users
+  WHERE id=NEW.user_id AND institute_id=NEW.institute_id FOR UPDATE;
+ IF EXISTS (
+  SELECT 1 FROM auth_user_roles r
+  WHERE r.user_id=NEW.user_id AND r.role_id=NEW.role_id
+    AND r.institute_id=NEW.institute_id
+    AND r.valid_from < COALESCE(NEW.valid_to, CAST('9999-12-31 23:59:59' AS DATETIME))
+    AND COALESCE(r.valid_to, CAST('9999-12-31 23:59:59' AS DATETIME)) > NEW.valid_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping user role assignments';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_auth_user_roles_update_period
+BEFORE UPDATE ON auth_user_roles
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM auth_users
+  WHERE id=NEW.user_id AND institute_id=NEW.institute_id FOR UPDATE;
+ IF EXISTS (
+  SELECT 1 FROM auth_user_roles r
+  WHERE r.id<>OLD.id AND r.user_id=NEW.user_id AND r.role_id=NEW.role_id
+    AND r.institute_id=NEW.institute_id
+    AND r.valid_from < COALESCE(NEW.valid_to, CAST('9999-12-31 23:59:59' AS DATETIME))
+    AND COALESCE(r.valid_to, CAST('9999-12-31 23:59:59' AS DATETIME)) > NEW.valid_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping user role assignments';
  END IF;
 END$$
 

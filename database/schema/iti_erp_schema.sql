@@ -70,6 +70,8 @@ CREATE TABLE institute_affiliation_history (
  institute_id BIGINT UNSIGNED NOT NULL,
  source_id BIGINT UNSIGNED NOT NULL,
  change_type VARCHAR(60) NOT NULL,
+ approved_name VARCHAR(190) NOT NULL,
+ approved_address TEXT NOT NULL,
  affiliation_status ENUM('affiliated','suspended','deactivated','deaffiliated') NOT NULL,
  affiliation_order_reference VARCHAR(190) NOT NULL,
  effective_from DATE NOT NULL,
@@ -2567,6 +2569,128 @@ FOR EACH ROW
 BEGIN
  IF EXISTS (SELECT 1 FROM global_curriculum_versions c WHERE c.id=OLD.global_curriculum_id AND c.status IN ('published','superseded','withdrawn')) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Published syllabus detail cannot be deleted';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_institute_affiliation_history_insert_period
+BEFORE INSERT ON institute_affiliation_history
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM institute WHERE id=NEW.institute_id FOR UPDATE;
+ IF NOT EXISTS (SELECT 1 FROM regulatory_sources r
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id
+    AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Affiliation change needs reviewed official order';
+ END IF;
+ IF EXISTS (SELECT 1 FROM institute_affiliation_history h
+  WHERE h.institute_id=NEW.institute_id
+    
+    AND h.effective_from<=COALESCE(NEW.effective_to,CAST('9999-12-31' AS DATE))
+    AND COALESCE(h.effective_to,CAST('9999-12-31' AS DATE))>=NEW.effective_from) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping institute affiliation periods';
+ END IF;
+ 
+END$$
+
+CREATE TRIGGER trg_institute_affiliation_history_update_period
+BEFORE UPDATE ON institute_affiliation_history
+FOR EACH ROW
+BEGIN
+ DECLARE v_parent BIGINT UNSIGNED;
+ SELECT id INTO v_parent FROM institute WHERE id=NEW.institute_id FOR UPDATE;
+ IF NOT EXISTS (SELECT 1 FROM regulatory_sources r
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id
+    AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Affiliation change needs reviewed official order';
+ END IF;
+ IF EXISTS (SELECT 1 FROM institute_affiliation_history h
+  WHERE h.institute_id=NEW.institute_id
+    AND h.id<>OLD.id
+    AND h.effective_from<=COALESCE(NEW.effective_to,CAST('9999-12-31' AS DATE))
+    AND COALESCE(h.effective_to,CAST('9999-12-31' AS DATE))>=NEW.effective_from) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping institute affiliation periods';
+ END IF;
+ IF NOT (OLD.institute_id <=> NEW.institute_id)
+   OR NOT (OLD.source_id <=> NEW.source_id)
+   OR NOT (OLD.change_type <=> NEW.change_type)
+   OR NOT (OLD.approved_name <=> NEW.approved_name)
+   OR NOT (OLD.approved_address <=> NEW.approved_address)
+   OR NOT (OLD.affiliation_status <=> NEW.affiliation_status)
+   OR NOT (OLD.affiliation_order_reference <=> NEW.affiliation_order_reference)
+   OR NOT (OLD.effective_from <=> NEW.effective_from)
+   OR (OLD.effective_to IS NOT NULL AND NOT (OLD.effective_to <=> NEW.effective_to))
+   OR (OLD.effective_to IS NULL AND NEW.effective_to IS NOT NULL AND NEW.effective_to<OLD.effective_from)
+ THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Affiliation evidence is historical; close old period only';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_trade_master_revisions_insert_period
+BEFORE INSERT ON trade_master_revisions
+FOR EACH ROW
+BEGIN
+ DECLARE v_trade BIGINT UNSIGNED;
+ SELECT id INTO v_trade FROM trades WHERE id=NEW.trade_id FOR UPDATE;
+ IF NEW.status IN ('active','superseded') AND NOT EXISTS (
+  SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id
+   AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Trade version needs official published master source';
+ END IF;
+ IF NEW.status<>'draft' AND EXISTS (
+  SELECT 1 FROM trade_master_revisions v WHERE v.trade_id=NEW.trade_id
+   
+   AND v.status<>'draft'
+   AND v.effective_from<=COALESCE(NEW.effective_to,CAST('9999-12-31' AS DATE))
+   AND COALESCE(v.effective_to,CAST('9999-12-31' AS DATE))>=NEW.effective_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping official Trade Master effective dates';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_trade_master_revisions_update_period
+BEFORE UPDATE ON trade_master_revisions
+FOR EACH ROW
+BEGIN
+ DECLARE v_trade BIGINT UNSIGNED;
+ SELECT id INTO v_trade FROM trades WHERE id=NEW.trade_id FOR UPDATE;
+ IF NEW.status IN ('active','superseded') AND NOT EXISTS (
+  SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id
+   AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Trade version needs official published master source';
+ END IF;
+ IF NEW.status<>'draft' AND EXISTS (
+  SELECT 1 FROM trade_master_revisions v WHERE v.trade_id=NEW.trade_id
+   AND v.id<>OLD.id
+   AND v.status<>'draft'
+   AND v.effective_from<=COALESCE(NEW.effective_to,CAST('9999-12-31' AS DATE))
+   AND COALESCE(v.effective_to,CAST('9999-12-31' AS DATE))>=NEW.effective_from
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Overlapping official Trade Master effective dates';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_entries_update_final
+BEFORE UPDATE ON seat_matrix_entries
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM seat_matrix_versions v
+  WHERE v.id=OLD.version_id AND v.institute_id=OLD.institute_id AND v.status IN ('final','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Final Seat Matrix rows cannot be rewritten; create new version';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_entries_delete_final
+BEFORE DELETE ON seat_matrix_entries
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM seat_matrix_versions v
+  WHERE v.id=OLD.version_id AND v.institute_id=OLD.institute_id AND v.status IN ('final','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Final Seat Matrix rows cannot be rewritten; create new version';
  END IF;
 END$$
 

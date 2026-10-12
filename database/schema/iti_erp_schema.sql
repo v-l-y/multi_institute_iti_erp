@@ -2739,7 +2739,10 @@ CREATE TRIGGER trg_enrollments_update_admission_window
 BEFORE UPDATE ON enrollments
 FOR EACH ROW
 BEGIN
- IF NEW.status NOT IN ('cancelled') AND NOT EXISTS (
+ IF (NOT (NEW.batch_id <=> OLD.batch_id) OR NOT (NEW.admitted_on <=> OLD.admitted_on)
+     OR NOT (NEW.institute_id <=> OLD.institute_id)
+     OR (OLD.status='cancelled' AND NEW.status<>'cancelled'))
+   AND NEW.status<>'cancelled' AND NOT EXISTS (
   SELECT 1 FROM batches b
   JOIN admission_intake_revisions ir ON ir.intake_id=b.intake_id AND ir.institute_id=b.institute_id
   JOIN regulatory_sources r ON r.id=ir.source_id AND r.institute_id=ir.institute_id

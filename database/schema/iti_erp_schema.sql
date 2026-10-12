@@ -50,7 +50,7 @@ CREATE TABLE global_regulatory_documents (
  UNIQUE(id,authority),
  UNIQUE(authority,reference_no,issued_on),
  FOREIGN KEY(supersedes_id,authority) REFERENCES global_regulatory_documents(id,authority),
- CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code='BR'),
+ CHECK(authority NOT IN('STATE_UT','SSDEC') OR (state_ut_code IS NOT NULL AND state_ut_code='BR')),
  CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
  CHECK(source_url IS NOT NULL OR evidence_reference IS NOT NULL),
  CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),

@@ -811,6 +811,8 @@ CREATE TABLE students (
  mother_name VARCHAR(190) NULL,
  gender VARCHAR(30) NOT NULL,
  mobile VARCHAR(20) NULL,
+ email VARCHAR(254) NULL,
+ pwd_category VARCHAR(80) NULL,
  address TEXT NOT NULL,
  category_code VARCHAR(40) NULL,
  is_ews TINYINT NOT NULL DEFAULT 0,
@@ -866,6 +868,7 @@ CREATE TABLE enrollments (
  admission_intake_revision_id BIGINT UNSIGNED NOT NULL,
  admission_number VARCHAR(80) NOT NULL,
  state_registration_number VARCHAR(100) NULL,
+ trainee_type VARCHAR(40) NULL,
  admitted_on DATE NOT NULL,
  status ENUM('pending_verification','active','completed','transferred','dropout','cancelled') NOT NULL DEFAULT 'pending_verification',
  admission_rule_id BIGINT UNSIGNED NOT NULL,
@@ -954,7 +957,8 @@ CREATE TABLE attendance_records (
  PRIMARY KEY(session_id,enrollment_id,institute_id),
  FOREIGN KEY(session_id,batch_id,institute_id) REFERENCES attendance_sessions(id,batch_id,institute_id),
  FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id)
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(status<>'absent' OR attended_minutes=0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attendance_corrections (
@@ -1655,8 +1659,8 @@ CREATE TABLE auth_user_roles (
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(valid_to IS NULL OR valid_to>valid_from),
  CHECK((scope='platform' AND institute_id IS NULL) OR (scope='institute' AND institute_id IS NOT NULL)),
- CHECK((role_code='developer' AND scope='platform' AND staff_link_user_id IS NULL AND student_link_user_id IS NULL),
-  OR (role_code IN('principal','administrator','instructor') AND scope='institute' AND staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id AND student_link_user_id IS NULL),
+ CHECK((role_code='developer' AND scope='platform' AND staff_link_user_id IS NULL AND student_link_user_id IS NULL)
+  OR (role_code IN('principal','administrator','instructor') AND scope='institute' AND staff_link_user_id IS NOT NULL AND staff_link_user_id=user_id AND student_link_user_id IS NULL)
   OR (role_code='student' AND scope='institute' AND student_link_user_id IS NOT NULL AND student_link_user_id=user_id AND staff_link_user_id IS NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

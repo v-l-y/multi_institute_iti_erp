@@ -450,10 +450,43 @@ CREATE TABLE instructor_events (
  CHECK(remap_due_on IS NULL OR remap_due_on>=occurred_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Global DGT CTS training calendar revisions and official milestones (no guessed dates).
+CREATE TABLE cts_training_calendars (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ admission_year SMALLINT UNSIGNED NOT NULL,
+ session_code VARCHAR(80) NOT NULL,
+ revision_code VARCHAR(80) NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ training_starts_on DATE NOT NULL,
+ training_ends_on DATE NOT NULL,
+ status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(admission_year,session_code,revision_code),
+ UNIQUE(id,admission_year),
+ UNIQUE(id,revision_code),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(training_ends_on>=training_starts_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cts_training_calendar_milestones (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ calendar_id BIGINT UNSIGNED NOT NULL,
+ milestone_code VARCHAR(80) NOT NULL,
+ milestone_date DATE NOT NULL,
+ description VARCHAR(500) NOT NULL,
+ document_section_reference VARCHAR(190) NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(calendar_id,milestone_code),
+ FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE admission_intakes (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  admission_year SMALLINT UNSIGNED NOT NULL,
+ calendar_id BIGINT UNSIGNED NOT NULL,
  intake_code VARCHAR(80) NOT NULL,
  opens_on DATE NOT NULL,
  closes_on DATE NOT NULL,
@@ -466,6 +499,7 @@ CREATE TABLE admission_intakes (
  UNIQUE(id,admission_year,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(calendar_id,admission_year) REFERENCES cts_training_calendars(id,admission_year),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(closes_on>=opens_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -617,6 +651,7 @@ CREATE TABLE batch_years (
  batch_id BIGINT UNSIGNED NOT NULL,
  curriculum_id BIGINT UNSIGNED NOT NULL,
  curriculum_year_id BIGINT UNSIGNED NOT NULL,
+ calendar_id BIGINT UNSIGNED NOT NULL,
  starts_on DATE NOT NULL,
  ends_on DATE NOT NULL,
  attendance_basis ENUM('minutes','working_days') NOT NULL,
@@ -634,9 +669,11 @@ CREATE TABLE batch_years (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(batch_id,curriculum_year_id,institute_id),
  UNIQUE(id,batch_id,institute_id),
+ UNIQUE(id,calendar_id,institute_id),
  UNIQUE(id,curriculum_year_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(formative_scheme_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id),
  FOREIGN KEY(batch_id,curriculum_id,institute_id) REFERENCES batches(id,curriculum_id,institute_id),
  FOREIGN KEY(curriculum_year_id,curriculum_id,institute_id) REFERENCES curriculum_years(id,curriculum_id,institute_id),
  FOREIGN KEY(attendance_basis_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
@@ -647,6 +684,7 @@ CREATE TABLE batch_years (
 CREATE TABLE training_calendar_entries (
  institute_id BIGINT UNSIGNED NOT NULL,
  batch_year_id BIGINT UNSIGNED NOT NULL,
+ calendar_id BIGINT UNSIGNED NOT NULL,
  session_date DATE NOT NULL,
  component ENUM('trade_practical','trade_theory','employability','ojt_project') NOT NULL,
  scheduled_minutes SMALLINT UNSIGNED NOT NULL,
@@ -655,7 +693,8 @@ CREATE TABLE training_calendar_entries (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(batch_year_id,session_date,component,institute_id),
- FOREIGN KEY(batch_year_id,institute_id) REFERENCES batch_years(id,institute_id),
+ FOREIGN KEY(batch_year_id,calendar_id,institute_id) REFERENCES batch_years(id,calendar_id,institute_id),
+ FOREIGN KEY(calendar_id,calendar_revision_code) REFERENCES cts_training_calendars(id,revision_code),
  FOREIGN KEY(calendar_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(scheduled_minutes>0)

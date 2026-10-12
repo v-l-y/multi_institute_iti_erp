@@ -509,34 +509,49 @@ CREATE TABLE seat_matrix_entries (
  CHECK(admission_allowed=0 OR instructor_mapping_id IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE admission_rules (
- institute_id BIGINT UNSIGNED NOT NULL,
+-- Official admission eligibility and admission window: shared policy, not institute-owned values.
+CREATE TABLE global_admission_rule_versions (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  trade_id BIGINT UNSIGNED NOT NULL,
- curriculum_id BIGINT UNSIGNED NOT NULL,
- source_id BIGINT UNSIGNED NOT NULL,
- state_source_id BIGINT UNSIGNED NULL,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ state_source_document_id BIGINT UNSIGNED NULL,
+ admission_window_document_id BIGINT UNSIGNED NOT NULL,
  version_code VARCHAR(80) NOT NULL,
- state_ut_code VARCHAR(20) NOT NULL,
+ state_ut_code VARCHAR(20) NOT NULL DEFAULT 'BR',
  minimum_age_years TINYINT UNSIGNED NOT NULL,
  age_cutoff_date DATE NOT NULL,
  qualification_routes_json LONGTEXT NOT NULL CHECK(JSON_VALID(qualification_routes_json)),
  admission_opens_on DATE NOT NULL,
  admission_closes_on DATE NOT NULL,
- admission_window_source_id BIGINT UNSIGNED NOT NULL,
  status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE(trade_id,version_code,state_ut_code,institute_id),
+ UNIQUE(trade_id,global_curriculum_id,version_code,state_ut_code),
+ UNIQUE(id,trade_id,global_curriculum_id),
+ FOREIGN KEY(global_curriculum_id,trade_id) REFERENCES global_curriculum_versions(id,trade_id),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ FOREIGN KEY(state_source_document_id) REFERENCES global_regulatory_documents(id),
+ FOREIGN KEY(admission_window_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(state_ut_code='BR'),
+ CHECK(admission_closes_on>=admission_opens_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE admission_rules (
+ institute_id BIGINT UNSIGNED NOT NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_curriculum_id BIGINT UNSIGNED NOT NULL,
+ global_admission_rule_id BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(global_admission_rule_id,institute_id),
  UNIQUE(id,trade_id,curriculum_id,institute_id),
  UNIQUE(id,institute_id),
- FOREIGN KEY(curriculum_id,trade_id,institute_id) REFERENCES curriculum_versions(id,trade_id,institute_id),
- FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(state_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(admission_window_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
- FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(admission_closes_on>=admission_opens_on),
- CHECK(state_ut_code='BR')
+ FOREIGN KEY(curriculum_id,global_curriculum_id,institute_id) REFERENCES curriculum_versions(id,global_curriculum_id,institute_id),
+ FOREIGN KEY(global_admission_rule_id,trade_id,global_curriculum_id) REFERENCES global_admission_rule_versions(id,trade_id,global_curriculum_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE reservation_policies (
@@ -1632,8 +1647,20 @@ CREATE TRIGGER trg_admission_rules_insert_integrity
 BEFORE INSERT ON admission_rules
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL))) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_admission_rule_versions p
+  JOIN global_regulatory_documents d ON d.id=p.source_document_id
+  JOIN global_regulatory_documents w ON w.id=p.admission_window_document_id
+  LEFT JOIN global_regulatory_documents st ON st.id=p.state_source_document_id
+  WHERE p.id=NEW.global_admission_rule_id
+    AND p.trade_id=NEW.trade_id AND p.global_curriculum_id=NEW.global_curriculum_id
+    AND p.status IN ('published','superseded')
+    AND d.status IN ('published','superseded') AND w.status IN ('published','superseded')
+    AND (p.state_source_document_id IS NULL OR st.status IN ('published','superseded'))
+    AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
+    AND w.reviewed_at IS NOT NULL AND w.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission must reference official published policy';
  END IF;
 END$$
 
@@ -1641,8 +1668,20 @@ CREATE TRIGGER trg_admission_rules_update_integrity
 BEFORE UPDATE ON admission_rules
 FOR EACH ROW
 BEGIN
- IF (NEW.status='published') AND NOT (EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.admission_window_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) AND (NEW.state_source_id IS NULL OR EXISTS (SELECT 1 FROM regulatory_sources r JOIN global_regulatory_documents d ON d.id=r.global_document_id WHERE r.id=NEW.state_source_id AND r.institute_id=NEW.institute_id AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL))) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Unreviewed or withdrawn regulatory source';
+ IF NOT EXISTS (
+  SELECT 1 FROM global_admission_rule_versions p
+  JOIN global_regulatory_documents d ON d.id=p.source_document_id
+  JOIN global_regulatory_documents w ON w.id=p.admission_window_document_id
+  LEFT JOIN global_regulatory_documents st ON st.id=p.state_source_document_id
+  WHERE p.id=NEW.global_admission_rule_id
+    AND p.trade_id=NEW.trade_id AND p.global_curriculum_id=NEW.global_curriculum_id
+    AND p.status IN ('published','superseded')
+    AND d.status IN ('published','superseded') AND w.status IN ('published','superseded')
+    AND (p.state_source_document_id IS NULL OR st.status IN ('published','superseded'))
+    AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
+    AND w.reviewed_at IS NOT NULL AND w.reviewed_by IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission must reference official published policy';
  END IF;
 END$$
 

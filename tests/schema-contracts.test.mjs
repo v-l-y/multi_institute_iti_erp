@@ -93,7 +93,7 @@ test('five canonical authentication roles have correct scope and identity contra
 test('NIMS IPRN is canonical and staff mapping uses the same institute identity', () => {
   contains('instructor_identities', 'iprn VARCHAR(120) NOT NULL UNIQUE');
   contains('staff', 'identity_id BIGINT UNSIGNED NULL');
-  assert.ok(!/\\biprn VARCHAR\\(/.test(table('staff')), 'staff must not duplicate instructor IPRN');
+  assert.ok(!table('staff').includes('iprn VARCHAR('), 'staff must not duplicate instructor IPRN');
   contains('staff', 'UNIQUE(id,identity_id,institute_id)');
   contains('staff', 'identity_id IS NOT NULL AND verification_reference IS NOT NULL');
   contains('instructor_mappings', 'FOREIGN KEY(staff_id,identity_id,institute_id) REFERENCES staff(id,identity_id,institute_id)');

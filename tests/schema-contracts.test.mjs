@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 const sql = readFileSync(new URL('../database/schema/iti_erp_schema.sql', import.meta.url), 'utf8');
 function table(name) {
-  const re = new RegExp('CREATE TABLE ' + name + ' \\(([\\s\\S]*?)\\n\\) ENGINE=InnoDB');
+  const re = new RegExp('CREATE TABLE ' + name + '\\s*\\(([\\s\\S]*?)\\n\\) ENGINE=InnoDB');
   const m = sql.match(re);
   assert.ok(m, 'missing table ' + name);
   return m[1];
@@ -134,4 +134,17 @@ test('all referenced foreign key tables exist and column counts match', () => {
       assert.equal(fk[1].split(',').length, fk[3].split(',').length, name + ' invalid FK arity');
     }
   }
+});
+
+// Regression checks for the re-review fixes; runtime coverage is still required.
+test('role identity CHECK uses boolean branches without comma separators', () => {
+  assert.ok(!/\),\s*OR\b/.test(table('auth_user_roles')));
+});
+test('official trainee payload has fields without guessed regulatory defaults', () => {
+  contains('students', 'email VARCHAR(254) NULL');
+  contains('students', 'pwd_category VARCHAR(80) NULL');
+  contains('enrollments', 'trainee_type VARCHAR(40) NULL');
+});
+test('absent attendance cannot record positive attended minutes', () => {
+  contains('attendance_records', "CHECK(status<>'absent' OR attended_minutes=0)");
 });

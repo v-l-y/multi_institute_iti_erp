@@ -29,8 +29,36 @@ CREATE TABLE institute (
  CHECK(affiliation_to IS NULL OR affiliation_to>=affiliation_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE global_regulatory_documents (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ authority ENUM('DGT','NCVET','SIDH','NCVT_MIS','NIMS','STATE_UT','SSDEC') NOT NULL,
+ state_ut_code VARCHAR(20) NULL,
+ document_type VARCHAR(60) NOT NULL,
+ title VARCHAR(255) NOT NULL,
+ reference_no VARCHAR(190) NOT NULL,
+ issued_on DATE NOT NULL,
+ source_url VARCHAR(900) NULL,
+ evidence_reference VARCHAR(500) NULL,
+ sha256 CHAR(64) NULL,
+ supersedes_id BIGINT UNSIGNED NULL,
+ status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
+ reviewed_by VARCHAR(190) NULL,
+ reviewed_at DATETIME NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(id,authority),
+ UNIQUE(authority,reference_no,issued_on),
+ FOREIGN KEY(supersedes_id,authority) REFERENCES global_regulatory_documents(id,authority),
+ CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code IS NOT NULL),
+ CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+ CHECK(source_url IS NOT NULL OR evidence_reference IS NOT NULL),
+ CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),
+ CHECK(supersedes_id IS NULL OR supersedes_id<>id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE regulatory_sources (
  institute_id BIGINT UNSIGNED NOT NULL,
+ global_document_id BIGINT UNSIGNED NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  authority ENUM('DGT','NCVET','SIDH','NCVT_MIS','NIMS','STATE_UT','SSDEC') NOT NULL,
  state_ut_code VARCHAR(20) NULL,
@@ -48,8 +76,10 @@ CREATE TABLE regulatory_sources (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  FOREIGN KEY(supersedes_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(global_document_id,authority) REFERENCES global_regulatory_documents(id,authority),
  CHECK(authority NOT IN('STATE_UT','SSDEC') OR state_ut_code IS NOT NULL),
  CHECK(status='draft' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+ CHECK(status='draft' OR global_document_id IS NOT NULL),
  CHECK(source_url IS NOT NULL OR local_evidence_reference IS NOT NULL),
  CHECK(sha256 IS NULL OR sha256 REGEXP '^[0-9a-fA-F]{64}$'),
  CHECK(supersedes_id IS NULL OR supersedes_id<>id),
@@ -63,6 +93,27 @@ CREATE TABLE trades (
  name VARCHAR(190) NOT NULL,
  trade_type ENUM('engineering','non_engineering','divyang') NOT NULL,
  active TINYINT NOT NULL DEFAULT 1 CHECK(active IN(0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE global_shifts (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ shift_no TINYINT UNSIGNED NOT NULL,
+ shift_code VARCHAR(40) NOT NULL,
+ display_name VARCHAR(120) NOT NULL,
+ revision_code VARCHAR(80) NOT NULL,
+ source_document_id BIGINT UNSIGNED NOT NULL,
+ status ENUM('active','superseded','retired') NOT NULL DEFAULT 'active',
+ effective_from DATE NOT NULL,
+ effective_to DATE NULL,
+ current_shift_guard TINYINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status='active' THEN shift_no ELSE NULL END) STORED,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE(shift_no,revision_code),
+ UNIQUE(id,shift_no),
+ UNIQUE(current_shift_guard),
+ FOREIGN KEY(source_document_id) REFERENCES global_regulatory_documents(id),
+ CHECK(shift_no>0),
+ CHECK(effective_to IS NULL OR effective_to>=effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE curriculum_versions (
@@ -221,6 +272,7 @@ CREATE TABLE trade_unit_shifts (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  trade_unit_id BIGINT UNSIGNED NOT NULL,
  trade_id BIGINT UNSIGNED NOT NULL,
+ global_shift_id BIGINT UNSIGNED NOT NULL,
  shift_no TINYINT UNSIGNED NOT NULL,
  status ENUM('active','inactive','closed') NOT NULL DEFAULT 'active',
  training_mode ENUM('CTS','DST') NOT NULL DEFAULT 'CTS',
@@ -241,6 +293,7 @@ CREATE TABLE trade_unit_shifts (
  UNIQUE(id,trade_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(trade_unit_id,trade_id,institute_id) REFERENCES trade_units(id,trade_id,institute_id),
+ FOREIGN KEY(global_shift_id,shift_no) REFERENCES global_shifts(id,shift_no),
  FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(shift_no BETWEEN 1 AND 3 AND sanctioned_capacity>0),

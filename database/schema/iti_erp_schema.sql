@@ -867,7 +867,8 @@ CREATE TABLE enrollments (
  FOREIGN KEY(vertical_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
  FOREIGN KEY(horizontal_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(qualification_check_passed IN(0,1))
+ CHECK(qualification_check_passed IN(0,1)),
+ CHECK(status NOT IN ('active','completed') OR qualification_check_passed=1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE student_events (
@@ -2600,12 +2601,6 @@ FOR EACH ROW
 BEGIN
  DECLARE v_parent BIGINT UNSIGNED;
  SELECT id INTO v_parent FROM institute WHERE id=NEW.institute_id FOR UPDATE;
- IF NOT EXISTS (SELECT 1 FROM regulatory_sources r
-  JOIN global_regulatory_documents d ON d.id=r.global_document_id
-  WHERE r.id=NEW.source_id AND r.institute_id=NEW.institute_id
-    AND d.status IN ('published','superseded') AND d.reviewed_by IS NOT NULL AND d.reviewed_at IS NOT NULL) THEN
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Affiliation change needs reviewed official order';
- END IF;
  IF EXISTS (SELECT 1 FROM institute_affiliation_history h
   WHERE h.institute_id=NEW.institute_id
     AND h.id<>OLD.id
@@ -2634,7 +2629,7 @@ FOR EACH ROW
 BEGIN
  DECLARE v_trade BIGINT UNSIGNED;
  SELECT id INTO v_trade FROM trades WHERE id=NEW.trade_id FOR UPDATE;
- IF NEW.status IN ('active','superseded') AND NOT EXISTS (
+ IF NEW.status='active' AND NOT EXISTS (
   SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id
    AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
  ) THEN
@@ -2657,7 +2652,7 @@ FOR EACH ROW
 BEGIN
  DECLARE v_trade BIGINT UNSIGNED;
  SELECT id INTO v_trade FROM trades WHERE id=NEW.trade_id FOR UPDATE;
- IF NEW.status IN ('active','superseded') AND NOT EXISTS (
+ IF NEW.status='active' AND NOT EXISTS (
   SELECT 1 FROM global_regulatory_documents d WHERE d.id=NEW.source_document_id
    AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL AND d.reviewed_by IS NOT NULL
  ) THEN
@@ -2691,6 +2686,52 @@ BEGIN
  IF EXISTS (SELECT 1 FROM seat_matrix_versions v
   WHERE v.id=OLD.version_id AND v.institute_id=OLD.institute_id AND v.status IN ('final','superseded')) THEN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Final Seat Matrix rows cannot be rewritten; create new version';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_seat_matrix_entries_insert_final_guard
+BEFORE INSERT ON seat_matrix_entries
+FOR EACH ROW
+BEGIN
+ IF EXISTS (SELECT 1 FROM seat_matrix_versions v WHERE v.id=NEW.version_id
+  AND v.institute_id=NEW.institute_id AND v.status IN ('final','superseded')) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Final Seat Matrix cannot accept new rows; create revision';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_enrollments_insert_admission_window
+BEFORE INSERT ON enrollments
+FOR EACH ROW
+BEGIN
+ IF NEW.status NOT IN ('cancelled') AND NOT EXISTS (
+  SELECT 1 FROM batches b
+  JOIN admission_intake_revisions ir ON ir.intake_id=b.intake_id AND ir.institute_id=b.institute_id
+  JOIN regulatory_sources r ON r.id=ir.source_id AND r.institute_id=ir.institute_id
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE b.id=NEW.batch_id AND b.institute_id=NEW.institute_id
+    AND NEW.admitted_on BETWEEN ir.opens_on AND ir.closes_on
+    AND ir.status IN ('published','superseded')
+    AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission date is outside documented official window';
+ END IF;
+END$$
+
+CREATE TRIGGER trg_enrollments_update_admission_window
+BEFORE UPDATE ON enrollments
+FOR EACH ROW
+BEGIN
+ IF NEW.status NOT IN ('cancelled') AND NOT EXISTS (
+  SELECT 1 FROM batches b
+  JOIN admission_intake_revisions ir ON ir.intake_id=b.intake_id AND ir.institute_id=b.institute_id
+  JOIN regulatory_sources r ON r.id=ir.source_id AND r.institute_id=ir.institute_id
+  JOIN global_regulatory_documents d ON d.id=r.global_document_id
+  WHERE b.id=NEW.batch_id AND b.institute_id=NEW.institute_id
+    AND NEW.admitted_on BETWEEN ir.opens_on AND ir.closes_on
+    AND ir.status IN ('published','superseded')
+    AND d.status IN ('published','superseded') AND d.reviewed_at IS NOT NULL
+ ) THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Admission date is outside documented official window';
  END IF;
 END$$
 

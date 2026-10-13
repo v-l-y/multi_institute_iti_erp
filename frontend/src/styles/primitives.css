@@ -49,10 +49,10 @@ p { line-height: 1.55; }
 .notice-success { background: #e8f7f0; border-color: #b8e2d1; color: #14624e; }
 .field { display: flex; flex-direction: column; gap: 7px; font-size: .84rem; font-weight: 700; color: #334f5e; }
 .field > input, .field > select, .field > textarea, .search-input {
-  width: 100%; max-width: 100%; min-height: 44px; border: 1px solid #d1dfe2; color: #263c49;
+  width: 100%; max-width: 100%; min-height: var(--control-height); border: 1px solid #d1dfe2; color: #263c49;
   background: #fff; border-radius: 9px; outline: none; padding: 10px 13px;
 }
 .field > input:focus, .field > select:focus, .field > textarea:focus, .search-input:focus {
   border-color: #2a9c90; box-shadow: 0 0 0 3px rgba(38, 151, 138, .13);
 }
-.field-help { color: #7b8991; font-size: .75rem; margin: -6px 0 1px; line-height: 1.5; }
+.field-help { color: #526875; font-size: .75rem; margin: -6px 0 1px; line-height: 1.5; }

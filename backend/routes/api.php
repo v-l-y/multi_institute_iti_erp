@@ -11,6 +11,7 @@ use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
+use App\Modules\Regulatory\TradeMasterController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
@@ -42,6 +43,15 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/auth/users/disable', $guard->wrap([$userManagement, 'disable'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/revoke-role', $guard->wrap([$userManagement, 'revokeRole'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/reset-password', $guard->wrap([$userManagement, 'resetPassword'], 'auth.password.reset_user'));
+    $globalTrades=new TradeMasterController($database);
+    $router->get('/api/v1/platform/trades', $guard->wrap(
+        [$globalTrades,'index'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/trades', $guard->wrap(
+        [$globalTrades,'create'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/trades/revisions', $guard->wrap(
+        [$globalTrades,'draftRevision'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/trades/revisions/activate', $guard->wrap(
+        [$globalTrades,'activate'], 'platform.regulatory.manage'));
     $regulatoryDocuments=new RegulatoryDocumentController($database);
     $router->get('/api/v1/platform/regulatory/documents', $guard->wrap(
         [$regulatoryDocuments,'index'], 'platform.regulatory.manage'));

@@ -13,6 +13,7 @@ use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
 use App\Modules\Reports\ReportingController;
+use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
@@ -158,6 +159,11 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
+    $formative=new FormativeController($database);
+    $router->post('/api/v1/formative/records/assigned', $guard->wrap(
+        [$formative,'recordAssigned'], 'formative.record.assigned'));
+    $router->post('/api/v1/formative/records/lock', $guard->wrap(
+        [$formative,'lock'], 'formative.template.manage'));
     $reporting=new ReportingController($database);
     $router->get('/api/v1/reports/summary', $guard->wrap(
         [$reporting,'summary'], 'audit.view'));

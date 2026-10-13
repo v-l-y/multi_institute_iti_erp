@@ -1,0 +1,74 @@
+/* Shared controls: reusable across all institute modules. */
+.button-danger { color: #fff; background: #a52e30; border-color: #8e2527; }
+.button-danger:hover:not(:disabled) { background: #822124; }
+.required-mark { color: #9a2427; }
+.visually-hidden {
+  position: absolute !important; width: 1px !important; height: 1px !important;
+  padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
+}
+.table-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2, 8px);
+  flex: 1; min-width: min(100%, 250px);
+}
+.table-filters .search-input { flex: 1 1 190px; min-width: min(190px, 100%); }
+.table-filter-select {
+  color: #263c49; background: #fff; border: 1px solid #d1dfe2; border-radius: 9px;
+  min-height: 44px; padding: 8px 12px; max-width: 100%; flex: 0 1 auto;
+}
+.table-filter-select:focus-visible { box-shadow: 0 0 0 3px rgba(38,151,138,.18); }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pager .page-hint { text-align: center; min-width: 54px; }
+.action-menu { position: relative; display: inline-block; }
+.action-menu > summary { list-style: none; cursor: pointer; }
+.action-menu > summary::-webkit-details-marker { display: none; }
+.action-menu-options {
+  position: absolute; z-index: 30; inset-inline-end: 0; top: calc(100% + 4px);
+  display: flex; flex-direction: column; gap: 4px; min-width: 185px;
+  padding: 8px; background: #fff; border-radius: 10px;
+  border: 1px solid var(--line); box-shadow: 0 14px 35px rgba(16,44,59,.14);
+}
+.action-menu-options .button { justify-content: flex-start; width: 100%; }
+.check-group {
+  margin: 0; padding: 14px; display: grid; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.check-group legend { padding: 0 5px; font-weight: 700; font-size: .85rem; color: #334f5e; }
+.check-option { display: flex; gap: 9px; align-items: center; min-height: 38px; cursor: pointer; }
+.check-option input { inline-size: 18px; block-size: 18px; accent-color: var(--teal); }
+.date-range { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.tabs { min-width: 0; }
+.tab-list { display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tab-list [role="tab"] {
+  padding: 12px 17px; min-height: 44px; background: transparent; color: #375260;
+  border: 0; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
+}
+.tab-list [role="tab"][aria-selected="true"] {
+  color: #0b6259; font-weight: 750; border-bottom-color: #14746b;
+}
+.tabs [role="tabpanel"] { padding: 16px 4px; }
+.accordion { display: grid; gap: 9px; }
+.accordion-item { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.accordion-item summary { padding: 16px; font-weight: 700; color: #2a4350; cursor: pointer; }
+.accordion-item .accordion-content { padding: 0 16px 16px; color: #375260; }
+.skeleton { padding: 15px; display: grid; gap: 15px; }
+.skeleton-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); gap: 14px; }
+.skeleton-cell {
+  height: 22px; border-radius: 6px;
+  background: linear-gradient(90deg, #e6ecee 20%, #f5f8f9 50%, #e6ecee 80%);
+  background-size: 200% 100%; animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.error-panel { padding: 20px; display: grid; gap: 12px; justify-items: start; }
+.dialog-error { margin-top: 12px; }
+.field input[type="file"] { padding: 9px; }
+.field label { font-weight: 700; }
+@media (max-width: 680px) {
+  .table-filters { flex-direction: column; align-items: stretch; }
+  .table-filters .search-input, .table-filter-select { flex: none; width: 100%; }
+  .date-range { grid-template-columns: 1fr; }
+  .action-menu-options { inset-inline-start: 0; inset-inline-end: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-cell { animation: none; }
+}

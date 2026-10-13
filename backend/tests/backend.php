@@ -215,7 +215,7 @@ $admissionRegistry = new App\Modules\Admissions\Http\AdmissionRegistryController
 $admissionReader = new AuthContext(7,3,1,'administrator',false,['administrator'],['enrollment.view','seatmatrix.view','calendar.view'],7,null);
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(query:['page_size'=>'101']), $admissionReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(query:['after_id'=>['10']]), $admissionReader))->status === 422;
-$checks[] = $kernel->handle(static fn() => $admissionRegistry->academicCalendars(new Request(query:['page_size'=>'0']), $admissionReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => (new App\Modules\Academic\Http\AcademicCalendarController(new App\Core\Database([])))->index(new Request(query:['page_size'=>'0']), $admissionReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(), $catalogReader))->status === 403;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(), $platform))->status === 403;
 $draftBody = [

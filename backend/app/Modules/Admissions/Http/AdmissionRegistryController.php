@@ -77,20 +77,4 @@ final readonly class AdmissionRegistryController
         );
     }
 
-    public function academicCalendars(Request $request, AuthContext $actor): Response
-    {
-        return $this->registry($request,$actor,'calendar.view',
-            'SELECT i.id,i.admission_year,i.intake_code,i.session_part,
-                    i.calendar_id,c.session_code,c.revision_code,
-                    c.training_starts_on,c.training_ends_on,c.status AS calendar_status,
-                    c.source_document_id,d.reference_no AS source_reference,
-                    d.status AS source_status
-             FROM admission_intakes i
-             JOIN cts_training_calendars c ON c.id=i.calendar_id
-                AND c.admission_year=i.admission_year
-             JOIN global_regulatory_documents d ON d.id=c.source_document_id
-             WHERE i.institute_id=? AND i.id>? ORDER BY i.id ASC LIMIT ?',
-            'intakes'
-        );
-    }
 }

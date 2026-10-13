@@ -30,6 +30,7 @@ use App\Modules\Fees\Http\FeeCashController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
+use App\Modules\Exams\ExamCycleController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Admissions\Http\IntakeRevisionController;
@@ -209,6 +210,9 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
+    $examSetup = new ExamCycleController($database);
+    $router->post('/api/v1/exams/cycles', $guard->wrap([$examSetup, 'draft'], 'exam.eligibility.manage'));
+    $router->post('/api/v1/exams/cycles/open', $guard->wrap([$examSetup, 'open'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
     $formative=new FormativeController($database);
     $router->post('/api/v1/formative/records/assigned', $guard->wrap(

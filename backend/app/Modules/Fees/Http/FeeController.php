@@ -97,6 +97,19 @@ final readonly class FeeController
         return new Response(['success' => true, 'data' => ['demand_id' => $id, 'status' => 'issued']], 201);
     }
 
+    public function requestWaiver(Request $request, AuthContext $actor): Response
+    {
+        $institute = self::institute($actor, 'fee.record');
+        $assessment = self::id($request, 'assessment_id');
+        $number = self::required($request, 'waiver_no', 100);
+        $amount = self::amount($request);
+        $reason = self::required($request, 'reason', 500);
+        $id = $this->service()->requestWaiver($actor, $institute, $assessment, $number, $amount, $reason);
+        return new Response(['success' => true, 'data' => [
+            'waiver_id' => $id, 'status' => 'pending',
+        ]], 201);
+    }
+
     public function approveWaiver(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'fee.refund');

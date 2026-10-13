@@ -20,6 +20,70 @@ final readonly class Request
         $this->userAgent = $userAgent;
     }
 
+
+    // Forwarded headers are only authoritative when their immediate peer is trusted.
+    // The perimeter proxy MUST replace incoming X-Forwarded-For, never append to it.
+    private static function matchesCidr(string $ip, string $cidr): bool
+    {
+        $parts = explode('/', trim($cidr), 2);
+        $network = @inet_pton($parts[0]);
+        $address = @inet_pton($ip);
+        if ($network === false || $address === false || strlen($network) !== strlen($address)) {
+            return false;
+        }
+        $max = strlen($network) * 8;
+        $prefix = isset($parts[1]) && ctype_digit($parts[1]) ? (int)$parts[1] : $max;
+        if ($prefix < 0 || $prefix > $max) {
+            return false;
+        }
+        $bytes = intdiv($prefix, 8);
+        if (substr($network, 0, $bytes) !== substr($address, 0, $bytes)) {
+            return false;
+        }
+        $remaining = $prefix % 8;
+        return $remaining === 0
+            || ((ord($network[$bytes]) ^ ord($address[$bytes])) & (255 << (8 - $remaining))) === 0;
+    }
+
+    private static function trustedProxy(string $peer): bool
+    {
+        $configured = getenv('TRUSTED_PROXY_CIDRS');
+        if (!is_string($configured) || trim($configured) === '') {
+            return false;
+        }
+        foreach (explode(',', $configured) as $cidr) {
+            if (self::matchesCidr($peer, $cidr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function clientIp(): ?string
+    {
+        $peer = $_SERVER['REMOTE_ADDR'] ?? null;
+        if (!is_string($peer) || filter_var($peer, FILTER_VALIDATE_IP) === false) {
+            return null;
+        }
+        if (!self::trustedProxy($peer)) {
+            return $peer;
+        }
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+        if (!is_string($forwarded) || strlen($forwarded) > 1024) {
+            return $peer;
+        }
+        foreach (array_reverse(explode(',', $forwarded)) as $raw) {
+            $candidate = trim($raw);
+            if (filter_var($candidate, FILTER_VALIDATE_IP) === false) {
+                return $peer;
+            }
+            if (!self::trustedProxy($candidate)) {
+                return $candidate;
+            }
+        }
+        return $peer;
+    }
+
     public static function capture(): self
     {
         $body = [];
@@ -43,6 +107,6 @@ final readonly class Request
         }
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
         $token = preg_match('/^Bearer ([a-f0-9]{64})$/i', $header, $matches) ? $matches[1] : null;
-        return new self($body, $token, $_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null, $_GET);
+        return new self($body, $token, self::clientIp(), $_SERVER['HTTP_USER_AGENT'] ?? null, $_GET);
     }
 }

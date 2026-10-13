@@ -125,14 +125,21 @@ try {
         VALUES (9112,9101,'LOCAL-QUAL-TEST','Local Qualification Test','2005-01-01',
                 'other','LOCAL','non_aadhaar','LOCAL TEST')");
     $qualificationService=new App\Modules\Students\StudentQualificationService($db);
-    $qualificationId=$qualificationService->create($actor,9101,9112,
+    // The shared operations actor intentionally has no student.manage grant.
+    // Keep it deny-by-default; use a separate institute operator context with
+    // exactly the permission the qualification service requires.
+    $qualificationActor=new AuthContext(9202,9101,1,'local-instructor',false,
+        ['administrator'],['student.manage'],9101,null);
+    foundationReject(fn()=>$qualificationService->create($actor,9101,9112,
+        '10','LOCAL SCHOOL',2024,'UNAUTHORIZED-CERT',['Mathematics'=>80]),'FORBIDDEN');
+    $qualificationId=$qualificationService->create($qualificationActor,9101,9112,
         '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]);
     foundationCheck($qualificationId>0 &&
         (int)$db->query("SELECT student_id FROM student_qualifications WHERE id=$qualificationId")->fetchColumn()===9112,
         'Local qualification must belong to the recorded student.');
-    foundationReject(fn()=>$qualificationService->create($actor,9101,9112,
+    foundationReject(fn()=>$qualificationService->create($qualificationActor,9101,9112,
         '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]),'QUALIFICATION_EXISTS');
-    foundationReject(fn()=>$qualificationService->create($actor,9101,9102,
+    foundationReject(fn()=>$qualificationService->create($qualificationActor,9101,9102,
         '10','LOCAL SCHOOL',2024,'FOREIGN SCHOOL CERT',[]),'NOT_FOUND');
     $drafts = new App\Modules\Admissions\AdmissionDraftService($db);
     $newDraft = $drafts->create($actor,9101,9111,9101,9111,9101,

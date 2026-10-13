@@ -212,6 +212,17 @@ $checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
     new Request($draftBody), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
     new Request($draftBody), $platform))->status === 403;
+$reviewer = new AuthContext(8,3,4,'principal',false,['principal'],['enrollment.manage'],8,null);
+$reviewBody = ['enrollment_id'=>1,'admission_route'=>'institute_direct',
+    'admission_route_source_id'=>1,'admission_route_evidence_reference'=>'LOCAL'];
+$checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
+    new Request($reviewBody),$operator))->status===403;
+$checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
+    new Request([...$reviewBody,'admission_route'=>'unverified']),$reviewer))->status===422;
+$checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
+    new Request([...$reviewBody,'admission_route_source_id'=>'1']),$reviewer))->status===422;
+$checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
+    new Request([...$reviewBody,'quota_evidence_reference'=>[]]),$reviewer))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

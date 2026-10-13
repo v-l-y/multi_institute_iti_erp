@@ -142,6 +142,41 @@ try {
     foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
         WHERE action_code='enrollment.draft.create' AND entity_id=$newDraft")->fetchColumn()===1,
         'Admission draft creation must be audited once.');
+    // A distinct Principal identity and staff link carry real local review.
+    $db->exec("INSERT INTO staff
+        (id,institute_id,employee_code,full_name,staff_category,designation,principal_assignment,joined_on)
+        VALUES (9115,9101,'REVIEW-PRINCIPAL','Local Principal','non_teaching','Principal','principal','2026-01-01')");
+    $db->exec("INSERT INTO auth_users
+        (id,institute_id,username,password_hash) VALUES (9215,9101,'local-review-principal','LOCAL-TEST-NO-PASSWORD')");
+    $db->exec("INSERT INTO auth_staff_links (institute_id,user_id,staff_id) VALUES (9101,9215,9115)");
+    $db->exec("INSERT INTO auth_user_roles
+        (institute_id,user_id,role_id,role_code,scope,staff_link_user_id,valid_from)
+        SELECT 9101,9215,id,code,scope,9215,UTC_TIMESTAMP()
+        FROM auth_roles WHERE code='principal'");
+    $principalActor = new AuthContext(9215,9101,8,'local-review-principal',false,
+        ['principal'],['enrollment.manage'],9115,null);
+    $review = new App\Modules\Admissions\AdmissionReviewService($db);
+    foundationReject(fn()=>$review->verify($actor,9101,$newDraft,
+        'institute_direct',9101,'LOCAL-ROUTE',null),'PRINCIPAL_REVIEW_REQUIRED');
+    foundationReject(fn()=>$review->verify($principalActor,9101,$newDraft,
+        'institute_direct',9102,'LOCAL-ROUTE',null),'REVIEW_REFERENCE');
+    $review->verify($principalActor,9101,$newDraft,'institute_direct',9101,'LOCAL-ROUTE',null);
+    $reviewed = $db->query("SELECT * FROM enrollments WHERE id=$newDraft")->fetch(PDO::FETCH_ASSOC);
+    foundationCheck((int)$reviewed['qualification_check_passed']===1
+        && $reviewed['status']==='pending_verification'
+        && $reviewed['admission_route']==='institute_direct'
+        && (int)$reviewed['admission_route_source_id']===9101,
+        'Principal reviewed qualification must remain pending local activation.');
+    foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,
+        'Review is not a seat allocation.');
+    foundationReject(fn()=>$review->verify($principalActor,9101,$newDraft,
+        'institute_direct',9101,'LOCAL-ROUTE',null),'REVIEW_STATE');
+    $admissions->activate($actor,9101,$newDraft);
+    foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===2,
+        'Source-approved local activation should count its occupied seat once.');
+    $admissions->cancel($actor,9101,$newDraft,'LOCAL TEST CORRECTION');
+    foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,
+        'Cancellation must release reviewed local seat.');
     // Create a second local attendance session: the first fixture session is
     // already populated and must not be overwritten by new marking.
     $db->exec("INSERT INTO attendance_sessions

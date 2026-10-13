@@ -360,6 +360,14 @@ try {
     expectStatus(http('POST', $draftRoute, [...$draftRequest,'admitted_on'=>'2026-02-30'], $tokens['administrator']), 422);
     expectStatus(http('POST', $draftRoute, $draftRequest, $tokens['administrator']), 404);
     expectStatus(http('POST', $draftRoute, $draftRequest, $tokens['other-admin']), 404);
+    $reviewUrl='/api/v1/enrollments/review';
+    $reviewRequest=['enrollment_id'=>1,'admission_route'=>'institute_direct',
+        'admission_route_source_id'=>1,'admission_route_evidence_reference'=>'LOCAL'];
+    expectStatus(http('POST',$reviewUrl,[]),401);
+    expectStatus(http('POST',$reviewUrl,$reviewRequest,$tokens['student']),403);
+    expectStatus(http('POST',$reviewUrl,$reviewRequest,$tokens['administrator']),403);
+    expectStatus(http('POST',$reviewUrl,[...$reviewRequest,'admission_route'=>'unverified'],$tokens['principal']),422);
+    expectStatus(http('POST',$reviewUrl,$reviewRequest,$tokens['principal']),409);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

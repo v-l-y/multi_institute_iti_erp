@@ -9,6 +9,7 @@ use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Admissions\AdmissionService;
 use App\Modules\Admissions\AdmissionDraftService;
+use App\Modules\Admissions\AdmissionReviewService;
 use App\Modules\Admissions\TraineeUploadService;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Exams\EligibilityService;
@@ -67,6 +68,32 @@ final readonly class OperationsController
         return new Response(['success'=>true,'data'=>[
             'enrollment_id'=>$id,'status'=>'pending_verification','qualification_check_passed'=>false,
         ]], 201);
+    }
+
+    public function reviewEnrollment(Request $request, AuthContext $actor): Response
+    {
+        $institute=$this->institute($actor,'enrollment.manage');
+        if (!in_array('principal',$actor->roles,true)) {
+            throw new HttpException('PRINCIPAL_REVIEW_REQUIRED','Principal account required.',403);
+        }
+        $id=self::id($request,'enrollment_id');
+        $source=self::id($request,'admission_route_source_id');
+        $route=self::text($request,'admission_route',40);
+        if (!in_array($route,['iticat_counselling','iticat_spot','institute_direct','transfer'],true)) {
+            throw new HttpException('INVALID_INPUT','A documented admission route is required.',422);
+        }
+        $evidence=self::text($request,'admission_route_evidence_reference',500);
+        $quota=$request->body['quota_evidence_reference']??null;
+        if ($quota!==null && (!is_string($quota) || trim($quota)===''
+            || strlen(trim($quota))>190)) {
+            throw new HttpException('INVALID_INPUT','Invalid quota evidence reference.',422);
+        }
+        (new AdmissionReviewService($this->database->connection()))->verify(
+            $actor,$institute,$id,$route,$source,$evidence,$quota===null?null:trim($quota)
+        );
+        return new Response(['success'=>true,'data'=>[
+            'enrollment_id'=>$id,'status'=>'pending_verification','qualification_check_passed'=>true,
+        ]]);
     }
 
     public function activateEnrollment(Request $request, AuthContext $actor): Response

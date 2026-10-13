@@ -222,6 +222,26 @@ Because the existing schema requires non-null `checked_by`/`checked_on`
 even for drafts, `checked_by` is stored as `NOT_YET_VERIFIED`; that value
 is not a claimed approval. Writes run in a tenant transaction and are audited.
 
+## Principal qualification and admission-route review
+
+`POST /api/v1/enrollments/review` requires `enrollment.manage` and a
+logged-in Principal, not Administrator. JSON fields: `enrollment_id`,
+`admission_route` (one of `iticat_counselling`, `iticat_spot`,
+`institute_direct`, `transfer`), `admission_route_source_id`,
+`admission_route_evidence_reference`, and optional
+`quota_evidence_reference`. The service requires an institute-linked,
+published and reviewed source, published applicable admission qualification
+rule, valid documented school qualification, configured subject marks and
+official age threshold. All reviews are audited. A reviewer cannot approve
+their own locally created draft.
+
+Review sets `qualification_check_passed=1` and the documented route, but
+**retains pending_verification and does not allocate a seat**. The separate
+existing admission activation service still checks published academic sources,
+final Seat Matrix, affiliation, NIMS instructor mapping, official intake
+window, quotas, eligibility and capacity. There is no external approval,
+allotment generation or official portal submission.
+
 ## Admissions, Seat Matrix and calendar registries
 
 | Method | Endpoint | Permission | Scope |

@@ -31,7 +31,7 @@ export function editableGrid(columns = [], initialRows = [], {
     count.textContent = tbody.rows.length + " rows";
     onChange?.(read());
   }
-  function appendRow(values = {}) {
+  function appendRow(values = {}, notify = true) {
     const row = el("tr");
     for (const column of columns) {
       const { key, label, type = "text", required = false, options,
@@ -60,13 +60,14 @@ export function editableGrid(columns = [], initialRows = [], {
       onClick: () => { row.remove(); emit(); }
     })));
     tbody.append(row);
-    emit();
+    count.textContent = tbody.rows.length + " rows";
+    if (notify) onChange?.(read());
   }
   container.append(el("div", { className: "table-scroll", role: "region",
     "aria-label": title, tabindex: "0" }, table),
     el("div", { className: "erp-edit-grid-actions" }, count, add));
-  for (const row of initialRows) appendRow(row);
-  emit();
+  for (const row of initialRows) appendRow(row, false);
+  count.textContent = tbody.rows.length + " rows";
   return {
     node: container, read, appendRow, clear() { tbody.replaceChildren(); emit(); },
     validate() {

@@ -54,7 +54,7 @@ test('calendar sources and certified day register versions are traceable', () =>
 });
 test('seat matrix and intake revisions retain relational constraints without deferred guards', () => {
   contains('seat_matrix_entries', 'FOREIGN KEY(version_id,intake_id,institute_id)');
-  contains('seat_matrix_entries', 'FOREIGN KEY(trade_unit_shift_id,institute_id)');
+  contains('seat_matrix_entries', 'FOREIGN KEY(trade_unit_shift_id,physical_shift_no,institute_id) REFERENCES trade_unit_shifts(id,shift_no,institute_id)');
   contains('admission_intake_revisions', 'FOREIGN KEY(intake_id,institute_id)');
   contains('enrollments', 'FOREIGN KEY(admission_intake_revision_id,intake_id,institute_id)');
   assert.ok(!sql.includes('CREATE TRIGGER '), 'DATA-INTEGRITY GUARDS are deferred');
@@ -123,6 +123,39 @@ test('institute contact and issuer-vs-portal identity are not invented mandatory
   contains('institute', 'contact_email VARCHAR(190) NULL');
   contains('global_regulatory_documents', "authority ENUM('DGT','NCVET','STATE_UT','SSDEC') NOT NULL");
   contains('global_regulatory_documents', "source_system ENUM('SIDH','NCVT_MIS','NIMS') NULL");
+});
+
+test('active instructor mapping cannot bypass the staff IPRN FK with NULL', () => {
+  contains('instructor_mappings', "CHECK(status<>'active' OR identity_id IS NOT NULL)");
+  contains('instructor_mappings', 'FOREIGN KEY(staff_id,identity_id,institute_id) REFERENCES staff(id,identity_id,institute_id)');
+});
+
+test('seat matrix portal shift is bound to official calendar intake and physical shift', () => {
+  contains('cts_portal_shift_mappings', 'UNIQUE(calendar_id,session_part,physical_shift_no,portal_shift_no)');
+  contains('admission_intakes', 'UNIQUE(id,calendar_id,session_part,institute_id)');
+  contains('trade_unit_shifts', 'UNIQUE(id,shift_no,institute_id)');
+  contains('seat_matrix_entries', 'calendar_id BIGINT UNSIGNED NOT NULL');
+  contains('seat_matrix_entries', "session_part ENUM('primary','six_month_second') NOT NULL");
+  contains('seat_matrix_entries', 'physical_shift_no TINYINT UNSIGNED NOT NULL');
+  contains('seat_matrix_entries', 'FOREIGN KEY(intake_id,calendar_id,session_part,institute_id) REFERENCES admission_intakes(id,calendar_id,session_part,institute_id)');
+  contains('seat_matrix_entries', 'FOREIGN KEY(trade_unit_shift_id,physical_shift_no,institute_id) REFERENCES trade_unit_shifts(id,shift_no,institute_id)');
+  contains('seat_matrix_entries', 'FOREIGN KEY(calendar_id,session_part,physical_shift_no,portal_shift_no) REFERENCES cts_portal_shift_mappings(calendar_id,session_part,physical_shift_no,portal_shift_no)');
+});
+
+test('enrollment quota identities cannot swap vertical and horizontal references', () => {
+  contains('batch_quotas', 'UNIQUE(id,batch_id,quota_type,institute_id)');
+  contains('enrollments', "vertical_quota_type ENUM('vertical','horizontal') NOT NULL DEFAULT 'vertical'");
+  contains('enrollments', "horizontal_quota_type ENUM('vertical','horizontal') NOT NULL DEFAULT 'horizontal'");
+  contains('enrollments', "CHECK(vertical_quota_type='vertical' AND horizontal_quota_type='horizontal')");
+  contains('enrollments', 'FOREIGN KEY(vertical_quota_id,batch_id,vertical_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id)');
+  contains('enrollments', 'FOREIGN KEY(horizontal_quota_id,batch_id,horizontal_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id)');
+});
+
+test('fee payment balances cannot reference refund or reversal transactions', () => {
+  contains('fee_transactions', 'UNIQUE(id,transaction_type,institute_id)');
+  contains('fee_payment_balances', "payment_transaction_type ENUM('payment','refund','reversal') NOT NULL DEFAULT 'payment'");
+  contains('fee_payment_balances', "CHECK(payment_transaction_type='payment')");
+  contains('fee_payment_balances', 'FOREIGN KEY(payment_id,payment_transaction_type,institute_id) REFERENCES fee_transactions(id,transaction_type,institute_id)');
 });
 
 test('all referenced foreign key tables exist and column counts match', () => {

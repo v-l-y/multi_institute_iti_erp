@@ -15,8 +15,9 @@ export function openActionDialog(spec, { onDone, initial = {}, user } = {}) {
   if (!permittedAction(user, spec)) return null;
   const controller = new AbortController();
   let busy = false;
-  // A retry of the same form must reuse its key to avoid duplicate financial writes.
-  const idempotencyKey = spec.idempotency ? globalThis.crypto?.randomUUID?.() : null;
+  // Repeat the same key for an ambiguous retry; changed payload gets a new key.
+  let idempotencyKey = null;
+  let lastSubmittedBody = null;
   const feedback = el("div", { className: "form-feedback", "aria-live": "assertive" });
   const fields = spec.fields.map(def => {
     const opts = {
@@ -71,7 +72,12 @@ export function openActionDialog(spec, { onDone, initial = {}, user } = {}) {
         }
       }
       if (spec.idempotency) {
-        if (!idempotencyKey) throw new Error("Secure browser context required.");
+        if (!globalThis.crypto?.randomUUID) throw new Error("Secure browser context required.");
+        const body = JSON.stringify(payload);
+        if (lastSubmittedBody !== body) {
+          idempotencyKey = crypto.randomUUID();
+          lastSubmittedBody = body;
+        }
         payload.idempotency_key = idempotencyKey;
       }
     } catch (error) {

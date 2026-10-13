@@ -27,8 +27,10 @@ final readonly class PracticalExamService
             FROM regulatory_sources r JOIN global_regulatory_documents d
               ON d.id=r.global_document_id
             WHERE r.id=? AND r.institute_id=? FOR UPDATE',[$id,$institute]);
+        $kind=strtolower((string)($s['document_type']??''));
         if (!$s || $s['authority']!==$authority || $s['status']!=='published'
-            || !$s['sha256']) {
+            || !$s['sha256'] || (!str_contains($kind,'practical')
+                && !str_contains($kind,'question_paper'))) {
             throw new HttpException('PRACTICAL_SOURCE_REQUIRED',
                 'Applicable published institute-linked official exam evidence is required.',409);
         }
@@ -40,6 +42,10 @@ final readonly class PracticalExamService
     {
         if (!in_array('principal',$actor->roles,true)) {
             throw new HttpException('PRINCIPAL_REQUIRED','Principal session review required.',403);
+        }
+        if ($endedAt>(new \DateTimeImmutable('now',
+            new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d H:i:s')) {
+            throw new HttpException('INVALID_INPUT','Future practical sessions cannot be recorded.',422);
         }
         $tx=new InstituteTransaction($this->db);
         return $tx->run($actor,$institute,'exam.practical.manage',function () use (

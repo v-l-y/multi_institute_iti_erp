@@ -41,6 +41,13 @@ try {
     $_SERVER['HTTP_X_FORWARDED_FOR'] = 'not-an-ip';
     $expect(Request::capture()->ip, '172.20.0.7');
 
+    // A trust-all CIDR is unsafe even if an operator accidentally configures it.
+    putenv('TRUSTED_PROXY_CIDRS=0.0.0.0/0');
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.15';
+    $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.99';
+    $expect(Request::capture()->ip, '192.0.2.15');
+
+    putenv('TRUSTED_PROXY_CIDRS=172.20.0.0/24');
     // IPv6 proxy support and independent real client IP.
     putenv('TRUSTED_PROXY_CIDRS=2001:db8:abcd::/48');
     $_SERVER['REMOTE_ADDR'] = '2001:db8:abcd::7';

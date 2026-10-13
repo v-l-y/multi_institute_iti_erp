@@ -1,6 +1,6 @@
 import { el, formatValue } from "./dom.js";
 import { status } from "./status.js";
-import { actionMenu } from "./buttons.js";
+import { button } from "./buttons.js";
 
 /**
  * Accessible data table. Optional selection and actions are caller-owned.
@@ -45,7 +45,7 @@ export function dataTable(rows, columns, {
       syncSelection();
       selection.onChange(new Set(selectedIds));
     });
-    header.append(el("th", { scope: "col" }, selectAll));
+    header.append(el("th", { scope: "col", className: "selection-cell" }, selectAll));
   }
   header.append(...columns.map(([, title]) => el("th", { scope: "col" }, title)));
   if (typeof rowActions === "function") header.append(el("th", { scope: "col" }, "Actions"));
@@ -67,7 +67,7 @@ export function dataTable(rows, columns, {
         selection.onChange(new Set(selectedIds));
       });
       rowCheckboxes.push([checkbox, id]);
-      cells.push(el("td", {}, checkbox));
+      cells.push(el("td", { className: "selection-cell" }, checkbox));
     }
     cells.push(...columns.map(([key]) => {
       const value = row?.[key];
@@ -76,7 +76,14 @@ export function dataTable(rows, columns, {
     }));
     if (typeof rowActions === "function") {
       const actions = rowActions(row) || [];
-      cells.push(el("td", {}, actions.length ? actionMenu("Actions", actions) : "—"));
+      cells.push(el("td", {}, actions.length
+        ? el("div", { className: "row-actions" },
+            ...actions.filter(action => action.visible !== false).map(action => button(action.label, {
+              variant: action.danger ? "danger" : "ghost",
+              disabled: Boolean(action.disabled),
+              onClick: action.onClick
+            })))
+        : "—"));
     }
     body.append(el("tr", {}, ...cells));
   }

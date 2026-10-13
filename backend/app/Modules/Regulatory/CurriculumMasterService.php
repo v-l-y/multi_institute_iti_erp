@@ -179,11 +179,12 @@ final readonly class CurriculumMasterService
                 throw new HttpException('CURRICULUM_FROZEN','Only draft syllabus may be published.',409);
             }
             $this->source((int)$curriculum['source_document_id']);
-            $q=$this->db->prepare('SELECT y.id,y.year_no,COUNT(g.id) lo_count
+            $q=$this->db->prepare('SELECT y.id,y.year_no,
+                (SELECT COUNT(*) FROM global_learning_outcomes g
+                 WHERE g.global_curriculum_year_id=y.id) AS lo_count
                 FROM global_curriculum_years y
-                LEFT JOIN global_learning_outcomes g ON g.global_curriculum_year_id=y.id
                 WHERE y.global_curriculum_id=?
-                GROUP BY y.id,y.year_no ORDER BY y.year_no FOR UPDATE');
+                ORDER BY y.year_no FOR UPDATE');
             $q->execute([$id]);
             $years=$q->fetchAll(PDO::FETCH_ASSOC);
             $required=(int)$curriculum['duration_months']===24?2:1;

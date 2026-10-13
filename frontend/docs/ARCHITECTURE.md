@@ -90,6 +90,7 @@
           shell.css
           components.css
           shared-ui.css              reusable UI library styling
+          erp-patterns.css           ERP form/academic/register composition
           responsive.css
 
 No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party runtime is installed or required by this foundation. The chosen architecture can be migrated deliberately later, without implying a framework selection now.
@@ -103,7 +104,7 @@ No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party run
 5. **View:** each route descriptor contains the exact backend endpoint and columns; views call core/http/client.js. Dashboard shows *available modules*, not fake numeric KPIs.
 6. **Register:** modules/registry/register-view.js owns cursor, search, request abort and active dialog; it is disposed when the route or session changes. Refreshing records preserves the register toolbar and search focus. Table search covers **only the currently loaded page**.
 7. **Mutation:** module-owned staff and student field configs feed the shared create dialog; POST requests go to existing guarded PHP endpoints. The dialog guards duplicate submits, blocks dismissal during a save, and closes/aborts stale UI requests when disposed. Aborting a browser request does not guarantee that an already-sent backend mutation was rolled back.
-8. **Styling:** styles.css imports seven stylesheets in cascade order, including shared-ui.css. All UI uses shared tokens and reusable components.
+8. **Styling:** styles.css imports eight stylesheets in cascade order, including shared-ui.css. All UI uses shared tokens and reusable components.
 9. **Local server:** dev-server.mjs serves an explicit root entry and restricted /src/*.js and /src/*.css file paths. It proxies /api/v1/* to the configured backend. Local Host and write-Origin checks reduce DNS rebinding/cross-origin write risk; proxy request bodies are size-bounded. It is loopback-only and not a production server.
 
 ## Foundation mapping
@@ -151,6 +152,26 @@ Static inspection identified and addressed these issues in the frontend foundati
 6. Review color contrast with the browser accessibility tools and confirm screen reader landmark/heading order.
 
 No CI, browser automation, Docker or local backend tests have been run for this hardening pass.
+
+## ERP shared presentation patterns
+
+The shared library has been extended for the institute-management registers and
+future academic/business views. Core controls live under `src/shared/ui/`:
+`form-layout.js`, `lookup.js`, `details.js`, `stat-cards.js`,
+`activity.js`, `schedule.js`, `attendance.js`, `documents.js`,
+`workflow.js`, `advanced-fields.js`, `columns.js`, `export.js`,
+`drawer.js`, `editable-grid.js`, `audit-diff.js` and `navigation.js`.
+
+Their styling is in `src/styles/erp-patterns.css`; combined with
+`shared-ui.css` it loads after base styles and before responsive styles.
+All component APIs and permission limits are documented in
+[Shared UI catalog](../src/shared/ui/README.md).
+
+The generic register now includes an explicit-column **View** action and
+local column visibility chooser. It does not invent a record-details API or
+expose hidden fields. Domain modules must supply verified read/write routes
+before enabling other shared patterns; library availability alone is **not**
+proof that the corresponding ERP workflow is implemented.
 
 ## Shared UI completion
 

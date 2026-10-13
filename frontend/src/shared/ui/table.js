@@ -81,6 +81,7 @@ export function dataTable(rows, columns, {
             ...actions.filter(action => action.visible !== false).map(action => button(action.label, {
               variant: action.danger ? "danger" : "ghost",
               disabled: Boolean(action.disabled),
+              ariaLabel: action.ariaLabel || action.label,
               onClick: action.onClick
             })))
         : "—"));

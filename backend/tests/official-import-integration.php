@@ -98,6 +98,41 @@ try {
     $certificateId = $service->certificate($importer,9101,$certData);
     $check($certificateId>0,'Certificate local import missing.');
     $reject(fn()=>$service->certificate($other,9101,$certData),'FORBIDDEN');
+    // Marksheets from two different exam attempts are independent records,
+    // not revision 1 and revision 2 of one certificate series.
+    $firstSheet = $service->certificate($importer,9101,[
+      ...$certData,
+      'document_type'=>'marksheet','certificate_number'=>'TEST-MARKSHEET-ATTEMPT-1',
+    ]);
+    $check($firstSheet>0, 'First attempt marksheet missing.');
+    $db->exec("INSERT INTO exam_cycles
+      (id,institute_id,code,cycle_type,rule_id,schedule_source_id,
+       eligibility_cutoff,exam_starts_on,activity_windows_json,status)
+      VALUES (9202,9101,'LOCAL-RETAKE-CYCLE','mains',9101,9101,
+              '2026-09-01','2026-10-03','{}','eligibility_open')");
+    $secondAttemptResult = $service->result($importer,9101,[
+      ...$resultData,
+      'cycle_id'=>9202,'source_reference'=>'SECOND-ATTEMPT-LOCAL-TEST',
+    ]);
+    $secondSheet = $service->certificate($importer,9101,[
+      ...$certData,
+      'official_result_id'=>$secondAttemptResult,
+      'document_type'=>'marksheet',
+      'certificate_number'=>'TEST-MARKSHEET-ATTEMPT-2',
+      'revision_no'=>1,
+      'supersedes_certificate_id'=>null,
+    ]);
+    $check($secondSheet>$firstSheet,
+      'An independent exam attempt must support its own first marksheet revision.');
+    $reject(fn()=>$service->certificate($importer,9101,[
+      ...$certData,
+      'official_result_id'=>$secondAttemptResult,
+      'document_type'=>'marksheet',
+      'certificate_number'=>'TEST-MARKSHEET-DUP',
+      'revision_no'=>1,
+      'supersedes_certificate_id'=>null,
+    ]),'OFFICIAL_REVISION');
+
 
     $revision = $service->result($importer,9101,[...$resultData,
       'revision_no'=>2,'supersedes_result_id'=>$resultId,'result_status'=>'fail']);

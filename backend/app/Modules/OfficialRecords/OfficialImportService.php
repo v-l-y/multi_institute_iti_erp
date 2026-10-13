@@ -39,13 +39,17 @@ final readonly class OfficialImportService
      */
     public static function acceptsDocumentType(string $documentType, string $recordKind): bool
     {
-        $type = strtolower(trim($documentType));
-        return match ($recordKind) {
-            'result' => str_contains($type, 'result'),
-            'certificate' => str_contains($type, 'certificate')
-                || str_contains($type, 'marksheet') || str_contains($type, 'ntc'),
-            default => false,
+        // Token boundaries matter: "nonresult" and "uncertificated" must not
+        // become valid authority document types through substring matching.
+        $separated = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', trim($documentType));
+        $tokens = preg_split('/[^a-z0-9]+/i', strtolower($separated ?? ''),
+            -1, PREG_SPLIT_NO_EMPTY);
+        $allowed = match ($recordKind) {
+            'result' => ['result', 'results'],
+            'certificate' => ['certificate', 'certificates', 'marksheet', 'marksheets', 'ntc'],
+            default => [],
         };
+        return array_intersect($tokens ?: [], $allowed) !== [];
     }
 
     private function officialSource(int $institute, int $sourceId, string $sourceSystem, string $recordKind): array

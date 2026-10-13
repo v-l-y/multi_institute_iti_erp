@@ -456,6 +456,32 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->crea
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
         'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter)),422, __LINE__);
+$instructorReviewController=new App\Modules\Staff\Http\InstructorMappingController(new App\Core\Database([]));
+$instructorPrincipal=new AuthContext(4,3,1,'principal',false,['principal'],
+    ['staff.manage','instructor.mapping.manage'],4,null);
+$instructorAdministrator=new AuthContext(5,3,1,'administrator',false,['administrator'],
+    ['staff.manage','instructor.mapping.manage'],5,null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyQualification(
+    new Request(['qualification_id'=>'1','regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyQualification(
+    new Request(['qualification_id'=>1,'regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorAdministrator)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyIpRn(
+    new Request(['staff_id'=>1,'regulatory_source_id'=>1,'iprn'=>'TEST',
+        'verification_reference'=>'LOCAL','verified_on'=>'2026-02-30']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'unknown','valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'subject','subject_code'=>'INVALID',
+        'valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'subject','subject_code'=>'ES',
+        'valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorAdministrator)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->release(
+    new Request(['mapping_id'=>'1','valid_to'=>'2026-01-01',
+        'regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
 $affiliationController=new App\Modules\Institutes\AffiliationHistoryController(new App\Core\Database([]));
 $affiliationActor=new AuthContext(1,3,1,'principal',false,['principal'],['institute.affiliation.manage'],7,null);
 $affiliationAdmin=new AuthContext(2,3,1,'administrator',false,['administrator'],['institute.affiliation.manage'],2,null);

@@ -87,6 +87,39 @@ final readonly class StudentController
         return new Response(['success' => true, 'data' => $row]);
     }
 
+    public function createQualification(Request $request, AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'student.manage');
+        $student=$request->body['student_id']??null;
+        $year=$request->body['passing_year']??null;
+        if (!is_int($student) || $student<1 || !is_int($year)
+            || $year<1000 || $year>(int)gmdate('Y')) {
+            throw new HttpException('INVALID_INPUT','Valid student ID and passing year required.',422);
+        }
+        $level=self::text($request,'level_code',40);
+        $board=self::text($request,'board_name',190);
+        $certificate=self::text($request,'certificate_reference',190);
+        $input=$request->body['subject_results']??null;
+        if (!$input instanceof \stdClass) {
+            throw new HttpException('INVALID_INPUT','subject_results must be a JSON object.',422);
+        }
+        $results=(array)$input;
+        if (count($results)>150) {
+            throw new HttpException('INVALID_INPUT','Too many qualification subjects.',422);
+        }
+        foreach ($results as $subject=>$mark) {
+            if (!is_string($subject) || trim($subject)==='' || strlen($subject)>100
+                || (!is_int($mark) && !is_float($mark) && !is_string($mark))
+                || !is_numeric($mark) || (float)$mark<0 || !is_finite((float)$mark)) {
+                throw new HttpException('INVALID_INPUT','Subject marks must be finite nonnegative numbers.',422);
+            }
+        }
+        $id=(new StudentQualificationService($this->database->connection()))->create(
+            $actor,$institute,$student,$level,$board,$year,$certificate,$results
+        );
+        return new Response(['success'=>true,'data'=>['qualification_id'=>$id]],201);
+    }
+
     public function create(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'student.manage');

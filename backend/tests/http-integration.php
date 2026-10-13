@@ -213,6 +213,21 @@ try {
     $studentId = (int) $createdStudent['body']['data']['student_id'];
     verify($studentId > 0, 'Student creation did not return the local ID.');
     expectStatus(http('POST', '/api/v1/students', $newStudent, $tokens['administrator']), 409);
+    $qualUrl='/api/v1/students/qualifications';
+    $qualRequest=[
+        'student_id'=>$studentId,'level_code'=>'10','board_name'=>'LOCAL',
+        'passing_year'=>2024,'certificate_reference'=>'LOCAL-SCHOOL-TEST',
+        'subject_results'=>(object)['Mathematics'=>80]
+    ];
+    expectStatus(http('POST',$qualUrl,[]),401);
+    expectStatus(http('POST',$qualUrl,$qualRequest,$tokens['student']),403);
+    expectStatus(http('POST',$qualUrl,[...$qualRequest,'passing_year'=>'2024'],$tokens['administrator']),422);
+    expectStatus(http('POST',$qualUrl,[...$qualRequest,'subject_results'=>[80]],$tokens['administrator']),422);
+    $qualCreated=http('POST',$qualUrl,$qualRequest,$tokens['administrator']);
+    expectStatus($qualCreated,201);
+    verify((int)$qualCreated['body']['data']['qualification_id']>0,'Local qualification ID missing.');
+    expectStatus(http('POST',$qualUrl,$qualRequest,$tokens['administrator']),409);
+    expectStatus(http('POST',$qualUrl,$qualRequest,$tokens['other-admin']),404);
     $studentsA = http('GET', '/api/v1/students?page_size=100', token: $tokens['administrator']);
     expectStatus($studentsA, 200);
     verify(in_array('LOCAL-DRAFT-02', array_column($studentsA['body']['data']['students'], 'local_student_code'), true), 'Created local student missing.');

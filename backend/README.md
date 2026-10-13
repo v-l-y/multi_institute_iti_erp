@@ -203,6 +203,18 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Student qualification records
+
+`POST /api/v1/students/qualifications` requires `student.manage` and
+`student_id`, `level_code`, `board_name`, `passing_year` (integer),
+`certificate_reference`, and `subject_results` as a JSON object containing
+nonnegative numeric marks. A logged-in institute operator attests to a
+referenced school document; `verified_by` and `verified_on` record this
+local review (not government recognition). Duplicate certificate references
+for one student are rejected. Records are tenant-scoped, transactional and
+audited. Subsequent qualification-route validation still follows the
+applicable published admission rule and Principal review.
+
 ## Unverified admission drafts
 
 `POST /api/v1/enrollments/drafts` requires `enrollment.manage` and a

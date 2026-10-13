@@ -231,6 +231,19 @@ $checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
     new Request([...$reviewBody,'admission_route_source_id'=>'1']),$reviewer))->status===422;
 $checks[] = $kernel->handle(static fn()=>$operations->reviewEnrollment(
     new Request([...$reviewBody,'quota_evidence_reference'=>[]]),$reviewer))->status===422;
+$qualificationData=[
+    'student_id'=>1,'level_code'=>'10','board_name'=>'LOCAL',
+    'passing_year'=>2024,'certificate_reference'=>'LOCAL SCHOOL',
+    'subject_results'=>(object)['Mathematics'=>80]
+];
+$checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
+    new Request([...$qualificationData,'student_id'=>'1']),$studentWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
+    new Request([...$qualificationData,'subject_results'=>[80]]),$studentWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
+    new Request([...$qualificationData,'subject_results'=>(object)['Math'=>-1]]),$studentWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
+    new Request($qualificationData),$context))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

@@ -119,6 +119,21 @@ try {
         (id,institute_id,student_id,level_code,board_name,passing_year,
          certificate_reference,subject_results_json,verified_by,verified_on)
         VALUES (9111,9101,9111,'10','LOCAL',2024,'LOCAL','{}','LOCAL','2026-07-01')");
+    // Local qualification entry linked through institute and audited.
+    $db->exec("INSERT INTO students
+        (id,institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference)
+        VALUES (9112,9101,'LOCAL-QUAL-TEST','Local Qualification Test','2005-01-01',
+                'other','LOCAL','non_aadhaar','LOCAL TEST')");
+    $qualificationService=new App\Modules\Students\StudentQualificationService($db);
+    $qualificationId=$qualificationService->create($actor,9101,9112,
+        '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]);
+    foundationCheck($qualificationId>0 &&
+        (int)$db->query("SELECT student_id FROM student_qualifications WHERE id=$qualificationId")->fetchColumn()===9112,
+        'Local qualification must belong to the recorded student.');
+    foundationReject(fn()=>$qualificationService->create($actor,9101,9112,
+        '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]),'QUALIFICATION_EXISTS');
+    foundationReject(fn()=>$qualificationService->create($actor,9101,9102,
+        '10','LOCAL SCHOOL',2024,'FOREIGN SCHOOL CERT',[]),'NOT_FOUND');
     $drafts = new App\Modules\Admissions\AdmissionDraftService($db);
     $newDraft = $drafts->create($actor,9101,9111,9101,9111,9101,
         'LOCAL-DRAFT-001','2026-08-01','LOCAL');

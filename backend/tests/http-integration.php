@@ -561,6 +561,44 @@ try {
         WHERE event_type IN ('platform.institute.create','platform.principal.provision')
         AND user_id={$users['developer']['id']}")->fetchColumn()===2,
         'Platform onboarding and Principal provisioning must retain audit events.');
+    $regBase='/api/v1/platform/regulatory/documents';
+    $regData=['authority'=>'DGT','document_type'=>'CTS_LOCAL',
+        'title'=>'LOCAL FIXTURE - NOT A DGT CIRCULAR','reference_no'=>'LOCAL-DOC-123',
+        'issued_on'=>'2026-05-08','evidence_reference'=>'LOCAL-FIXTURE-NOT-GOVERNMENT',
+        'sha256'=>str_repeat('a',64)];
+    expectStatus(http('POST',$regBase.'/draft',$regData),401);
+    expectStatus(http('POST',$regBase.'/draft',$regData,$tokens['principal']),403);
+    expectStatus(http('POST',$regBase.'/draft',[...$regData,'sha256'=>'abc'],$tokens['developer']),422);
+    expectStatus(http('POST',$regBase.'/draft',[...$regData,
+        'authority'=>'STATE_UT'],$tokens['developer']),422);
+    $docDraft=http('POST',$regBase.'/draft',$regData,$tokens['developer']);
+    expectStatus($docDraft,201);
+    $docId=(int)$docDraft['body']['data']['document_id'];
+    verify($docId>0 && $docDraft['body']['data']['status']==='draft'
+        && $docDraft['body']['data']['government_verified']===false,
+        'New source record must remain unreviewed.');
+    expectStatus(http('POST',$regBase.'/draft',$regData,$tokens['developer']),409);
+    expectStatus(http('POST',$regBase.'/publish',[
+        'document_id'=>$docId,'review_reference'=>''
+    ],$tokens['developer']),422);
+    expectStatus(http('POST',$regBase.'/publish',[
+        'document_id'=>$docId,'review_reference'=>'LOCAL REVIEW ONLY'
+    ],$tokens['principal']),403);
+    expectStatus(http('POST',$regBase.'/publish',[
+        'document_id'=>$docId,'review_reference'=>'LOCAL REVIEW ONLY'
+    ],$tokens['developer']),200);
+    expectStatus(http('POST',$regBase.'/publish',[
+        'document_id'=>$docId,'review_reference'=>'LOCAL REVIEW ONLY'
+    ],$tokens['developer']),409);
+    verify($db->query("SELECT status FROM global_regulatory_documents
+        WHERE id=$docId")->fetchColumn()==='published',
+        'Reviewed source publication must persist.');
+    $docList=http('GET',$regBase.'?page_size=100',token:$tokens['developer']);
+    expectStatus($docList,200);
+    verify(in_array($docId,array_map('intval',array_column(
+        $docList['body']['data']['documents'],'id')),true),
+        'Regulatory document not visible to platform reviewer.');
+    expectStatus(http('GET',$regBase,token:$tokens['administrator']),403);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

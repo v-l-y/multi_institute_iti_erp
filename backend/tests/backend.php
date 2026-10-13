@@ -387,6 +387,24 @@ $checks[]=$kernel->handle(static fn()=>$platformController->provisionPrincipal(n
     'temporary_password'=>'123456789012']),$developerActor))->status===422;
 $checks[]=$kernel->handle(static fn()=>$platformController->index(
     new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+$regulatoryController=new App\Modules\Regulatory\RegulatoryDocumentController(new App\Core\Database([]));
+$regulatoryBody=[
+    'authority'=>'DGT','document_type'=>'CTS','title'=>'Local source',
+    'reference_no'=>'LOCAL-001','issued_on'=>'2026-05-08',
+    'evidence_reference'=>'LOCAL-FIXTURE','sha256'=>str_repeat('a',64)
+];
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'sha256'=>'not-a-hash']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'authority'=>'UNKNOWN']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'authority'=>'STATE_UT']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request($regulatoryBody),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->publish(
+    new Request(['document_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$regulatoryController->index(
+    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

@@ -65,6 +65,29 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Platform regulatory source document register
+
+`POST /api/v1/platform/regulatory/documents/draft` accepts explicit
+`authority` (`DGT`, `NCVET`, `STATE_UT`, `SSDEC`),
+`document_type`, `title`, `reference_no`, `issued_on`,
+`sha256`, a `source_url` (HTTPS) and/or `evidence_reference`,
+optional `source_system` (`SIDH`, `NCVT_MIS`, `NIMS`),
+`state_ut_code` and `supersedes_id`. The Bihar-bound STATE_UT/SSDEC
+records require `state_ut_code=BR`. The digest is supplied by the
+operator and is **not cryptographically recomputed against remote official
+bytes by this API**. Draft registration is not regulatory verification.
+
+`POST /api/v1/platform/regulatory/documents/publish` requires
+`document_id` and explicit human `review_reference`. Only a
+previously drafted record with source reference and SHA-256 may be
+published; reviewed_by/reviewed_at and an authenticated platform audit
+event are recorded. The status means **registered as reviewed within
+this ERP**, not a claim that DGT/NCVET issued or accepted it.
+`GET /api/v1/platform/regulatory/documents` provides a platform-only
+cursor-paginated register. All three endpoints require
+`platform.regulatory.manage` and an authenticated platform Developer.
+Official verification must still inspect the genuine source evidence.
+
 ## Platform institute onboarding
 
 Only an authenticated, active platform `developer` can create institute

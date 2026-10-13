@@ -1,5 +1,21 @@
 # Fees module
 
+## Statements and receipt data
+
+`GET /api/v1/fees/statements?student_id=...` and `GET /api/v1/fees/receipts?payment_id=...`
+require `fee.view`. Student-owned versions are `/statements/me` and `/receipts/me`
+and require `fee.view.own`; student identity comes exclusively from authentication.
+Cross-institute and other-student receipt lookups return 404.
+
+Statements identify the assessment ledger, include full-student totals plus
+paginated issued demands (`after_id`, `page_size`, maximum 100), and calculate
+gross, approved waivers, net due, non-reversed allocations minus paid refunds,
+outstanding and unallocated credit. Pending/approved refunds do not reduce paid
+totals. Paid allocated refunds reopen the demand but do not become credit.
+Legacy `fee_transactions` is excluded. Receipt JSON includes the immutable
+identity snapshot and reversal status; it is data for a receipt renderer, not
+an official government document or PDF export.
+
 `Http/FeeController.php` handles API validation and authorization; `Application/FeeService.php` retains audited transaction logic; `Domain/Money.php` parses exact monetary values; `Infrastructure/FeePaymentRepository.php` implements institute- and own-student-scoped payment reads. No fee rules or default amounts were introduced.
 
 Payment reversal requires two authenticated steps. The original payment recorder posts `payment_id`, `reversal_no` and `reason` to `/api/v1/fees/payments/reversal-request`. A different user then posts the same values plus the recorder's `requested_by` ID to `/api/v1/fees/payments/reverse`. Both require `fee.refund`; approval must match the latest immutable request stored in `institute_activity_log`. No schema migration is required. Existing approval clients must perform the request step first.

@@ -1,5 +1,8 @@
 # Manual production overlay; requires operator-managed DNS, TLS certs and proxy CIDR.
 services:
+  database:
+    volumes:
+      - ./deployment/production-runtime-grants.sql:/docker-entrypoint-initdb.d/03-runtime-grants.sql:ro
   backend:
     environment:
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?Set trusted proxy network in root .env}

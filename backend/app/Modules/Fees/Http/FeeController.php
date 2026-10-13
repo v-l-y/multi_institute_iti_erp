@@ -7,6 +7,7 @@ use App\Core\Database;
 use App\Modules\Fees\Application\FeeService;
 use App\Modules\Fees\Domain\Money;
 use App\Modules\Fees\Infrastructure\FeePaymentRepository;
+use App\Modules\Fees\Infrastructure\FeeStatementRepository;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
@@ -205,6 +206,34 @@ final readonly class FeeController
         $page = (new FeePaymentRepository($this->database->connection()))->page($institute, $cursor, $limit, $own ? $actor->studentId : null);
         return new Response(['success'=>true,'data'=>$page]);
     }
+
+    private function statementRead(Request $request, AuthContext $actor, bool $own): Response
+    {
+        $institute=self::institute($actor,$own?'fee.view.own':'fee.view');
+        $student=$own?($actor->studentId??throw new HttpException('FORBIDDEN','Linked student identity required.',403)):
+            self::queryInt($request,'student_id',0,PHP_INT_MAX);
+        if ($student<1) throw new HttpException('INVALID_INPUT','student_id is required.',422);
+        $after=self::queryInt($request,'after_id',0,PHP_INT_MAX);
+        $size=self::queryInt($request,'page_size',50,100);
+        $data=(new FeeStatementRepository($this->database->connection()))->statement($institute,$student,$after,$size);
+        return new Response(['success'=>true,'data'=>$data]);
+    }
+
+    public function statement(Request $request, AuthContext $actor): Response { return $this->statementRead($request,$actor,false); }
+    public function ownStatement(Request $request, AuthContext $actor): Response { return $this->statementRead($request,$actor,true); }
+
+    private function receiptRead(Request $request, AuthContext $actor, bool $own): Response
+    {
+        $institute=self::institute($actor,$own?'fee.view.own':'fee.view');
+        $student=$own?($actor->studentId??throw new HttpException('FORBIDDEN','Linked student identity required.',403)):null;
+        $payment=self::queryInt($request,'payment_id',0,PHP_INT_MAX);
+        if ($payment<1) throw new HttpException('INVALID_INPUT','payment_id is required.',422);
+        $data=(new FeeStatementRepository($this->database->connection()))->receipt($institute,$payment,$student);
+        return new Response(['success'=>true,'data'=>$data]);
+    }
+
+    public function receipt(Request $request, AuthContext $actor): Response { return $this->receiptRead($request,$actor,false); }
+    public function ownReceipt(Request $request, AuthContext $actor): Response { return $this->receiptRead($request,$actor,true); }
 
     public function payments(Request $request, AuthContext $actor): Response
     {

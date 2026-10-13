@@ -151,6 +151,10 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/structures/activate', $guard->wrap([$feeSetup, 'activateStructure'], 'fee.record'));
     $router->post('/api/v1/fees/assessments', $guard->wrap([$feeSetup, 'assessment'], 'fee.record'));
     $fees = new FeeController($database);
+    $router->get('/api/v1/fees/statements', $guard->wrap([$fees,'statement'], 'fee.view'));
+    $router->get('/api/v1/fees/statements/me', $guard->wrap([$fees,'ownStatement'], 'fee.view.own'));
+    $router->get('/api/v1/fees/receipts', $guard->wrap([$fees,'receipt'], 'fee.view'));
+    $router->get('/api/v1/fees/receipts/me', $guard->wrap([$fees,'ownReceipt'], 'fee.view.own'));
     $router->get('/api/v1/fees/payments', $guard->wrap([$fees, 'payments'], 'fee.view'));
     $router->get('/api/v1/fees/payments/me', $guard->wrap([$fees, 'ownPayments'], 'fee.view.own'));
     $router->post('/api/v1/fees/assessments/issue', $guard->wrap([$fees, 'issueAssessment'], 'fee.record'));

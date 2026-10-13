@@ -8,6 +8,7 @@ use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Fees\Application\FeeSetupService;
 use App\Modules\Fees\Application\FeeService;
 use App\Modules\Fees\Application\FeeCashService;
+use App\Modules\Fees\Infrastructure\FeeStatementRepository;
 
 // Explicit manual integration runner. Never connects to the app database.
 $dsn = getenv('TEST_DB_DSN');
@@ -78,6 +79,32 @@ try {
     $reject(fn()=>$service->approveWaiver($operator,1,$waiver),'WAIVER_APPROVAL');
     $service->approveWaiver($approver,1,$waiver);
     $check($db->query("SELECT status FROM fee_waivers WHERE id=".$waiver)->fetchColumn()==='approved','Independent waiver approval failed.');
+    $statements=new FeeStatementRepository($db);
+    $paidStatement=$statements->statement(1,1,0,1);
+    $check($paidStatement['totals']['outstanding']==='0.00' && $paidStatement['totals']['effective_paid']==='1000.00','Settled demand must have zero outstanding.');
+    $check($paidStatement['next_after_id']===$demand,'Demand cursor must use the last returned demand.');
+    $service->createDemand($operator,1,$second,'D-2',gmdate('Y-m-d',time()+86400));
+    $waivedStatement=$statements->statement(1,2,0,10);
+    $check($waivedStatement['totals']['outstanding']==='900.00','Approved waiver must reduce demand due.');
+    $originalReceipt=$statements->receipt(1,$payment,1);
+    $db->exec("UPDATE students SET full_name='Renamed learner' WHERE id=1");
+    $check($statements->receipt(1,$payment,1)['identity_snapshot']['student_name']==='Local A','Receipt must retain original student identity.');
+    $reject(fn()=>$statements->receipt(2,$payment,null),'NOT_FOUND');
+    $reject(fn()=>$statements->receipt(1,$payment,2),'NOT_FOUND');
+    $reject(fn()=>$statements->statement(2,1,0,10),'NOT_FOUND');
+    $allocationId=(int)$db->query("SELECT id FROM fee_payment_allocations WHERE payment_id=$payment")->fetchColumn();
+    $refundId=$service->requestRefund($operator,1,$allocationId,'100.00','LOCAL','cash','RF-REPORT','RF-REPORT');
+    $check($statements->statement(1,1,0,10)['totals']['outstanding']==='0.00','Pending refunds must not change effective paid.');
+    $service->decideRefund($approver,1,$refundId,'approved');
+    $service->decideRefund($approver,1,$refundId,'paid');
+    $refundedStatement=$statements->statement(1,1,0,10);
+    $check($refundedStatement['totals']['outstanding']==='100.00' && $refundedStatement['totals']['unallocated_credit']==='0.00','Paid refund reopens demand without creating student credit.');
+    $creditPayment=$service->recordPayment($operator,1,1,'10.00','upi','P-CREDIT','R-CREDIT','KEY-CREDIT');
+    $check($statements->statement(1,1,0,10)['totals']['unallocated_credit']==='10.00','Unallocated payment must appear as student credit.');
+    $service->requestReversal($operator,1,$creditPayment,'REV-CREDIT','LOCAL');
+    $service->reverse($approver,1,$creditPayment,1,'REV-CREDIT','LOCAL');
+    $check($statements->statement(1,1,0,10)['totals']['unallocated_credit']==='0.00','Reversed payment must not remain credit.');
+    $check($statements->receipt(1,$creditPayment,1)['status']==='reversed','Receipt read must disclose reversal.');
 
     $movement = $cash->movement($operator,1,'bank_deposit','10.00','LOCAL-BANK','MOV-KEY');
     $check($cash->movement($operator,1,'bank_deposit','10.00','LOCAL-BANK','MOV-KEY')===$movement,'Cash movement retry mismatch.');

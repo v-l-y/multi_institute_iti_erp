@@ -197,7 +197,7 @@ final readonly class OfficialImportService
                     JOIN official_results prior_result ON prior_result.id=c.official_result_id
                       AND prior_result.institute_id=c.institute_id
                     WHERE c.enrollment_id=? AND c.document_type=? AND c.institute_id=?
-                      AND (?='NTC'
+                      AND (?=\'NTC\'
                            OR (prior_result.batch_year_id=? AND prior_result.cycle_id=?))
                     ORDER BY c.revision_no DESC,c.id DESC LIMIT 1 FOR UPDATE',
                     [$data['enrollment_id'], $data['document_type'], $institute,

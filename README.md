@@ -1,5 +1,7 @@
 # Multi-Institute ITI ERP
 
+Local UAT setup and repeatable backend verification: [staging instructions](deployment/STAGING.md).
+
 ```text
 backend/     PHP API, configuration, database schema and tests
 frontend/    Empty, reserved for future frontend work

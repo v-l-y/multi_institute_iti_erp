@@ -292,6 +292,17 @@ try {
     verify(count($ownRows) === 1 && (int)$ownRows[0]['id'] === $linkedPaymentId && (int)$ownRows[0]['student_id'] === $linkedId, 'Linked student payment visibility or isolation failed.');
     verify((int)$db->query("SELECT COUNT(*) FROM fee_payments WHERE institute_id=1 AND idempotency_key='local-http-payment-1'")->fetchColumn()===1, 'Idempotent payment replay duplicated rows.');
     expectStatus(http('GET', '/api/v1/fees/payments/me', token:$tokens['administrator']), 403);
+    expectStatus(http('GET','/api/v1/fees/statements',token:$tokens['administrator']),422);
+    expectStatus(http('GET','/api/v1/fees/statements?student_id='.$linkedId,token:$tokens['student']),403);
+    $ownStatement=http('GET','/api/v1/fees/statements/me?student_id='.$studentId,token:$tokens['student']);
+    expectStatus($ownStatement,200);
+    verify((int)$ownStatement['body']['data']['student']['id']===$linkedId,
+        'Own statement must ignore a client-supplied different student ID.');
+    expectStatus(http('GET','/api/v1/fees/receipts?payment_id='.$linkedPaymentId,token:$tokens['administrator']),200);
+    expectStatus(http('GET','/api/v1/fees/receipts/me?payment_id='.$linkedPaymentId,token:$tokens['student']),200);
+    expectStatus(http('GET','/api/v1/fees/receipts/me?payment_id='.$feePaymentId,token:$tokens['student']),404);
+    expectStatus(http('GET','/api/v1/fees/receipts?payment_id='.$linkedPaymentId,token:$tokens['other-admin']),404);
+    expectStatus(http('GET','/api/v1/fees/receipts?payment_id=invalid',token:$tokens['administrator']),422);
     expectStatus(http('POST', '/api/v1/fees/assessments/issue', ['assessment_id'=>999999], $tokens['administrator']), 404);
     expectStatus(http('POST', '/api/v1/fees/refunds/decide', ['refund_id'=>1,'action'=>'made_up'], $tokens['principal']), 422);
     foreach (['/api/v1/attendance/records',
@@ -804,11 +815,24 @@ try {
     $localCurriculum=(int)$linkedCurriculum['body']['data']['curriculum_id'];
     expectStatus(http('POST',$linkCurriculumUrl,[
         'global_curriculum_id'=>$globalCurriculum],$tokens['administrator']),409);
+    $missingOutcomes=http('POST','/api/v1/academic/curriculum-year-links',[
+        'curriculum_id'=>$localCurriculum,'global_curriculum_year_id'=>$globalYear
+    ],$tokens['administrator']);
+    expectStatus($missingOutcomes,409);
+    verify($missingOutcomes['body']['error']['code']==='CURRICULUM_OUTCOMES_MISSING',
+        'Incomplete published syllabus must fail before local mapping is committed.');
+    verify((int)$db->query("SELECT COUNT(*) FROM curriculum_years WHERE curriculum_id=$localCurriculum")->fetchColumn()===0,
+        'Missing syllabus outcomes must roll back the local course-year link.');
+    $db->prepare('INSERT INTO global_learning_outcomes
+        (global_curriculum_year_id,lo_code,outcome_text,assessment_criteria)
+        VALUES (?,?,?,?)')->execute([$globalYear,'LOCAL-LO','LOCAL TEST ONLY','LOCAL TEST ONLY']);
     $localYearResult=http('POST','/api/v1/academic/curriculum-year-links',[
         'curriculum_id'=>$localCurriculum,'global_curriculum_year_id'=>$globalYear
     ],$tokens['administrator']);
     expectStatus($localYearResult,201);
     $localYear=(int)$localYearResult['body']['data']['curriculum_year_id'];
+    verify((int)$db->query("SELECT COUNT(*) FROM learning_outcomes WHERE curriculum_year_id=$localYear AND institute_id=1")->fetchColumn()===1,
+        'Course-year mapping must copy the source syllabus outcomes.');
     $localRuleResult=http('POST','/api/v1/admission/rule-links',[
         'curriculum_id'=>$localCurriculum,'global_admission_rule_id'=>$globalRule
     ],$tokens['administrator']);

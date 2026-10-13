@@ -4,3 +4,4 @@
 /backups/
 
 /deployment/certs/
+/.staging.env

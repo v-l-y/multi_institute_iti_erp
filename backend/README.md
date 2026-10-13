@@ -702,11 +702,11 @@ The following features are not implemented or certified by the current tests:
 - Populated-database migrations with history, checksums and rollback.
 - Verified official-master data loading without invented regulatory defaults.
 - Refresh token rotation and forgot-password delivery.
-- Broader instructor-assigned and student-own access for formative/OJT/exams; attendance and own fee reads now have scoped endpoints.
-- Admission creation/review, fee setup/report/cash-closing workflows, official submission, certificate imports, and complete approval/correction workflows. Guarded activation, cancellation, upload preparation and eligibility freeze HTTP endpoints exist, but are not end-to-end official workflows.
-- Broader attendance/formative data-entry workflows and official reconciliation policies beyond the configured freeze service.
+- Completed local APIs include admission drafts/review, fee setup/demands/waivers/cash closing, OJT, formative entry and practical records; remaining work includes locked academic correction/revision policies and broader read/export journeys.
+- Secure document storage/download, official-format exports, live authorized government integration and full student lifecycle transitions remain separate scope. Receipt JSON and financial statements are available; they are not PDF or official portal exports.
+- Official-source authenticity and reconciliation require human UAT with actual reviewed records; successful local imports/portal receipt registers do not certify government acceptance.
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
-- Governed OJT, exam, official-result and certificate imports/revisions.
+- Official result/certificate import and revision APIs exist but remain disabled by default pending independent UAT and release approval.
 - Full recovery drills and reconciliation for a populated application database.
 
 ## Source-backed admission intake revisions

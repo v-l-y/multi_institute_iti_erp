@@ -35,6 +35,18 @@ operator. Structured 500 logs contain only timestamp, exception class,
 basename, line and request ID; not SQL, exception messages, tokens or user
 data. Restrict log read access and configure alerts.
 
+The production overlay now installs `production-runtime-grants.sql` on a fresh
+empty canonical database: the `iti_erp` runtime identity receives only
+SELECT/INSERT/UPDATE/DELETE on the exact application database. It cannot perform
+DDL, manage grants or read other databases. Existing volumes do not rerun this
+initialization. Review and apply a compatible grant change separately with an
+operator account after testing on a restored copy. Migration, RBAC seed imports,
+schema audits and backups use separate maintenance credentials.
+Run `php bin/verify-runtime-grants.php` in the backend container to check the
+runtime scope without exposing raw grants/password hashes. Unexpected roles,
+DDL, grant authority, wildcard database scope and missing required data grants
+fail closed. Health/normal API reads continue using only the runtime identity.
+
 ## Encrypted backup (manual, no scheduler enabled)
 
 Requires Linux/WSL Bash, Docker Compose, GnuPG and sha256sum.

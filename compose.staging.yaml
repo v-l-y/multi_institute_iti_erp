@@ -1,0 +1,61 @@
+# Local persistent UAT environment, separate from application and test volumes.
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "127.0.0.1:${STAGING_PORT:-8081}:80"
+    environment:
+      APP_TIMEZONE: Asia/Kolkata
+      DB_HOST: database
+      DB_PORT: "3306"
+      DB_DATABASE: iti_erp_staging
+      DB_USERNAME: iti_staging
+      DB_PASSWORD: ${STAGING_DB_PASSWORD:?Initialize .staging.env first}
+      ALLOW_OFFICIAL_RECORD_IMPORT: "0"
+      TRUSTED_PROXY_CIDRS: ""
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$r=json_decode(@file_get_contents('http://127.0.0.1/api/v1/ready'),true); exit(($$r['success']??false)?0:1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+  database:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: iti_erp_staging
+      MARIADB_USER: iti_staging
+      MARIADB_PASSWORD: ${STAGING_DB_PASSWORD:?Initialize .staging.env first}
+      MARIADB_ROOT_PASSWORD: ${STAGING_ROOT_PASSWORD:?Initialize .staging.env first}
+    volumes:
+      - staging_data:/var/lib/mysql
+      - ./backend/database/schema/iti_erp_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/database/schema/integrity_guards.sql:/docker-entrypoint-initdb.d/02-guards.sql:ro
+      - ./deployment/staging-grants.sql:/docker-entrypoint-initdb.d/03-runtime-grants.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    restart: unless-stopped
+  schema-audit:
+    profiles: ["audit"]
+    build:
+      context: ./backend
+    environment:
+      DB_HOST: database
+      DB_PORT: "3306"
+      DB_DATABASE: iti_erp_staging
+      DB_USERNAME: root
+      DB_PASSWORD: ${STAGING_ROOT_PASSWORD:?Initialize .staging.env first}
+    depends_on:
+      database:
+        condition: service_healthy
+    command: ["php", "bin/schema-preflight.php"]
+volumes:
+  staging_data:

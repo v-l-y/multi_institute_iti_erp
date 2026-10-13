@@ -201,6 +201,7 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/payments/reverse', $guard->wrap([$fees, 'reversePayment'], 'fee.refund'));
     $router->post('/api/v1/fees/payments/reversal-request', $guard->wrap([$fees, 'requestReversal'], 'fee.refund'));
     $sessions = new AttendanceSessionController($database);
+    $router->get('/api/v1/attendance/sessions', $guard->wrap([$sessions,'index']));
     $router->post('/api/v1/attendance/sessions', $guard->wrap([$sessions,'create'], 'calendar.manage'));
     $router->post('/api/v1/attendance/sessions/lock', $guard->wrap([$sessions,'lock'], 'attendance.correct'));
     $attendance = new AttendanceController($database);

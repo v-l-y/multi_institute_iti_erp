@@ -19,7 +19,7 @@ temporary="${destination}.partial"
 trap 'rm -f -- "$temporary"' EXIT
 # Binary-safe Docker stream, GPG encryption without staging plaintext on host.
 docker compose -f compose.yaml exec -T database sh -ec \
-  'exec mariadb-dump --single-transaction --quick --routines --triggers --events --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" "$MARIADB_DATABASE"' \
+  'exec mariadb-dump --single-transaction --quick --routines --triggers --events --user=root --password="$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' \
   | gpg --batch --yes --encrypt --recipient "$recipient" --output "$temporary"
 test -s "$temporary"
 mv -- "$temporary" "$destination"

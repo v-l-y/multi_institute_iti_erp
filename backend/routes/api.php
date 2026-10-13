@@ -13,6 +13,7 @@ use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
 use App\Modules\Regulatory\CurriculumMasterController;
+use App\Modules\Regulatory\CurriculumReadController;
 use App\Modules\Regulatory\TrainingCalendarMasterController;
 use App\Modules\Reports\ReportingController;
 use App\Modules\Assessment\FormativeController;
@@ -91,6 +92,10 @@ return static function (Router $router, Database $database): void {
         [$globalTrades,'draftRevision'], 'platform.regulatory.manage'));
     $router->post('/api/v1/platform/trades/revisions/activate', $guard->wrap(
         [$globalTrades,'activate'], 'platform.regulatory.manage'));
+    $curriculumReads=new CurriculumReadController($database);
+    $router->get('/api/v1/syllabus/curricula', $guard->wrap([$curriculumReads,'curricula']));
+    $router->get('/api/v1/syllabus/years', $guard->wrap([$curriculumReads,'years']));
+    $router->get('/api/v1/syllabus/outcomes', $guard->wrap([$curriculumReads,'outcomes']));
     $curricula=new CurriculumMasterController($database);
     $router->post('/api/v1/platform/curricula', $guard->wrap(
         [$curricula,'draft'], 'platform.regulatory.manage'));

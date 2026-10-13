@@ -2,8 +2,9 @@
 // Requires mysql and mysqldump CLI binaries. Never uses the configured application database.
 // Run: ITI_ERP_RUN_MYSQL=1 node --test tests/mysql-runtime.test.mjs
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { promisify } from 'node:util';
 import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -18,6 +19,7 @@ const dumpBin = process.env.ITI_ERP_MYSQLDUMP_BIN || 'mysqldump';
 const database = 'iti_erp_gate_' + process.pid + '_' + randomBytes(5).toString('hex');
 const restored = database + '_restore';
 const created = new Set();
+const execFileAsync = promisify(execFile);
 
 function cli(bin, args, input) {
   const env = { ...process.env };

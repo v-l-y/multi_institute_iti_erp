@@ -10,6 +10,7 @@ const host = "127.0.0.1";
 const port = Number(process.env.FRONTEND_PORT || 5173);
 const backend = new URL(process.env.BACKEND_URL || "http://127.0.0.1:8080");
 if (!["http:", "https:"].includes(backend.protocol) ||
+    backend.username || backend.password || backend.search || backend.hash ||
     !Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("Invalid BACKEND_URL or FRONTEND_PORT.");
 }
@@ -43,6 +44,12 @@ function proxy(req, res, path) {
     reply(res, 405, "Method not allowed");
     return;
   }
+  const limit = path.startsWith("/api/v1/documents/upload") ? 8 * 1024 * 1024 : 16 * 1024;
+  const length = req.headers["content-length"];
+  if (length !== undefined && (!/^\\d+$/.test(length) || Number(length) > limit)) {
+    reply(res, 413, "Request body too large");
+    return;
+  }
   const url = new URL(path, backend);
   const headers = {};
   for (const name of ["authorization", "content-type", "content-length", "accept", "user-agent"]) {
@@ -62,11 +69,31 @@ function proxy(req, res, path) {
     if (!res.headersSent) reply(res, 502, "ERP backend unavailable");
     else res.destroy();
   });
+  let received = 0;
+  req.on("data", chunk => {
+    received += chunk.length;
+    if (received > limit) {
+      upstream.destroy();
+      req.unpipe(upstream);
+      if (!res.headersSent) reply(res, 413, "Request body too large");
+    }
+  });
   req.on("aborted", () => upstream.destroy());
   req.pipe(upstream);
 }
 
 createServer(async (req, res) => {
+  const allowedHosts = new Set(["127.0.0.1:" + port, "localhost:" + port]);
+  if (!allowedHosts.has(req.headers.host)) {
+    reply(res, 403, "Invalid development host");
+    return;
+  }
+  if (req.method === "POST" &&
+      req.headers.origin &&
+      !["http://127.0.0.1:" + port, "http://localhost:" + port].includes(req.headers.origin)) {
+    reply(res, 403, "Cross-origin writes are not allowed");
+    return;
+  }
   let url;
   try {
     url = new URL(req.url || "/", "http://127.0.0.1");

@@ -80,13 +80,17 @@ export function createRegistryView(page, main, user) {
 
   function renderRows() {
     if (disposed) return;
-    const filtered = filterRows(rows, filters.read());
+    const filtered = filterRows(rows, {
+      ...filters.read(),
+      searchKeys: columns.getColumns().map(([key]) => key)
+    });
     count.textContent = filtered.length + " of " + rows.length + " records on this page";
     dataArea.replaceChildren(filtered.length
       ? dataTable(filtered, columns.getColumns(), {
           caption: page.label + " (current page)",
           rowActions: record => [{
             label: "View",
+            ariaLabel: "View " + page.label + " record " + String(record.id ?? record.code ?? "details"),
             onClick: () => {
               if (disposed) return;
               if (detailsDialog?.open) detailsDialog.close();

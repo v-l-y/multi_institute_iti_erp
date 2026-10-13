@@ -23,6 +23,14 @@ export function feeReceiptTools(user, { signal }={}) {
   const payment=el("input",{type:"number",min:"1",step:"1","aria-label":"Payment ID",
     placeholder:"Payment ID",className:"search-input"});
   const feedback=el("div",{"aria-live":"polite"});
+  let verifiedReceipt=null;
+  const print=button("Print receipt",{disabled:true,onClick:()=>{
+    if(!verifiedReceipt)return;
+    printCurrentPage([verifiedReceipt],receiptColumns,{
+      title:"Institute fee receipt",authorize:()=>canAll||canOwn
+    });
+  }});
+  payment.addEventListener("input",()=>{verifiedReceipt=null;print.disabled=true;});
   const lookup=button("View receipt",{onClick:async()=>{
     const id=Number(payment.value);
     if(!Number.isSafeInteger(id)||id<1){
@@ -33,6 +41,7 @@ export function feeReceiptTools(user, { signal }={}) {
       const path=own?"/api/v1/fees/receipts/me":"/api/v1/fees/receipts";
       const receipt=await api.get(path+"?payment_id="+encodeURIComponent(id),{signal});
       if(signal?.aborted)return;
+      verifiedReceipt=receipt;print.disabled=false;
       const identity=receipt.identity_snapshot;
       const display={...receipt,
         recorded_student:identity?.student_name??"",
@@ -46,18 +55,18 @@ export function feeReceiptTools(user, { signal }={}) {
   }});
   const output=el("div",{className:"erp-receipt-tools"},
     el("label",{className:"field"},el("span",{},"Receipt"),payment),
-    lookup,feedback);
+    lookup,print,feedback);
   return output;
 }
 
-export function feeStatementExport(user, { getStudentId, signal }={}) {
+export function feeStatementExport(user, { getStudentId, signal, onError }={}) {
   const canAll=user.permissions.includes("fee.view");
   const canOwn=user.permissions.includes("fee.view.own")&&user.student_id!=null;
   if(!canAll&&!canOwn)return null;
   const buttonExport=button("Export statement CSV",{onClick:async()=>{
     const id=canAll?Number(getStudentId?.()):null;
     if(canAll && (!Number.isSafeInteger(id)||id<1)){
-      throw new Error("Select a valid student ID for statement export.");
+      onError?.("Select a valid student ID for statement export.");return;
     }
     buttonExport.disabled=true;
     try{
@@ -67,7 +76,8 @@ export function feeStatementExport(user, { getStudentId, signal }={}) {
       const blob=await api.download(path+"?"+params.toString(),
         {signal,acceptedTypes:["text/csv","application/csv"]});
       if(!signal?.aborted)downloadBlob(blob,"fee-statement-page.csv");
-    }finally{buttonExport.disabled=false;}
+    }catch(error){if(error?.name!=="AbortError")onError?.(error?.message||"Export failed.");}
+    finally{buttonExport.disabled=false;}
   }});
   return buttonExport;
 }

@@ -10,6 +10,7 @@ use App\Modules\Auth\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\StaffController;
+use App\Modules\Students\StudentController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -30,6 +31,10 @@ return static function (Router $router, Database $database): void {
     $staff = new StaffController($database);
     $router->get('/api/v1/staff', $guard->wrap([$staff, 'index'], 'staff.view'));
     $router->post('/api/v1/staff', $guard->wrap([$staff, 'create'], 'staff.manage'));
+    $students = new StudentController($database);
+    $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
+    $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));
+    $router->post('/api/v1/students', $guard->wrap([$students, 'create'], 'student.manage'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));

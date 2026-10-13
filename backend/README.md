@@ -1,7 +1,7 @@
 # Multi-Institute ITI ERP backend
 
 Modular PHP 8.5.x API foundation using PDO and the existing SQL schema.
-Internal admission/fee/exam transaction services and SQL record guards are documented in [FOUNDATION_UPGRADE.md](database/schema/FOUNDATION_UPGRADE.md). They add no business HTTP write routes. Existing databases require the manual reviewed upgrade; rebuilding Docker alone does not apply it.
+Internal admission/fee/exam transaction services and SQL record guards are documented in [FOUNDATION_UPGRADE.md](database/schema/FOUNDATION_UPGRADE.md). Selected guarded admission and exam transitions are now exposed through HTTP; fee services remain internal. Existing databases require the manual reviewed upgrade; rebuilding Docker alone does not apply it.
 No framework or third-party runtime dependencies are required.
 
 ## Structure
@@ -9,7 +9,7 @@ No framework or third-party runtime dependencies are required.
 ```text
 app/Core/              Environment and lazy database connection
 app/Http/              Router and consistent JSON responses
-app/Modules/           Health, Auth and read-only Institute profile
+app/Modules/           Auth, institute, staff, students and guarded operational services
 bootstrap/             Autoloading and application startup
 config/                Database configuration
 routes/api.php         Versioned API routes
@@ -49,8 +49,9 @@ Run `php tests/backend.php` and `node --test tests/schema-contracts.test.mjs`.
 The basic classes also parse on PHP 8.3 for local checks, but full API verification
 requires PHP 8.5 and database integration requires the configured database.
 
-Authentication is implemented; business CRUD, record-level authorization,
-migrations and business integrity workflows remain to be implemented.
+Authentication, scoped staff/student draft creation, and selected audited transitions
+are implemented. Remaining CRUD, instructor assignments, other role-specific
+record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
 ## Authentication
@@ -82,8 +83,8 @@ The existing five roles and identity links are used. Roles must be currently
 valid; disabled accounts and expired/revoked sessions are rejected. Permissions
 are loaded on every authenticated request, with per-user deny overrides winning.
 Platform identities receive only platform permissions; institute identities
-cannot receive platform permissions. Only the scoped institute profile is
-exposed as a business endpoint; write workflows remain unimplemented.
+cannot receive platform permissions. Institute-scoped profile, staff/student registries and selected guarded
+business transitions are exposed; other write workflows remain unimplemented.
 User provisioning for staff/students, refresh and forgot-password delivery
 are not implemented in this authentication increment.
 MFA/2FA is intentionally outside the current scope per the owner's decision.
@@ -153,6 +154,23 @@ and concurrent workers, malformed/URL tokens, password-change-only sessions,
 transaction commit/rollback/nesting, and readiness during a database outage.
 These checks run against the isolated Docker test stack; unimplemented workflows
 are listed under Future work below and are not counted as passing tests.
+
+## Local student registry
+
+`GET /api/v1/students` requires `student.view` and returns only institute-owned
+student records with the same `page_size`/`after_id` cursor convention as
+staff. `POST /api/v1/students` requires `student.manage` and accepts:
+
+```json
+{"local_student_code":"STU-001","full_name":"Learner","date_of_birth":"2005-01-01","gender":"female","address":"Local address","identity_mode":"non_aadhaar","identity_evidence_reference":"Local document reference"}
+```
+
+`GET /api/v1/students/me` requires `student.view.own` and reads only the
+student identity linked to the authenticated account. Institute-wide access
+is never implied by the own-record permission. Local drafts do not generate an
+official PRN, certificate, allotment or user account; EWS remains unknown
+(`NULL`) until verified. Admissions and qualification verification require
+their separate official-source-backed workflows.
 
 ## Institute staff registry
 

@@ -131,6 +131,14 @@ $checks[] = $kernel->handle(static fn() => $staffController->create(new Request(
 $checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'teaching', 'designation' => 'Instructor', 'joined_on' => '2026-01-01']), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['page_size' => '101']), $staffWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['after_id' => ['1']]), $staffWriter))->status === 422;
+$studentController = new App\Modules\Students\StudentController(new App\Core\Database([]));
+$studentWriter = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['student.manage', 'student.view'], 7, null);
+$draft = ['local_student_code'=>'LOCAL-NEW','full_name'=>'Local Test','date_of_birth'=>'2005-01-01','gender'=>'test','address'=>'local','identity_mode'=>'non_aadhaar','identity_evidence_reference'=>'LOCAL-ONLY'];
+$checks[] = $kernel->handle(static fn() => $studentController->create(new Request([...$draft, 'identity_mode'=>'invalid']), $studentWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $studentController->create(new Request([...$draft, 'date_of_birth'=>'2005-02-30']), $studentWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $studentController->create(new Request($draft), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $studentController->index(new Request(query: ['after_id'=>['1']]), $studentWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $studentController->own(new Request(), $studentWriter))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

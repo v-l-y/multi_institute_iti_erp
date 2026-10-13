@@ -1,43 +1,35 @@
 import { api } from "../../core/http/client.js";
-import { el, field, notice, toast } from "../../shared/ui/index.js";
+import { el, field, button, notice, toast, validateForm, openDialog } from "../../shared/ui/index.js";
 import { creationConfig } from "./create-config.js";
 
-/* Forms use source-backed backend contracts; shared dialogs never infer permissions. */
+/* Shared UI dialog/validation; each domain supplies only its backend-approved fields. */
 export function openCreationDialog(page, user, onCreated) {
   const spec = creationConfig(page.id, user);
   if (!spec) return null;
 
   let saving = false;
   const controller = new AbortController();
-  const dialog = el("dialog", {
-    className: "form-dialog",
-    "aria-labelledby": "dialog-title",
-    "aria-describedby": "dialog-description"
-  });
   const feedback = el("div", { className: "form-feedback", "aria-live": "assertive" });
-  const submit = el("button", {
-    type: "submit", className: "button button-primary"
-  }, "Save record");
-  const cancel = el("button", {
-    type: "button", className: "button button-ghost",
-    onClick: () => { if (!saving) dialog.close(); }
-  }, "Cancel");
+  const submit = button("Save record", { type: "submit", variant: "primary" });
+  const cancel = button("Cancel");
   const form = el("form", { className: "stack-form" },
     ...spec.fields.map(([key, label, options]) => field(key, label, options)),
     feedback,
     el("div", { className: "form-actions" }, cancel, submit));
+  const dialog = openDialog({
+    title: spec.title,
+    description: "Creates a local institute record only, not an official government registration.",
+    content: form,
+    onClose: () => controller.abort()
+  });
 
+  cancel.addEventListener("click", () => { if (!saving) dialog.close(); });
   dialog.addEventListener("cancel", event => {
     if (saving) event.preventDefault();
   });
-  dialog.addEventListener("close", () => {
-    controller.abort();
-    dialog.remove();
-  }, { once: true });
-
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    if (saving || !dialog.open || !form.reportValidity()) return;
+    if (saving || !dialog.open || !validateForm(form)) return;
     saving = true;
     submit.disabled = true;
     cancel.disabled = true;
@@ -59,14 +51,5 @@ export function openCreationDialog(page, user, onCreated) {
       cancel.disabled = false;
     }
   });
-
-  dialog.append(el("div", { className: "dialog-heading" },
-    el("p", { className: "eyebrow" }, "INSTITUTE REGISTER"),
-    el("h2", { id: "dialog-title" }, spec.title),
-    el("p", { className: "muted", id: "dialog-description" },
-      "Creates a local institute record only, not an official government registration.")),
-    form);
-  document.body.append(dialog);
-  dialog.showModal();
   return dialog;
 }

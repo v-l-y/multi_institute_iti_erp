@@ -4,11 +4,11 @@ declare(strict_types=1);
 namespace App\Modules\Admissions\Http;
 
 use App\Core\Database;
+use App\Modules\Admissions\Infrastructure\AdmissionRegistryRepository;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Auth\Domain\AuthContext;
-use PDO;
 
 /**
  * Institute-only source-linked admissions registries. Status columns are raw,
@@ -41,14 +41,8 @@ final readonly class AdmissionRegistryController
             ?? throw new HttpException('FORBIDDEN', 'Institute access denied.', 403);
         $size = self::queryInteger($request, 'page_size', 50, 100);
         $after = self::queryInteger($request, 'after_id', 0, PHP_INT_MAX);
-        $stmt = $this->database->connection()->prepare($sql);
-        $stmt->bindValue(1, $institute, PDO::PARAM_INT);
-        $stmt->bindValue(2, $after, PDO::PARAM_INT);
-        $stmt->bindValue(3, $size, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $next = count($rows) === $size ? (int)$rows[count($rows)-1]['id'] : null;
-        return new Response(['success'=>true,'data'=>[$key=>$rows,'next_after_id'=>$next]]);
+        $page = (new AdmissionRegistryRepository($this->database->connection()))->page($sql, $institute, $after, $size, $key);
+        return new Response(['success'=>true,'data'=>$page]);
     }
 
     public function enrollments(Request $request, AuthContext $actor): Response

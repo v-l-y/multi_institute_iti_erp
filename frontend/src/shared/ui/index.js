@@ -18,4 +18,4 @@ export { openDialog, confirmDialog } from "./dialog.js";
 export { tabs } from "./tabs.js";
 export { accordion } from "./accordion.js";
 export { skeleton } from "./skeleton.js";
-export { errorPanel, renderSafely } from "./errors.js";
+export { errorPanel, renderSafely, renderAsyncSafely } from "./errors.js";

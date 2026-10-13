@@ -862,8 +862,10 @@ try {
         && $summaryReport['body']['data']['counts']['batches_planned']>=1,
         'Summary must be scoped to current institute only.');
     expectStatus(http('GET','/api/v1/reports/summary',token:$tokens['student']),403);
+    expectStatus(http('GET','/api/v1/audit/events',
+        token:$tokens['administrator']),403);
     $instituteAudit=http('GET','/api/v1/audit/events?page_size=100',
-        token:$tokens['administrator']);
+        token:$tokens['principal']);
     expectStatus($instituteAudit,200);
     verify(count($instituteAudit['body']['data']['events'])>=1,
         'Institute activity log must be searchable.');
@@ -872,7 +874,7 @@ try {
             'Audit read must not expose unrestricted event payload.');
     }
     expectStatus(http('GET','/api/v1/audit/events?action_code[]=x',
-        token:$tokens['administrator']),422);
+        token:$tokens['principal']),422);
     $platformAudit=http('GET','/api/v1/platform/audit/events?page_size=100',
         token:$tokens['developer']);
     expectStatus($platformAudit,200);

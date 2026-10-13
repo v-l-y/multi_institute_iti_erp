@@ -850,3 +850,11 @@ SIDH submission, industry signature verification, or grade issuance is implied.
 Do not treat the recorded `final_grade` as independently recalculated or
 portal-verified; the backend validates ranges and traceable evidence but does
 not reconstruct external grading rules without official source profiles.
+
+## Source-gated exam setup and official imports
+
+`POST /api/v1/exams/cycles` drafts a CTS exam cycle using a same-institute `rule_id`, published institute-linked regulatory schedule source, exact exam type, eligibility cutoff, starts-on date, and an explicit official `activity_windows` object. `POST /api/v1/exams/cycles/open` requires Principal role and `exam.eligibility.manage`, a review reference, and published source records at opening. This is *local institute exam planning*, not DGT authority issuance.
+
+`POST /api/v1/exams/results/import` requires `result.import`. `POST /api/v1/certificates/import` requires `certificate.record`. **Both are disabled by default**; the operator must explicitly set `ALLOW_OFFICIAL_RECORD_IMPORT=1` after a verified authorized regulator export is available and checked against its published institute-linked source registration. Each import requires explicit `regulatory_source_id`, `source_system`, `source_reference`, `evidence_reference`, and complete source-backed record fields. Identity is constrained to the institute, enrollment, batch/year, and exam cycle; revisions must point to their direct predecessor; existing records are not overwritten. Certificate NTC imports require a recorded official pass result. The server-computed `payload_sha256` is an internal snapshot digest **not a cryptographic proof of government publication**. The source document's SHA-256 is only checked for presence and linked to the audit; external authenticity and each candidate's imported values must be independently verified. No official result or NTC is invented or issued by these APIs.
+
+A fully certified production exam lifecycle remains gated on an authorized official data export, completeness checks for all eligible enrolments, review of exam statuses, and full manual integration/UAT testing. Do not enable these routes solely because fixtures pass.

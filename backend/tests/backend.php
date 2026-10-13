@@ -232,6 +232,9 @@ $feeStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['fee.view
 $checks[] = $kernel->handle(static fn() => $fees->recordPayment(new Request(['student_id'=>1,'amount'=>10,'payment_mode'=>'cash','payment_no'=>'A','receipt_no'=>'B','idempotency_key'=>'C']), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->allocate(new Request(['payment_id'=>1,'demand_id'=>1,'amount'=>3.50]), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->issueAssessment(new Request(['assessment_id'=>'2']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>'1','demand_no'=>'D1','due_on'=>'2026-10-15']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>1,'demand_no'=>'D1','due_on'=>'2026-02-30']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>1,'demand_no'=>'D1','due_on'=>'2026-10-15']), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $fees->requestRefund(new Request(['allocation_id'=>0]), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->decideRefund(new Request(['refund_id'=>1,'action'=>'created']), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->reversePayment(new Request(['payment_id'=>2,'requested_by'=>2,'reversal_no'=>'','reason'=>'x']), $feeWriter))->status === 422;

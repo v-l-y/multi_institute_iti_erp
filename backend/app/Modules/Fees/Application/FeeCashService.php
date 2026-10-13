@@ -55,6 +55,46 @@ final readonly class FeeCashService
         );
     }
 
+    /** Independent Principal review: preserve the immutable closing and difference. */
+    public function reviewClosing(
+        AuthContext $actor, int $institute, int $closingId, string $decision, string $evidenceReference
+    ): void {
+        if (!in_array('principal', $actor->roles, true)) {
+            throw new HttpException('PRINCIPAL_REQUIRED', 'Principal review required.', 403);
+        }
+        (new InstituteTransaction($this->db))->run(
+            $actor, $institute, 'fee.refund',
+            function () use ($actor, $institute, $closingId, $decision, $evidenceReference): void {
+                $q = $this->db->prepare('SELECT id,closed_by,difference_amount FROM fee_cash_closings
+                    WHERE id=? AND institute_id=? FOR UPDATE');
+                $q->execute([$closingId, $institute]);
+                $closing = $q->fetch(PDO::FETCH_ASSOC);
+                if (!$closing) {
+                    throw new HttpException('NOT_FOUND', 'Institute cash closing not found.', 404);
+                }
+                if ((int)$closing['closed_by'] === $actor->userId) {
+                    throw new HttpException('INDEPENDENT_REVIEW', 'Cash closer cannot review their own closing.', 409);
+                }
+                $q = $this->db->prepare("SELECT id FROM institute_activity_log
+                    WHERE institute_id=? AND action_code='fee.cash.close.review'
+                      AND entity_table='fee_cash_closings' AND entity_id=? LIMIT 1 FOR UPDATE");
+                $q->execute([$institute, $closingId]);
+                if ($q->fetchColumn() !== false) {
+                    throw new HttpException('CASH_ALREADY_REVIEWED', 'Closing has already received an immutable Principal review.', 409);
+                }
+                (new InstituteTransaction($this->db))->audit(
+                    $actor, $institute, 'fee.cash.close.review', 'fee_cash_closings', $closingId,
+                    [
+                        'decision' => $decision,
+                        'evidence_reference' => $evidenceReference,
+                        'difference_amount' => (string)$closing['difference_amount'],
+                        'closing_mutated' => false,
+                    ]
+                );
+            }
+        );
+    }
+
     public function close(
         AuthContext $actor, int $institute, string $date,
         string $openingAmount, string $actualAmount, string $openingReference

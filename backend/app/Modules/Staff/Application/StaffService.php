@@ -14,7 +14,7 @@ final readonly class StaffService
 
     public function create(AuthContext $actor, int $institute, string $code, string $name, string $category, string $designation, string $joinedOn): int
     {
-        $db = $this->db
+        $db = $this->db;
         $transaction = new InstituteTransaction($db);
         $id = $transaction->run($actor, $institute, 'staff.manage', function () use ($db, $institute, $actor, $code, $name, $category, $designation, $joinedOn, $transaction): int {
             $existing = $db->prepare('SELECT id FROM staff WHERE institute_id=? AND employee_code=? LIMIT 1 FOR UPDATE');

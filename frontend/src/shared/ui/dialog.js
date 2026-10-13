@@ -22,7 +22,9 @@ export function openDialog({
       disabled: action.disabled,
       onClick: () => action.onClick?.(dialog)
     })));
-  dialog.append(heading, content || el("div"), footer);
+  dialog.append(heading);
+  if (content) dialog.append(content);
+  if (actions.length) dialog.append(footer);
   dialog.addEventListener("cancel", event => {
     if (!dismissible) event.preventDefault();
   });

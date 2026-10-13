@@ -241,3 +241,11 @@ test('official trainee payload has fields without guessed regulatory defaults', 
 test('absent attendance cannot record positive attended minutes', () => {
   contains('attendance_records', "CHECK(status<>'absent' OR attended_minutes=0)");
 });
+
+test('Docker backend readiness probe preserves escaped PHP variable references', () => {
+  const compose = readFileSync(new URL('../../compose.yaml', import.meta.url), 'utf8');
+  // Docker Compose must receive $$r in YAML for *each* $r used by php -r.
+  // Otherwise interpolation strips the lookup, keeping a healthy backend unhealthy.
+  assert.ok(compose.includes("$$r=json_decode(@file_get_contents('http://127.0.0.1/api/v1/ready'),true)"));
+  assert.ok(compose.includes("exit(($$r['data']['status']??null)==='ready'?0:1)"));
+});

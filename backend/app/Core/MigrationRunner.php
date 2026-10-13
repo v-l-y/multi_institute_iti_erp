@@ -42,7 +42,7 @@ final class MigrationRunner
     /** Reject batches or procedure delimiters: a failed DDL must be reviewed individually. */
     public static function singleStatement(string $sql): string
     {
-        $withoutLeadingComments = preg_replace('/\A(?:\s+|--[^\r\n]*(?:\r?\n|$)|\\#[^\r\n]*(?:\r?\n|$))*/', '', $sql);
+        $withoutLeadingComments = preg_replace('/\A(?:\s+|--[^\r\n]*(?:\r?\n|$)|#[^\r\n]*(?:\r?\n|$))*/', '', $sql);
         if ($withoutLeadingComments === null) {
             throw new RuntimeException('Invalid migration SQL.');
         }

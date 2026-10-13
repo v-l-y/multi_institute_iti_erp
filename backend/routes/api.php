@@ -236,6 +236,10 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/ojt/evaluations/assigned', $guard->wrap(
         [$ojt,'evaluateAssigned'], 'ojt.evaluate.assigned'));
     $formative=new FormativeController($database);
+    $router->post('/api/v1/formative/schemes/configure', $guard->wrap(
+        [$formative,'configureScheme'], 'formative.template.manage'));
+    $router->post('/api/v1/formative/templates/items', $guard->wrap(
+        [$formative,'templateItem'], 'formative.template.manage'));
     $router->post('/api/v1/formative/records/assigned', $guard->wrap(
         [$formative,'recordAssigned'], 'formative.record.assigned'));
     $router->post('/api/v1/formative/records/lock', $guard->wrap(

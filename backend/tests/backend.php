@@ -445,6 +445,24 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->act
     new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->index(
     new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
+$curriculumMasterController=new App\Modules\Regulatory\CurriculumMasterController(new App\Core\Database([]));
+$curriculumDraft=['global_trade_id'=>1,'source_document_id'=>1,'version_code'=>'LOCAL',
+    'duration_months'=>12,'nsqf_level'=>'4.0','unit_strength'=>20,'effective_from'=>'2026-01-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request([...$curriculumDraft,'duration_months'=>13]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request([...$curriculumDraft,'nsqf_level'=>4.0]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request($curriculumDraft),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->year(
+    new Request(['global_curriculum_id'=>1,'year_no'=>3,
+        'trade_practical_minutes'=>0,'trade_theory_minutes'=>0,
+        'employability_minutes'=>0,'ojt_project_minutes'=>0]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->outcome(
+    new Request(['global_curriculum_year_id'=>1,'lo_code'=>'LO1','outcome_text'=>'LOCAL',
+        'assessment_criteria'=>'LOCAL','formative_max_marks'=>'0']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->publish(
+    new Request(['global_curriculum_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $itsuController=new App\Modules\Catalog\ItsuSetupController(new App\Core\Database([]));
 $itsuWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
     ['tradeunit.manage','institute.affiliation.manage'],7,null);

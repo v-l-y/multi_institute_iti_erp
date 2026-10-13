@@ -240,6 +240,12 @@ return static function (Router $router, Database $database): void {
         [$formative,'configureScheme'], 'formative.template.manage'));
     $router->post('/api/v1/formative/templates/items', $guard->wrap(
         [$formative,'templateItem'], 'formative.template.manage'));
+    $router->post('/api/v1/formative/templates/scores/assigned', $guard->wrap(
+        [$formative,'templateScoreAssigned'], 'formative.record.assigned'));
+    $router->post('/api/v1/formative/templates/scores/lock', $guard->wrap(
+        [$formative,'templateScoreLock'], 'formative.template.manage'));
+    $router->post('/api/v1/formative/templates/scores/correct-unlocked', $guard->wrap(
+        [$formative,'templateScoreCorrectUnlocked'], 'formative.template.manage'));
     $router->post('/api/v1/formative/records/assigned', $guard->wrap(
         [$formative,'recordAssigned'], 'formative.record.assigned'));
     $router->post('/api/v1/formative/records/lock', $guard->wrap(

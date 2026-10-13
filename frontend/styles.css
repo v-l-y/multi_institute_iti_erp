@@ -3,4 +3,5 @@
 @import url("/src/styles/auth.css");
 @import url("/src/styles/shell.css");
 @import url("/src/styles/components.css");
+@import url("/src/styles/shared-ui.css");
 @import url("/src/styles/responsive.css");

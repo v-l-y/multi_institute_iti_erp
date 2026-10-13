@@ -40,7 +40,12 @@ export function readForm(form, { multi = [], grids = {} } = {}) {
   const result = Object.fromEntries(data.entries());
   for (const key of multi) result[key] = data.getAll(key);
   for (const [key, grid] of Object.entries(grids)) {
-    if (!grid || typeof grid.read !== "function") throw new TypeError("Invalid editable grid: " + key);
+    if (!grid || typeof grid.read !== "function" || grid.namePrefix !== key) {
+      throw new TypeError("Editable grid namePrefix must match: " + key);
+    }
+    for (const fieldName of Object.keys(result)) {
+      if (fieldName.startsWith(key + "[")) delete result[fieldName];
+    }
     result[key] = grid.read();
   }
   return result;

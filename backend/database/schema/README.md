@@ -28,7 +28,7 @@ Database guards protect published document/rule content, final Seat Matrix entri
 
 Internal admission, fee and exam services perform source applicability and multi-row validations in serialized institute transactions. They enforce matching authenticated actors/permissions and store activity audit records in the business transaction. Admission activation/cancellation reconciles batch/quota counters. Fee operations enforce allocations, reservations, refunds, reversals and waiver limits using exact decimal cents. Exam freezing calculates evidence-backed attendance/formative eligibility and snapshots the applied rule thresholds.
 
-Selected guarded admission and exam service transitions are exposed as institute-scoped HTTP endpoints. Fee write services remain internal. Direct SQL does not automatically invoke financial sums, admission policies or counter reconciliation. All future write routes must call the guarded services; controlled database administration remains necessary.
+Selected guarded admission and exam service transitions are exposed as institute-scoped HTTP endpoints. Selected FeeService payment/allocation/refund methods are also exposed through scoped HTTP routes. Direct SQL does not automatically invoke financial sums, admission policies or counter reconciliation. All future write routes must call the guarded services; controlled database administration remains necessary.
 
 DST MoUs have explicit industry identity, validity, source evidence and same-trade/unit/institute coverage. Local activation checks MoU expiry and third-shift base-unit limits; official portal status changes remain official authority workflows.
 

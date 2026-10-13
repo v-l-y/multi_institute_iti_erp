@@ -228,6 +228,42 @@ try {
         verify(array_key_exists('next_after_id', $listed['body']['data']), 'Pagination metadata missing.');
         expectStatus(http('GET', $route . '?page_size=0', token: $tokens['instructor']), 422);
     }
+    // Real HTTP fee payments: exact amounts, replay identities, tenant isolation and own-record reads.
+    foreach (['/api/v1/fees/assessments/issue','/api/v1/fees/waivers/approve',
+              '/api/v1/fees/payments','/api/v1/fees/allocations','/api/v1/fees/refunds',
+              '/api/v1/fees/refunds/decide','/api/v1/fees/payments/reverse'] as $route) {
+        expectStatus(http('POST', $route, []), 401);
+        expectStatus(http('POST', $route, [], $tokens['student']), 403);
+    }
+    $paymentBody = [
+        'student_id'=>$studentId,'amount'=>'100.50','payment_mode'=>'cash',
+        'payment_no'=>'LOCAL-HTTP-PAY-1','receipt_no'=>'LOCAL-HTTP-RCT-1',
+        'idempotency_key'=>'local-http-payment-1'
+    ];
+    expectStatus(http('POST', '/api/v1/fees/payments', [...$paymentBody,'amount'=>100.50], $tokens['administrator']), 422);
+    expectStatus(http('POST', '/api/v1/fees/payments', [...$paymentBody,'payment_mode'=>'invalid'], $tokens['administrator']), 422);
+    $paymentResponse = http('POST', '/api/v1/fees/payments', $paymentBody, $tokens['administrator']);
+    expectStatus($paymentResponse, 201);
+    $feePaymentId = (int)$paymentResponse['body']['data']['payment_id'];
+    verify($feePaymentId > 0, 'Fee API did not record a payment.');
+    $again = http('POST', '/api/v1/fees/payments', $paymentBody, $tokens['administrator']);
+    expectStatus($again, 201);
+    verify((int)$again['body']['data']['payment_id'] === $feePaymentId, 'Payment idempotent retry inserted a duplicate.');
+    expectStatus(http('POST', '/api/v1/fees/payments', [...$paymentBody,'amount'=>'101.00'], $tokens['administrator']), 409);
+    expectStatus(http('POST', '/api/v1/fees/payments', [...$paymentBody,'idempotency_key'=>'cross-tenant-attempt'], $tokens['other-admin']), 404);
+    $ledger = http('GET', '/api/v1/fees/payments?page_size=100', token:$tokens['administrator']);
+    expectStatus($ledger, 200);
+    verify(in_array($feePaymentId, array_map('intval', array_column($ledger['body']['data']['payments'], 'id')), true), 'Institute payment missing from ledger.');
+    $foreignLedger = http('GET', '/api/v1/fees/payments?page_size=100', token:$tokens['other-admin']);
+    expectStatus($foreignLedger, 200);
+    verify(!in_array($feePaymentId, array_map('intval', array_column($foreignLedger['body']['data']['payments'], 'id')), true), 'Cross-institute payment exposed.');
+    expectStatus(http('GET', '/api/v1/fees/payments', token:$tokens['student']), 403);
+    $ownLedger = http('GET', '/api/v1/fees/payments/me', token:$tokens['student']);
+    expectStatus($ownLedger, 200);
+    verify(count($ownLedger['body']['data']['payments']) === 0, 'Student own fee view leaked another student payment.');
+    expectStatus(http('GET', '/api/v1/fees/payments/me', token:$tokens['administrator']), 403);
+    expectStatus(http('POST', '/api/v1/fees/assessments/issue', ['assessment_id'=>999999], $tokens['administrator']), 404);
+    expectStatus(http('POST', '/api/v1/fees/refunds/decide', ['refund_id'=>1,'action'=>'made_up'], $tokens['principal']), 422);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

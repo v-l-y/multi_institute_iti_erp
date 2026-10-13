@@ -1,7 +1,7 @@
 # Multi-Institute ITI ERP backend
 
 Modular PHP 8.5.x API foundation using PDO and the existing SQL schema.
-Internal admission/fee/exam transaction services and SQL record guards are documented in [FOUNDATION_UPGRADE.md](database/schema/FOUNDATION_UPGRADE.md). Selected guarded admission and exam transitions are now exposed through HTTP; fee services remain internal. Existing databases require the manual reviewed upgrade; rebuilding Docker alone does not apply it.
+Internal admission/fee/exam transaction services and SQL record guards are documented in [FOUNDATION_UPGRADE.md](database/schema/FOUNDATION_UPGRADE.md). Selected guarded admission, exam and fee transitions are exposed through HTTP; service-level checks remain mandatory. Existing databases require the manual reviewed upgrade; rebuilding Docker alone does not apply it.
 No framework or third-party runtime dependencies are required.
 
 ## Structure
@@ -203,6 +203,33 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Fee APIs
+
+Existing `FeeService` methods are exposed through strict institute-bound adapters.
+Amounts **must be JSON strings** (for example `"100.50"`, not the JSON
+number `100.50`). Payment and refund creation require a non-empty
+`idempotency_key`; retrying the same request and key returns the same ID,
+while reusing a key for different data is rejected.
+
+| Method | Endpoint | Permission | JSON fields |
+| --- | --- | --- | --- |
+| GET | `/api/v1/fees/payments` | `fee.view` | Pagination: `page_size`, `after_id` query |
+| GET | `/api/v1/fees/payments/me` | `fee.view.own` | Own linked student payments only |
+| POST | `/api/v1/fees/assessments/issue` | `fee.record` | `assessment_id` |
+| POST | `/api/v1/fees/waivers/approve` | `fee.refund` | `waiver_id` |
+| POST | `/api/v1/fees/payments` | `fee.record` | `student_id, amount, payment_mode, payment_no, receipt_no, idempotency_key` |
+| POST | `/api/v1/fees/allocations` | `fee.record` | `payment_id, demand_id, amount` |
+| POST | `/api/v1/fees/refunds` | `fee.refund` | `allocation_id, amount, reason, refund_mode, refund_no, idempotency_key` |
+| POST | `/api/v1/fees/refunds/decide` | `fee.refund` | `refund_id, action` (`approved/rejected/cancelled/paid`), optional `reference_no` |
+| POST | `/api/v1/fees/payments/reverse` | `fee.refund` | `payment_id, requested_by, reversal_no, reason` |
+
+All financial writes use the existing serialized transaction/record guard and
+enforce institute ownership, sum limits, audit trails and independent approval
+where applicable. Students cannot write payments or see another student's
+payments. This does not fabricate institute fee schedules or official orders;
+financial setup, complete demand creation, reports and cash-closing APIs are
+still pending. Do not expose any alternative direct SQL write endpoint.
+
 ## Guarded operational endpoints
 
 Four additional POST endpoints invoke the existing transaction/evidence services.
@@ -269,7 +296,7 @@ The following features are not implemented or certified by the current tests:
 - Verified official-master data loading without invented regulatory defaults.
 - Refresh token rotation and forgot-password delivery.
 - Instructor assigned-record and student own-record access on business endpoints.
-- Admission creation/review, fee HTTP operations, official submission, certificate imports, and complete approval/correction workflows. Guarded activation, cancellation, upload preparation and eligibility freeze HTTP endpoints exist, but are not end-to-end official workflows.
+- Admission creation/review, fee setup/report/cash-closing workflows, official submission, certificate imports, and complete approval/correction workflows. Guarded activation, cancellation, upload preparation and eligibility freeze HTTP endpoints exist, but are not end-to-end official workflows.
 - Broader attendance/formative data-entry workflows and official reconciliation policies beyond the configured freeze service.
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
 - Governed OJT, exam, official-result and certificate imports/revisions.

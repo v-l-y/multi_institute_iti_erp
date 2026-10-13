@@ -9,6 +9,7 @@ use App\Modules\Auth\AuthMiddleware;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Operations\OperationsController;
+use App\Modules\Staff\StaffController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -26,6 +27,9 @@ return static function (Router $router, Database $database): void {
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',
     ));
+    $staff = new StaffController($database);
+    $router->get('/api/v1/staff', $guard->wrap([$staff, 'index'], 'staff.view'));
+    $router->post('/api/v1/staff', $guard->wrap([$staff, 'create'], 'staff.manage'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));

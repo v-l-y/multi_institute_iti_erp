@@ -124,6 +124,13 @@ $checks[] = $kernel->handle(static fn() => $operations->freezeEligibility(new Re
 $checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $context))->status === 403;
 $platform = new AuthContext(2, null, 2, 'developer', false, ['developer'], ['enrollment.manage'], null, null);
 $checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $platform))->status === 403;
+$staffController = new App\Modules\Staff\StaffController(new App\Core\Database([]));
+$staffWriter = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['staff.manage', 'staff.view'], 7, null);
+$checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'unknown', 'designation' => 'Instructor', 'joined_on' => '2026-01-01']), $staffWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'teaching', 'designation' => 'Instructor', 'joined_on' => '2026-02-30']), $staffWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'teaching', 'designation' => 'Instructor', 'joined_on' => '2026-01-01']), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['page_size' => '101']), $staffWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['after_id' => ['1']]), $staffWriter))->status === 422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

@@ -7,7 +7,7 @@ final readonly class Request
     public ?string $ip;
     public ?string $userAgent;
 
-    public function __construct(public array $body = [], public ?string $token = null, ?string $ip = null, ?string $userAgent = null)
+    public function __construct(public array $body = [], public ?string $token = null, ?string $ip = null, ?string $userAgent = null, public array $query = [])
     {
         $this->ip = $ip !== null && filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : null;
         if ($userAgent !== null) {
@@ -43,6 +43,6 @@ final readonly class Request
         }
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
         $token = preg_match('/^Bearer ([a-f0-9]{64})$/i', $header, $matches) ? $matches[1] : null;
-        return new self($body, $token, $_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null);
+        return new self($body, $token, $_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null, $_GET);
     }
 }

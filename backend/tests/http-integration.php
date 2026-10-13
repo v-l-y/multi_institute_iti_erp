@@ -180,6 +180,25 @@ try {
     expectStatus(http('POST', '/api/v1/enrollments/trainee-upload/prepare', ['enrollment_id'=>0], $tokens['administrator']), 422);
     expectStatus(http('POST', '/api/v1/exams/eligibility/freeze', ['enrollment_id'=>1, 'batch_year_id'=>1, 'cycle_id'=>1, 'evidence_reference'=>''], $tokens['administrator']), 422);
     expectStatus(http('POST', '/api/v1/enrollments/activate', ['enrollment_id'=>999999], $tokens['administrator']), 409);
+    // An institute account can register teaching/non-teaching staff, never provision a login implicitly.
+    expectStatus(http('GET', '/api/v1/staff'), 401);
+    expectStatus(http('GET', '/api/v1/staff', token: $tokens['student']), 403);
+    expectStatus(http('POST', '/api/v1/staff', [], $tokens['student']), 403);
+    $newStaff = ['employee_code'=>'LOCAL-NEW-TEACHING','full_name'=>'Local Instructor','staff_category'=>'teaching','designation'=>'Instructor','joined_on'=>'2026-01-02'];
+    expectStatus(http('POST', '/api/v1/staff', ['employee_code'=>'LOCAL-BAD','full_name'=>'Bad','staff_category'=>'invalid','designation'=>'Instructor','joined_on'=>'2026-01-02'], $tokens['administrator']), 422);
+    $createdStaff = http('POST', '/api/v1/staff', $newStaff, $tokens['administrator']);
+    expectStatus($createdStaff, 201);
+    $createdId = (int) $createdStaff['body']['data']['staff_id'];
+    verify($createdId > 0, 'Staff creation did not return its ID.');
+    expectStatus(http('POST', '/api/v1/staff', $newStaff, $tokens['administrator']), 409);
+    $staffList = http('GET', '/api/v1/staff?page_size=100', token: $tokens['administrator']);
+    expectStatus($staffList, 200);
+    verify(count(array_filter($staffList['body']['data']['staff'], static fn($row) => (int)$row['id'] === $createdId)) === 1, 'New staff missing from scoped registry.');
+    expectStatus(http('GET', '/api/v1/staff?page_size=abc', token: $tokens['administrator']), 422);
+    $otherStaff = http('GET', '/api/v1/staff?page_size=100', token: $tokens['other-admin']);
+    expectStatus($otherStaff, 200);
+    verify(!in_array('LOCAL-NEW-TEACHING', array_column($otherStaff['body']['data']['staff'], 'employee_code'), true), 'Cross-institute staff leaked.');
+    verify((int) $db->query("SELECT COUNT(*) FROM auth_users WHERE institute_id=1")->fetchColumn() === 4, 'Staff creation unexpectedly provisioned a login.');
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

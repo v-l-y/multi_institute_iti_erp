@@ -154,6 +154,23 @@ transaction commit/rollback/nesting, and readiness during a database outage.
 These checks run against the isolated Docker test stack; unimplemented workflows
 are listed under Future work below and are not counted as passing tests.
 
+## Institute staff registry
+
+`GET /api/v1/staff` requires `staff.view`; it returns only the caller's
+institute staff with cursor pagination (`?page_size=50&after_id=123`,
+page size 1–100; omit `after_id` for the first page).
+`POST /api/v1/staff` requires `staff.manage` and accepts:
+
+```json
+{"employee_code":"EMP-001","full_name":"Staff Name","staff_category":"teaching","designation":"Instructor","joined_on":"2026-01-02"}
+```
+
+The same staff table holds teaching and non-teaching employees. Creating staff
+does not auto-verify NIMS identity, confer an instructor/principal role, grant
+permissions or create a login. Codes are unique within an institute and writes
+are audited and serialized. Staff updates, verified mappings and account
+provisioning remain separate workflows.
+
 ## Guarded operational endpoints
 
 Four additional POST endpoints invoke the existing transaction/evidence services.

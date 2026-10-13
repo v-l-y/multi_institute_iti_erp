@@ -53,7 +53,7 @@ async function request(path, { method = "GET", body, signal } = {}) {
 
 
 /** Authenticated binary GET for institute documents; bearer stays in the header. */
-async function download(path, { signal } = {}) {
+async function download(path, { signal, acceptedTypes = ["application/pdf", "image/png", "image/jpeg"] } = {}) {
   if (typeof path !== "string" || !path.startsWith("/api/v1/") || path.startsWith("//")) {
     throw new ApiError("Invalid download path.", "INVALID_PATH");
   }
@@ -80,11 +80,12 @@ async function download(path, { signal } = {}) {
       error?.error?.code || "DOWNLOAD_FAILED", response.status);
   }
   const mime = response.headers.get("content-type")?.split(";")[0].trim();
-  if (!["application/pdf", "image/png", "image/jpeg"].includes(mime)) {
+  if (!acceptedTypes.includes(mime)) {
     throw new ApiError("Unexpected document content type.", "INVALID_DOCUMENT");
   }
   const blob = await response.blob();
-  if (blob.size > 5242880) throw new ApiError("Document exceeds download limit.", "INVALID_DOCUMENT");
+  if (blob.size > 5242880 && mime !== "text/csv") throw new ApiError("Document exceeds download limit.", "INVALID_DOCUMENT");
+  if (mime === "text/csv" && blob.size > 10485760) throw new ApiError("Report exceeds download limit.", "INVALID_RESPONSE");
   return blob;
 }
 

@@ -174,11 +174,15 @@ final readonly class AttendanceController
                     throw new HttpException('INVALID_MINUTES', 'Attendance exceeds scheduled minutes.', 422);
                 }
                 $statement = $db->prepare(
-                    "SELECT id FROM enrollments
-                     WHERE id=? AND institute_id=? AND batch_id=?
-                       AND status='active' AND admitted_on<=? FOR UPDATE"
+                    'SELECT e.id FROM enrollments e
+                     WHERE e.id=? AND e.institute_id=? AND e.batch_id=?
+                       AND e.admitted_on<=? AND '
+                    . AttendanceEligibility::atSessionDate() . ' FOR UPDATE'
                 );
-                $statement->execute([$enrollmentId, $institute, $session['batch_id'], $session['session_date']]);
+                $statement->execute([
+                    $enrollmentId, $institute, $session['batch_id'],
+                    $session['session_date'], $session['session_date'],
+                ]);
                 if ($statement->fetchColumn() === false) {
                     throw new HttpException('ENROLLMENT_NOT_ACTIVE', 'Active enrolled learner in the session batch required.', 409);
                 }

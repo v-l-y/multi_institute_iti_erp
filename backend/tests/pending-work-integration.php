@@ -106,10 +106,43 @@ try {
     $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('Y-m-d');
     $reject(fn()=>$lifecycle->transition($administrator,9101,9101,'dropout',$today,0,'ITI/ORDER','Reason'),'PRINCIPAL_REQUIRED');
     $reject(fn()=>$lifecycle->transition($principal,9101,9101,'completed',$today,0,'ITI/ORDER','Reason'),'LIFECYCLE_STATE');
-    $lifecycle->transition($principal,9101,9101,'transferred',$today,0,'ITI/ORDER/3','Approved local transfer','OTHER-ITI');
+    // Use an explicitly historic effective date so the attendance cutoff is testable.
+    $lifecycle->transition($principal,9101,9101,'transferred','2026-09-03',0,'ITI/ORDER/3','Approved local transfer','OTHER-ITI');
     $check($db->query('SELECT status FROM enrollments WHERE id=9101')->fetchColumn()==='transferred','Transfer state missing.');
     $check((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Historical transfer must retain consumed intake seat.');
     $check((int)$db->query('SELECT COUNT(*) FROM student_events WHERE enrollment_id=9101')->fetchColumn()===1,'Transfer event history missing.');
+
+    // A transfer must not strand the instructor's earlier, still-unlocked session.
+    // The effective date itself and all later dates must be excluded.
+    $db->exec("INSERT INTO attendance_sessions (id,institute_id,batch_year_id,batch_id,session_date,component,scheduled_minutes,instructor_id) VALUES
+        (9131,9101,9101,9101,'2026-09-02','trade_practical',60,9101),
+        (9132,9101,9101,9101,'2026-09-03','trade_practical',60,9101)");
+    preg_match('/host=([^;]+)/', $dsn, $attendanceHost);
+    preg_match('/port=([^;]+)/', $dsn, $attendancePort);
+    $attendanceDb=new App\Core\Database([
+        'host'=>$attendanceHost[1]??'127.0.0.1',
+        'port'=>$attendancePort[1]??'3306',
+        'database'=>$name,
+        'username'=>getenv('TEST_DB_USERNAME')?:'root',
+        'password'=>getenv('TEST_DB_PASSWORD')?:'',
+    ]);
+    $attendance=new App\Modules\Attendance\AttendanceController($attendanceDb);
+    $sessions=new App\Modules\Attendance\AttendanceSessionService($db);
+    $instructor=new AuthContext(9202,9101,2,'local-instructor',false,
+        ['instructor'],['attendance.mark.assigned'],9101,null);
+    $oldMark=new App\Http\Request([
+        'session_id'=>9131,'enrollment_id'=>9101,'attended_minutes'=>40,'status'=>'present',
+    ]);
+    $reject(fn()=>$sessions->lock($principal,9101,9131),'ATTENDANCE_INCOMPLETE');
+    $check($attendance->markAssigned($oldMark,$instructor)->status===201,
+        'Transferred learner must remain eligible for pre-transfer attendance.');
+    $sessions->lock($principal,9101,9131);
+    $check($db->query('SELECT locked_on FROM attendance_sessions WHERE id=9131')->fetchColumn()!==null,
+        'Pre-transfer session must lock after the missing attendance is recorded.');
+    $reject(fn()=>$attendance->markAssigned(new App\Http\Request([
+        'session_id'=>9132,'enrollment_id'=>9101,'attended_minutes'=>40,'status'=>'present',
+    ]),$instructor),'ENROLLMENT_NOT_ACTIVE');
+    $reject(fn()=>$sessions->lock($principal,9101,9132),'ATTENDANCE_EMPTY');
     echo "Pending institute workflow integration passed ($checks checks).\n";
 } finally {
     if ($db->inTransaction()) $db->rollBack();

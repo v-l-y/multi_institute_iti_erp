@@ -430,6 +430,17 @@ try {
         foundationReject(fn()=>$lifecycle->transition($actor,9101,9101,'completed','2026-09-30',0,'LOCAL','Not principal'),'PRINCIPAL_REQUIRED');
         $lifecycle->transition($trainingPrincipal,9101,9101,'completed','2026-09-30',0,'LOCAL COMPLETION ORDER','Internal training completion');
         foundationCheck($db->query('SELECT status FROM enrollments WHERE id=9101')->fetchColumn()==='completed','Full journey must finish with Principal-approved course completion.');
+        // Completing a cohort cannot make earlier, not-yet-locked attendance unrecordable.
+        $db->exec("INSERT INTO attendance_sessions
+            (id,institute_id,batch_year_id,batch_id,session_date,component,scheduled_minutes,instructor_id)
+            VALUES (9133,9101,9101,9101,'2026-09-02','trade_practical',60,9101)");
+        foundationReject(fn()=>$sessionService->lock($sessionPrincipal,9101,9133),'ATTENDANCE_INCOMPLETE');
+        foundationCheck($attendanceController->markAssigned(new App\Http\Request([
+            'session_id'=>9133,'enrollment_id'=>9101,'attended_minutes'=>45,'status'=>'present',
+        ]),$markActor)->status===201,'Completed enrollment must permit historical attendance.');
+        $sessionService->lock($sessionPrincipal,9101,9133);
+        foundationCheck($db->query('SELECT locked_on FROM attendance_sessions WHERE id=9133')->fetchColumn()!==null,
+            'Completed enrollment historic attendance must lock.');
         foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Completion must retain historical intake consumption.');
         foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='student.enrollment.completed'")->fetchColumn()===1,'Completion must be auditable.');
         foundationCheck($db->query("SELECT eligibility_status FROM exam_eligibility WHERE id=$eligibility")->fetchColumn()==='eligible','Completion must preserve original frozen eligibility.');

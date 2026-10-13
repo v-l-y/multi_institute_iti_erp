@@ -106,11 +106,11 @@ final readonly class AttendanceSessionService
             $q=$this->db->prepare("SELECT COUNT(*) FROM enrollments e
                  WHERE e.batch_id=? AND e.institute_id=?
                    AND e.admitted_on<=?
-                   AND e.status NOT IN ('pending_verification','cancelled')
+                   AND ".AttendanceEligibility::atSessionDate()."
                    AND NOT EXISTS (SELECT 1 FROM attendance_records a
                      WHERE a.session_id=? AND a.enrollment_id=e.id
                        AND a.batch_id=e.batch_id AND a.institute_id=e.institute_id)");
-            $q->execute([$session['batch_id'],$institute,$session['session_date'],$sessionId]);
+            $q->execute([$session['batch_id'],$institute,$session['session_date'],$session['session_date'],$sessionId]);
             if ((int)$q->fetchColumn()>0) {
                 throw new HttpException('ATTENDANCE_INCOMPLETE','Record attendance for all applicable enrolled learners before locking.',409);
             }

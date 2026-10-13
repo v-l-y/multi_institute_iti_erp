@@ -3,6 +3,7 @@ services:
   backend:
     environment:
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?Set trusted proxy network in root .env}
+      ALLOW_OFFICIAL_RECORD_IMPORT: ${ALLOW_OFFICIAL_RECORD_IMPORT:-0}
   reverse-proxy:
     image: nginx:stable-alpine
     environment:

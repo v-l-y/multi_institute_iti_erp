@@ -1,14 +1,16 @@
 import { el } from "./dom.js";
+import { registerValidator } from "./validation.js";
 
-/** Native select. No keyboard-inaccessible custom listbox. */
+let selectSequence = 0;
 export function selectField(name, label, {
   options = [], required = true, multiple = false, description = ""
 } = {}) {
-  const id = "select-" + name;
+  const id = "erp-select-" + ++selectSequence;
   const control = el("select", {
-    id, name, required, ...(multiple ? { multiple: true, size: String(Math.min(6, Math.max(2, options.length))) } : {}),
+    id, name, required,
+    ...(multiple ? { multiple: true, size: String(Math.min(6, Math.max(2, options.length))) } : {}),
     ...(description ? { "aria-describedby": id + "-help" } : {})
-  }, ...(multiple ? [] : [el("option", { value: "", disabled: required, selected: true }, "Choose " + label)]),
+  }, ...(multiple ? [] : [el("option", { value: "" }, "Choose " + label)]),
     ...options.map(([value, text]) => el("option", { value }, text)));
   return { node: el("label", { className: "field" },
     el("span", {}, label), control,
@@ -16,18 +18,15 @@ export function selectField(name, label, {
   control };
 }
 
-/** Native checkbox group; FormData.getAll(name) returns selected values. */
+/** Checkbox group, FormData.getAll(name) returns selected values. */
 export function multiSelectField(name, label, options = [], { required = false } = {}) {
   const controls = options.map(([value, title]) => el("label", { className: "check-option" },
     el("input", { type: "checkbox", name, value }), el("span", {}, title)));
   const group = el("fieldset", { className: "check-group" },
     el("legend", {}, label), ...controls);
-  const validate = () => {
-    const checked = group.querySelectorAll("input:checked").length;
-    const first = group.querySelector("input");
-    if (first) first.setCustomValidity(required && checked === 0 ? "Select at least one option." : "");
-  };
-  group.addEventListener("change", validate);
-  validate();
-  return { node: group, validate };
+  const first = group.querySelector("input");
+  const validation = first ? registerValidator(first,
+    () => required && !group.querySelector("input:checked") ? "Select at least one option." : "") : null;
+  group.addEventListener("change", () => validation?.validate());
+  return { node: group, validate: () => validation?.validate(), dispose: () => validation?.dispose() };
 }

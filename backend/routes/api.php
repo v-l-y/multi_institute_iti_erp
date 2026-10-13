@@ -267,19 +267,16 @@ return static function (Router $router, Database $database): void {
         try {
             $db = $database->connection();
             $db->query('SELECT 1');
-            // A live socket alone is insufficient: this API requires the
-            // canonical base tables and immutable financial/result guards.
+            // Only essential table presence is checked on live requests.
+            // TRIGGER metadata requires DDL privileges on some databases and
+            // must instead be verified by the privileged, manual schema preflight.
             $requiredTables = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'
                   AND TABLE_NAME IN ('institute','auth_users','fee_payments',
-                                     'exam_cycles','official_results')")->fetchColumn();
-            $requiredGuards = (int)$db->query("SELECT COUNT(*) FROM information_schema.TRIGGERS
-                WHERE TRIGGER_SCHEMA=DATABASE()
-                  AND TRIGGER_NAME IN ('fee_cash_closings_immutable_update',
-                                       'official_results_immutable_update')")->fetchColumn();
-            if ($requiredTables !== 5 || $requiredGuards !== 2) {
+                                     'fee_cash_closings','exam_cycles','official_results')")->fetchColumn();
+            if ($requiredTables !== 6) {
                 return Response::error('NOT_READY',
-                    'Required database schema or integrity guards are unavailable.', 503);
+                    'Required application tables are unavailable.', 503);
             }
             return new Response(['success' => true, 'data' => ['status' => 'ready']]);
         } catch (\Throwable) {

@@ -70,6 +70,13 @@ The creation forms use only fields expected by the current backend and do **not*
 The frontend now uses a layered and module-owned structure. See the
 [complete folder tree, source mapping and extension rules](docs/ARCHITECTURE.md).
 
+The reusable component library is documented in [Shared UI API](src/shared/ui/README.md).
+It provides native forms, data tables, loaded-page sorting/filtering, cursor pagination,
+permission-aware actions, dialogs, confirmation, date and multi-select controls,
+file selection, tabs, accordion, skeletons and recoverable errors. Actual register
+pages and Staff/Student forms now consume those shared controls; unimplemented ERP
+business screens are not treated as integrated merely because a control exists.
+
 - `src/main.js` is a minimal entrypoint.
 - `src/app/` owns route/session/view orchestration.
 - `src/core/` contains in-memory authentication and the shared API client.

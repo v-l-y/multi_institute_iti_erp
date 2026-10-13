@@ -4,13 +4,13 @@ declare(strict_types=1);
 namespace App\Modules\Staff\Http;
 
 use App\Core\Database;
-use App\Core\InstituteTransaction;
+use App\Modules\Staff\Application\StaffService;
+use App\Modules\Staff\Domain\StaffRecord;
+use App\Modules\Staff\Infrastructure\StaffRepository;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Auth\Domain\AuthContext;
-use DateTimeImmutable;
-use PDO;
 
 /** Institute-scoped staff registry. Teaching and non-teaching share one master. */
 final readonly class StaffController
@@ -54,17 +54,8 @@ final readonly class StaffController
         $institute = self::institute($actor, 'staff.view');
         $pageSize = self::queryNumber($request, 'page_size', 50, 100);
         $afterId = self::queryNumber($request, 'after_id', 0, PHP_INT_MAX);
-        $statement = $this->database->connection()->prepare(
-            'SELECT id,employee_code,full_name,staff_category,designation,principal_assignment,joined_on,left_on
-             FROM staff WHERE institute_id=? AND id>? ORDER BY id ASC LIMIT ?'
-        );
-        $statement->bindValue(1, $institute, PDO::PARAM_INT);
-        $statement->bindValue(2, $afterId, PDO::PARAM_INT);
-        $statement->bindValue(3, $pageSize, PDO::PARAM_INT);
-        $statement->execute();
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-        $next = count($rows) === $pageSize ? (int) $rows[count($rows) - 1]['id'] : null;
-        return new Response(['success' => true, 'data' => ['staff' => $rows, 'next_after_id' => $next]]);
+        $result = (new StaffRepository($this->database->connection()))->page($institute, $afterId, $pageSize);
+        return new Response(['success' => true, 'data' => $result]);
     }
 
     public function create(Request $request, AuthContext $actor): Response
@@ -75,29 +66,10 @@ final readonly class StaffController
         $category = self::requiredText($request, 'staff_category', 30);
         $designation = self::requiredText($request, 'designation', 120);
         $joinedOn = self::requiredText($request, 'joined_on', 10);
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $joinedOn);
-        if (!in_array($category, ['teaching', 'non_teaching'], true)
-            || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $joinedOn)
-            || $date === false || $date->format('Y-m-d') !== $joinedOn) {
+        if (!StaffRecord::validCategoryAndJoiningDate($category, $joinedOn)) {
             throw new HttpException('INVALID_INPUT', 'Valid staff category and joining date are required.', 422);
         }
-        $db = $this->database->connection();
-        $transaction = new InstituteTransaction($db);
-        $id = $transaction->run($actor, $institute, 'staff.manage', function () use ($db, $institute, $actor, $code, $name, $category, $designation, $joinedOn, $transaction): int {
-            $existing = $db->prepare('SELECT id FROM staff WHERE institute_id=? AND employee_code=? LIMIT 1 FOR UPDATE');
-            $existing->execute([$institute, $code]);
-            if ($existing->fetchColumn() !== false) {
-                throw new HttpException('STAFF_CODE_EXISTS', 'Employee code already exists in this institute.', 409);
-            }
-            $insert = $db->prepare(
-                'INSERT INTO staff (institute_id,employee_code,full_name,staff_category,designation,joined_on)
-                 VALUES (?,?,?,?,?,?)'
-            );
-            $insert->execute([$institute, $code, $name, $category, $designation, $joinedOn]);
-            $id = (int) $db->lastInsertId();
-            $transaction->audit($actor, $institute, 'staff.create', 'staff', $id, ['employee_code' => $code, 'staff_category' => $category]);
-            return $id;
-        });
+        $id = (new StaffService($this->database->connection()))->create($actor, $institute, $code, $name, $category, $designation, $joinedOn);
         // No login account, instructor verification or principal appointment is auto-created.
         return new Response(['success' => true, 'data' => ['staff_id' => $id]], 201);
     }

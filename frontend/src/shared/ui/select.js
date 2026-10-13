@@ -20,6 +20,7 @@ export function selectField(name, label, {
 
 /** Checkbox group, FormData.getAll(name) returns selected values. */
 export function multiSelectField(name, label, options = [], { required = false } = {}) {
+  if (required && options.length === 0) throw new TypeError("Required multiselect needs options");
   const controls = options.map(([value, title]) => el("label", { className: "check-option" },
     el("input", { type: "checkbox", name, value }), el("span", {}, title)));
   const group = el("fieldset", { className: "check-group" },

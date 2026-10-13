@@ -8,7 +8,6 @@ use App\Http\HttpException;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Fees\Domain\Money;
 use PDO;
-use PDOException;
 
 /** Daily UTC cash book: movements and closure are audited inside institute mutex. */
 final readonly class FeeCashService

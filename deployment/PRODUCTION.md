@@ -90,8 +90,11 @@ The results are not a complete schema diff or permission audit.
 Review `backend/database/migrations/README.md`,
 `backend/database/schema/FEE_MANAGEMENT.md` and
 `backend/database/schema/FOUNDATION_UPGRADE.md`.
-**There are no numbered migration SQL files yet.** Earlier one-time fee and
-foundation exporters do not constitute a complete forward upgrade chain.
+**Numbered migrations 001–008 upgrade the previous canonical 97-table baseline.**
+They are not a complete upgrade chain for older legacy databases. Fresh installations
+already contain those objects and require a reviewed ledger baseline before future
+numbered upgrades. Earlier one-time fee and foundation exporters remain
+version-specific tools, not a substitute for reviewed migration history.
 Never re-import the create-only canonical schema into populated data, retry
 partially committed DDL blindly, or delete live Docker volumes. Review each
 transition and rehearse against a restored populated copy, including rollback

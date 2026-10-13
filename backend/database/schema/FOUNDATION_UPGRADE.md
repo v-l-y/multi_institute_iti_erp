@@ -23,11 +23,11 @@ Fee heads default to requiring enrollment; only verified pre-enrollment registra
 
 ## Boundaries
 
-Supported engine: Docker MariaDB 10.11. The base DDL has 97 tables; load both `iti_erp_schema.sql` and `integrity_guards.sql` for a fresh database. Docker empty-volume initialization loads both; PHP integration tests use `SchemaInstaller`.
+Supported engine: Docker MariaDB 10.11. The current base DDL has 99 application tables and 74 integrity triggers; load both `iti_erp_schema.sql` and `integrity_guards.sql` for a fresh database. Docker empty-volume initialization loads both; PHP integration tests use `SchemaInstaller`. The original foundation baseline had 97 tables; later document/correction additions have their own [numbered upgrade](../migrations/README.md).
 
 The SQL record guards do not independently enforce all financial sums, source applicability or admission counters. All application business writes must use `AdmissionService`, `FeeService` and `EligibilityService`, rather than direct SQL. Internal services require an authenticated `AuthContext`, matching institute and permission. They do not accept a request-created context. Direct database administration can bypass service rules and must remain controlled. The mutex is deliberately coarse; concurrent operations in one institute serialize. Lock timeout/deadlock errors roll back and must be retried with the same retry identity by a future API.
 
-This foundation does not certify official source content, implement every approval/correction UI, validate all Bihar private admission policies, or replace official result/certificate issuance. Services and guards are newly added and have not been executed by the agent. Prior passing test output predates this change.
+This foundation does not certify official source content, implement every approval/correction UI, validate all Bihar private admission policies, or replace official result/certificate issuance. Current backend execution evidence is listed in the [verification reports](../../../deployment/reports/README.md); live institute acceptance remains separate.
 
 ## Local tests first
 

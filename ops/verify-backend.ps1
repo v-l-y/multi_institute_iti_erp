@@ -14,4 +14,13 @@ try {
     $cleanupExit = $LASTEXITCODE
     Pop-Location
     if ($cleanupExit -ne 0) { throw "Test cleanup failed ($cleanupExit)." }
+    # Each verification uses a unique disposable image tag; retaining it on
+    # every run creates unused image references even after container cleanup.
+    $testImage = $testProject + '-tests:latest'
+    $imageId = & docker image ls --quiet $testImage
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect disposable test image.' }
+    if ($imageId) {
+        & docker image rm $testImage
+        if ($LASTEXITCODE -ne 0) { throw 'Disposable test image cleanup failed.' }
+    }
 }

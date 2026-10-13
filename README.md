@@ -4,6 +4,9 @@ Frozen V1.0 scope and release acceptance baseline: [Project Goal](PROJECT_GOAL_V
 
 Local UAT setup and repeatable backend verification: [staging instructions](deployment/STAGING.md).
 
+Persistent dummy-data demo: [demo and staff UAT guide](deployment/DEMO-UAT.md).
+Execution evidence: [verification reports](deployment/reports/README.md).
+
 ```text
 backend/     PHP API, configuration, database schema and tests
 frontend/    Empty, reserved for future frontend work

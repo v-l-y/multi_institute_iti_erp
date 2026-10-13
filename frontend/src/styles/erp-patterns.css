@@ -134,3 +134,24 @@
 .erp-bulk-actions { background: #f4f8f8; border: 1px solid var(--line);
   border-radius: 10px; padding: 10px 14px; }
 .erp-bulk-actions strong { margin-right: 8px; }
+
+
+/* Contract-backed module workspaces share consistent responsive tool surfaces. */
+.erp-query-input, .erp-receipt-tools {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 10px;
+  padding: 12px 16px; border: 1px solid var(--line);
+  border-radius: 10px; background: #fff; margin-bottom: 12px;
+}
+.erp-query-input input, .erp-receipt-tools input {
+  color: #263c49; border: 1px solid #d1dfe2; border-radius: 9px;
+  min-height: 44px; padding: 8px 12px; max-width: 100%; width: 185px;
+}
+.erp-receipt-tools .field { margin: 0; }
+.erp-receipt-tools > div[aria-live] { flex-basis: 100%; }
+.register-tools > .field, .register-tools > div { min-width: 0; }
+.register-tools .erp-column-chooser { flex-shrink: 0; }
+.register-tools .table-filters { flex: 1 1 420px; }
+@media (max-width: 720px) {
+  .erp-query-input, .erp-receipt-tools { flex-direction: column; align-items: stretch; }
+  .erp-query-input input, .erp-receipt-tools input { width: 100%; }
+}

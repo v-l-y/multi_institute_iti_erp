@@ -383,7 +383,8 @@ function backendExpectStatus(\App\Http\Response $response, int $expected, int $l
 
 $platformController=new App\Modules\Institutes\PlatformInstituteController(new App\Core\Database([]));
 $developerActor=new AuthContext(1,null,1,'developer',false,['developer'],[
-    'platform.institute.create','platform.institute.update','platform.institute.view'],null,null);
+    'platform.institute.create','platform.institute.update','platform.institute.view',
+    'platform.regulatory.manage'],null,null);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
     'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([

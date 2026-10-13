@@ -57,15 +57,17 @@ final readonly class BatchSetupController
     public function linkCurriculumYear(Request $request,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'curriculum.manage');
-        $id=$this->service()->curriculumYear($actor,$institute,
-            self::id($request,'curriculum_id'),self::id($request,'global_curriculum_year_id'));
+        $curriculum=self::id($request,'curriculum_id');
+        $globalYear=self::id($request,'global_curriculum_year_id');
+        $id=$this->service()->curriculumYear($actor,$institute,$curriculum,$globalYear);
         return new Response(['success'=>true,'data'=>['curriculum_year_id'=>$id]],201);
     }
     public function linkAdmissionRule(Request $request,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'batch.manage');
-        $id=$this->service()->admissionRule($actor,$institute,
-            self::id($request,'curriculum_id'),self::id($request,'global_admission_rule_id'));
+        $curriculum=self::id($request,'curriculum_id');
+        $globalRule=self::id($request,'global_admission_rule_id');
+        $id=$this->service()->admissionRule($actor,$institute,$curriculum,$globalRule);
         return new Response(['success'=>true,'data'=>['admission_rule_id'=>$id]],201);
     }
     public function createBatch(Request $request,AuthContext $actor): Response

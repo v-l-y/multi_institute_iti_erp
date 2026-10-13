@@ -19,7 +19,7 @@ services:
         - CMD
         - php
         - -r
-        - "$r=json_decode(@file_get_contents('http://127.0.0.1/api/v1/ready'),true); exit(($r['data']['status']??null)==='ready'?0:1);"
+        - "exit((json_decode(@file_get_contents('http://127.0.0.1/api/v1/ready'),true)['data']['status']??null)==='ready'?0:1);"
       interval: 10s
       timeout: 5s
       retries: 5

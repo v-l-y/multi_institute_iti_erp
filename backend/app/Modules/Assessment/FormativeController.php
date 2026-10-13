@@ -114,6 +114,77 @@ final readonly class FormativeController
         ]],201);
     }
 
+    private static function templateObtained(Request $r): string
+    {
+        $value=self::text($r,'obtained_marks',10);
+        if (!preg_match('/^(?:0|[1-9][0-9]{0,5})(?:\\.[0-9]{1,3})?$/D',$value)) {
+            throw new HttpException('INVALID_INPUT',
+                'Obtained marks must be a nonnegative decimal string with up to 3 places.',422);
+        }
+        return $value;
+    }
+
+    public function templateScoreAssigned(Request $r,AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'formative.record.assigned');
+        if ($actor->staffId===null || !in_array('instructor',$actor->roles,true)) {
+            throw new HttpException('FORBIDDEN','Mapped instructor required.',403);
+        }
+        $enrollment=self::id($r,'enrollment_id');
+        $year=self::id($r,'batch_year_id');
+        $item=self::text($r,'item_code',80);
+        $date=self::date($r,'assessed_on');
+        $marks=self::templateObtained($r);
+        $evidence=self::text($r,'evidence_reference',500);
+        (new FormativeTemplateScoreService($this->database->connection()))
+            ->record($actor,$institute,$enrollment,$year,$item,$date,$marks,$evidence);
+        return new Response(['success'=>true,'data'=>[
+            'enrollment_id'=>$enrollment,'batch_year_id'=>$year,
+            'item_code'=>$item,'locked'=>false
+        ]],201);
+    }
+
+    public function templateScoreLock(Request $r,AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'formative.template.manage');
+        if (!in_array('principal',$actor->roles,true)) {
+            throw new HttpException('FORBIDDEN','Principal review required.',403);
+        }
+        $enrollment=self::id($r,'enrollment_id');
+        $year=self::id($r,'batch_year_id');
+        $item=self::text($r,'item_code',80);
+        $reference=self::text($r,'review_reference',500);
+        (new FormativeTemplateScoreService($this->database->connection()))
+            ->lock($actor,$institute,$enrollment,$year,$item,$reference);
+        return new Response(['success'=>true,'data'=>[
+            'enrollment_id'=>$enrollment,'batch_year_id'=>$year,
+            'item_code'=>$item,'locked'=>true
+        ]]);
+    }
+
+    public function templateScoreCorrectUnlocked(Request $r,AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'formative.template.manage');
+        if (!in_array('principal',$actor->roles,true)) {
+            throw new HttpException('FORBIDDEN','Principal correction review required.',403);
+        }
+        $enrollment=self::id($r,'enrollment_id');
+        $year=self::id($r,'batch_year_id');
+        $item=self::text($r,'item_code',80);
+        $marks=self::templateObtained($r);
+        $date=self::date($r,'assessed_on');
+        $evidence=self::text($r,'evidence_reference',500);
+        $reason=self::text($r,'reason',500);
+        $review=self::text($r,'review_reference',500);
+        (new FormativeTemplateScoreService($this->database->connection()))
+            ->correctUnlocked($actor,$institute,$enrollment,$year,$item,
+                $marks,$date,$evidence,$reason,$review);
+        return new Response(['success'=>true,'data'=>[
+            'enrollment_id'=>$enrollment,'batch_year_id'=>$year,
+            'item_code'=>$item,'corrected'=>true,'locked'=>false
+        ]]);
+    }
+
     public function recordAssigned(Request $request,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'formative.record.assigned');

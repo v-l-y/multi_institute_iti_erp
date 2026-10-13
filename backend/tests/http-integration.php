@@ -164,6 +164,22 @@ try {
             verify((int) $profile['body']['data']['id'] === ($role === 'other-admin' ? 2 : 1), 'Client input changed institute scope.');
         }
     }
+    // All operational mutations require an authenticated, scoped actor.
+    $operationalRoutes = [
+        '/api/v1/enrollments/activate',
+        '/api/v1/enrollments/cancel',
+        '/api/v1/enrollments/trainee-upload/prepare',
+        '/api/v1/exams/eligibility/freeze',
+    ];
+    foreach ($operationalRoutes as $route) {
+        expectStatus(http('POST', $route, []), 401);
+        expectStatus(http('POST', $route, [], $tokens['student']), 403);
+    }
+    expectStatus(http('POST', '/api/v1/enrollments/activate', ['enrollment_id'=>'1'], $tokens['administrator']), 422);
+    expectStatus(http('POST', '/api/v1/enrollments/cancel', ['enrollment_id'=>1, 'reason'=>''], $tokens['administrator']), 422);
+    expectStatus(http('POST', '/api/v1/enrollments/trainee-upload/prepare', ['enrollment_id'=>0], $tokens['administrator']), 422);
+    expectStatus(http('POST', '/api/v1/exams/eligibility/freeze', ['enrollment_id'=>1, 'batch_year_id'=>1, 'cycle_id'=>1, 'evidence_reference'=>''], $tokens['administrator']), 422);
+    expectStatus(http('POST', '/api/v1/enrollments/activate', ['enrollment_id'=>999999], $tokens['administrator']), 409);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

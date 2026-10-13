@@ -8,6 +8,7 @@ use App\Core\Database;
 use App\Modules\Auth\AuthMiddleware;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
+use App\Modules\Operations\OperationsController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -25,6 +26,11 @@ return static function (Router $router, Database $database): void {
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',
     ));
+    $operations = new OperationsController($database);
+    $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
+    $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
+    $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
+    $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
     $router->get('/api/v1/ready', static function () use ($database): Response {
         try {
             $database->connection()->query('SELECT 1');

@@ -154,6 +154,30 @@ transaction commit/rollback/nesting, and readiness during a database outage.
 These checks run against the isolated Docker test stack; unimplemented workflows
 are listed under Future work below and are not counted as passing tests.
 
+## Guarded operational endpoints
+
+Four additional POST endpoints invoke the existing transaction/evidence services.
+They require a valid institute login, completed mandatory password change, and
+the explicitly reviewed permissions in the table. All record IDs are positive
+JSON integers, not string IDs. The server derives the institute from the bearer
+session (never from the request body). All write services audit changes in the
+same database transaction and enforce official-source applicability.
+
+| Method | Endpoint | Required permission | JSON body |
+| --- | --- | --- | --- |
+| POST | `/api/v1/enrollments/activate` | `enrollment.manage` | `{"enrollment_id":123}` |
+| POST | `/api/v1/enrollments/cancel` | `enrollment.manage` | `{"enrollment_id":123,"reason":"Documented correction"}` |
+| POST | `/api/v1/enrollments/trainee-upload/prepare` | `enrollment.manage` | `{"enrollment_id":123}` |
+| POST | `/api/v1/exams/eligibility/freeze` | `exam.eligibility.manage` | `{"enrollment_id":123,"batch_year_id":456,"cycle_id":789,"evidence_reference":"Official evidence reference"}` |
+
+These are **not** public registration, admission creation, government upload,
+certificate issuance or unrestricted record-editing endpoints. The upload action
+only prepares locally validated JSON and does **not** submit it externally.
+Eligibility freeze is intentionally one-way until a separately audited correction
+workflow exists. The existing tests cover negative HTTP authorization and
+validation plus service-level invariants; successful HTTP business-transition
+integration still requires real reviewed fixtures and is not claimed.
+
 ## Module boundaries
 
 The HTTP Kernel assigns X-Request-ID and handles validation/internal errors

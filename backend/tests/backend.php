@@ -113,6 +113,17 @@ foreach ([static fn() => $context->requirePermission('fee.refund'), static fn() 
         $checks[] = $exception->status === 403;
     }
 }
+// Reject unauthorised or malformed operational requests before opening a DB connection.
+$operations = new App\Modules\Operations\OperationsController(new App\Core\Database([]));
+$operator = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['enrollment.manage', 'exam.eligibility.manage'], 7, null);
+$checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => '1']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 0]), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->cancelEnrollment(new Request(['enrollment_id' => 1, 'reason' => '  ']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->prepareTraineeUpload(new Request(['enrollment_id' => -1]), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->freezeEligibility(new Request(['enrollment_id' => 1, 'batch_year_id' => 1, 'cycle_id' => 1, 'evidence_reference' => '']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $context))->status === 403;
+$platform = new AuthContext(2, null, 2, 'developer', false, ['developer'], ['enrollment.manage'], null, null);
+$checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

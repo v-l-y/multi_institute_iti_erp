@@ -11,7 +11,7 @@ use App\Modules\Admissions\Application\AdmissionService;
 use App\Modules\Admissions\Application\AdmissionDraftService;
 use App\Modules\Admissions\Application\AdmissionReviewService;
 use App\Modules\Admissions\Application\TraineeUploadService;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Exams\EligibilityService;
 
 /**

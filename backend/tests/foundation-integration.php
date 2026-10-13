@@ -5,7 +5,7 @@ require dirname(__DIR__).'/bootstrap/autoload.php';
 use App\Core\SchemaInstaller;
 use App\Http\HttpException;
 use App\Modules\Admissions\Application\AdmissionService;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Exams\EligibilityService;
 use App\Modules\Fees\FeeService;
 

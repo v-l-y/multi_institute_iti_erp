@@ -7,7 +7,7 @@ use App\Http\Router;
 use App\Modules\Health\HealthController;
 use App\Http\Request;
 use App\Http\HttpException;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 
 $router = new Router();
 $router->get('/api/v1/health', new HealthController());
@@ -74,7 +74,7 @@ try {
 }
 $throttleDirectory = sys_get_temp_dir() . '/iti-throttle-test-' . bin2hex(random_bytes(6));
 try {
-    $throttle = new App\Modules\Auth\LoginThrottle($throttleDirectory, 2, 60);
+    $throttle = new App\Modules\Auth\Infrastructure\LoginThrottle($throttleDirectory, 2, 60);
     $throttle->check('127.0.0.1');
     $throttle->check('127.0.0.1');
     $checks[] = $kernel->handle(static function() use ($throttle) {
@@ -87,7 +87,7 @@ try {
     file_put_contents($bucket, json_encode(['until'=>time()-1,'count'=>2]));
     $throttle->check('127.0.0.1');
     $checks[] = json_decode(file_get_contents($bucket), true)['count'] === 1;
-    $storageFailure = new App\Modules\Auth\LoginThrottle($bucket . '/not-a-directory');
+    $storageFailure = new App\Modules\Auth\Infrastructure\LoginThrottle($bucket . '/not-a-directory');
     $checks[] = $kernel->handle(static function() use ($storageFailure) {
         $storageFailure->check('127.0.0.1');
         return new App\Http\Response([]);

@@ -5,7 +5,7 @@ require dirname(__DIR__) . '/bootstrap/autoload.php';
 
 use App\Http\HttpException;
 use App\Http\Request;
-use App\Modules\Auth\AuthService;
+use App\Modules\Auth\Application\AuthService;
 
 // Use only a disposable database server. A random database is created and removed.
 $dsn = getenv('TEST_DB_DSN');
@@ -155,7 +155,7 @@ try {
     }
     // Compare complete failed-login paths, including SQL and audit work.
     $db->prepare('INSERT INTO auth_users (username,password_hash,status) VALUES (?,?,?)')->execute(['legacy-timing', password_hash('timing-fixture-only', PASSWORD_BCRYPT, ['cost'=>12]), 'active']);
-    $db->prepare('INSERT INTO auth_users (username,password_hash,status) VALUES (?,?,?)')->execute(['modern-timing', App\Modules\Auth\PasswordHasher::hash('timing-fixture-only'), 'disabled']);
+    $db->prepare('INSERT INTO auth_users (username,password_hash,status) VALUES (?,?,?)')->execute(['modern-timing', App\Modules\Auth\Infrastructure\PasswordHasher::hash('timing-fixture-only'), 'disabled']);
     $timings = [];
     foreach (['legacy-timing','modern-timing','absent-timing'] as $timingUsername) {
         $samples = [];

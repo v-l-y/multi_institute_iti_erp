@@ -193,6 +193,35 @@ final readonly class OjtService
         }
     }
 
+    public function list(AuthContext $actor,int $institute,int $after,int $size,bool $own): array
+    {
+        $actor->requireInstitute($institute);
+        $actor->requirePermission($own?'ojt.view.own':'ojt.view');
+        if ($own && $actor->studentId===null) {
+            throw new HttpException('FORBIDDEN','Student identity required.',403);
+        }
+        $sql='SELECT p.id,p.enrollment_id,p.batch_year_id,p.mode,p.title,
+            p.industry_name,p.coordinator_id,p.starts_on,p.ends_on,
+            p.required_minutes,p.status,p.completion_certificate_reference
+            FROM ojt_projects p';
+        if ($own) {
+            $sql.=' JOIN enrollments e ON e.id=p.enrollment_id
+                AND e.institute_id=p.institute_id';
+        }
+        $sql.=' WHERE p.institute_id=? AND p.id>?';
+        if ($own) $sql.=' AND e.student_id=?';
+        $sql.=' ORDER BY p.id LIMIT ?';
+        $q=$this->db->prepare($sql);
+        $q->bindValue(1,$institute,PDO::PARAM_INT);
+        $q->bindValue(2,$after,PDO::PARAM_INT);
+        if ($own) $q->bindValue(3,$actor->studentId,PDO::PARAM_INT);
+        $q->bindValue($own?4:3,$size,PDO::PARAM_INT);
+        $q->execute();
+        $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+        return ['projects'=>$rows,
+            'next_after_id'=>count($rows)===$size?(int)$rows[count($rows)-1]['id']:null];
+    }
+
     public function evaluate(AuthContext $actor,int $institute,int $projectId,
         string $role,string $primaryName,string $primary,string $primaryMax,
         string $examiner,string $external,string $externalMax,string $grade,

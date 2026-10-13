@@ -1,7 +1,7 @@
 import { api, ApiError } from "../../core/http/client.js";
 import {
   el, button, pageHeader, dataTable, tableFilters, filterRows, columnChooser,
-  cursorPagination, skeleton, emptyState, errorPanel, openRecordDetails, notice, toast
+  cursorPagination, skeleton, emptyState, errorPanel, openRecordDetails, notice, statCards
 } from "../../shared/ui/index.js";
 import { workspace } from "./contracts.js";
 import { permittedAction, openActionDialog } from "./action-dialog.js";
@@ -28,6 +28,7 @@ export function createWorkspaceView(page, main, user) {
   const count=el("span",{className:"muted","aria-live":"polite"});
   const panel=el("div",{"aria-busy":"false"});
   const feedback=el("div",{"aria-live":"polite"});
+  const summary=el("div");
   const refresh=button("Refresh",{onClick:()=>void load()});
   const chooser=el("select",{"aria-label":"Register type",className:"table-filter-select"},
     ...datasets.map(item=>el("option",{value:item.id},item.label)));
@@ -81,13 +82,14 @@ export function createWorkspaceView(page, main, user) {
     requiredSlot,filterSlot);
   main.replaceChildren(
     pageHeader(config.title,config.description,el("div",{className:"heading-actions"},refresh,actionsSlot)),
-    receiptSlot,exportSlot,feedback,
+    receiptSlot,exportSlot,feedback,summary,
     el("section",{className:"surface register-surface"},
       tools,panel,el("div",{className:"register-bottom"},count,pager.node))
   );
 
   function resetControls(){
     rows=[];nextCursor=null;cursorHistory=[{}];pageIndex=0;
+    summary.replaceChildren();
     filterSlot.replaceChildren();requiredSlot.replaceChildren();
     requiredInput=null;
     if(exportSlot.firstElementChild) exportSlot.hidden=!["statement","own-statement"].includes(active?.id);
@@ -177,6 +179,18 @@ export function createWorkspaceView(page, main, user) {
       if(disposed||pending!==controller)return;
       if(!data||!Array.isArray(data[active.key]))throw new ApiError("Invalid "+active.label+" API response.","INVALID_RESPONSE");
       rows=data[active.key];
+      if(page.workspace==="fees" && data.totals && typeof data.totals==="object"){
+        const keys=[
+          ["gross","Gross"],["waived","Waived"],["net_due","Net due"],
+          ["effective_paid","Effective paid"],["outstanding","Outstanding"],
+          ["unallocated_credit","Unallocated credit"]
+        ];
+        summary.replaceChildren(statCards(keys.map(([key,label])=>({
+          label,value:data.totals[key],unit:"INR"
+        })),{title:"Source-calculated student ledger totals"}));
+      }else{
+        summary.replaceChildren();
+      }
       const raw=active.cursor==="next_cursor"?data.next_cursor:
         data.next_after_id===null||data.next_after_id===undefined?null:{after_id:data.next_after_id};
       nextCursor=raw&&typeof raw==="object"&&Object.keys(raw).length?

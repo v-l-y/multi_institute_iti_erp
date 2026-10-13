@@ -71,6 +71,10 @@ The frontend now uses a layered and module-owned structure. See the
 [complete folder tree, source mapping and extension rules](docs/ARCHITECTURE.md).
 
 The reusable component library is documented in [Shared UI API](src/shared/ui/README.md).
+The library now also includes master-data lookup, repeatable line-entry grids, record
+view, audit diff/timeline, timetable, monthly calendar, attendance matrix, document
+metadata list, workflow steps, native advanced fields, safe current-page CSV/print
+primitives and register column chooser. Only verified routes are wired into modules.
 It provides native forms, data tables, loaded-page sorting/filtering, cursor pagination,
 permission-aware actions, dialogs, confirmation, date and multi-select controls,
 file selection, tabs, accordion, skeletons and recoverable errors. Actual register

@@ -25,6 +25,19 @@ try {
 }
 $checks[] = $duplicateRouteRejected;
 $checks[] = $router->dispatch('GET', '/api/v1/health')->body['data']['status'] === 'ok';
+// Verify PSR-4 module classes and the required architectural directories.
+$checks[] = class_exists(\App\Modules\Admissions\Application\AdmissionDraftService::class);
+$checks[] = class_exists(\App\Modules\Admissions\Application\AdmissionReviewService::class);
+$checks[] = class_exists(\App\Modules\Admissions\Application\AdmissionService::class);
+$checks[] = class_exists(\App\Modules\Admissions\Application\TraineeUploadService::class);
+$checks[] = class_exists(\App\Modules\Admissions\Http\AdmissionRegistryController::class);
+$checks[] = class_exists(\App\Modules\Admissions\Domain\TraineeUploadValidator::class);
+$checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Http');
+$checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Application');
+$checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Domain');
+$checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Infrastructure');
+$checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Academic');
+$checks[] = is_dir(dirname(__DIR__) . '/database/migrations');
 $router->post('/test', static fn(Request $request) => new App\Http\Response(['value' => $request->body['value']]));
 $checks[] = $router->dispatch('POST', '/test', new Request(['value' => 17]))->body['value'] === 17;
 $application = require dirname(__DIR__) . '/bootstrap/app.php';
@@ -198,7 +211,7 @@ $checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
     new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'unreviewed']), $attendanceMarker))->status === 422;
 $checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
     new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'present']), $attendanceAdmin))->status === 403;
-$admissionRegistry = new App\Modules\Admissions\AdmissionRegistryController(new App\Core\Database([]));
+$admissionRegistry = new App\Modules\Admissions\Http\AdmissionRegistryController(new App\Core\Database([]));
 $admissionReader = new AuthContext(7,3,1,'administrator',false,['administrator'],['enrollment.view','seatmatrix.view','calendar.view'],7,null);
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(query:['page_size'=>'101']), $admissionReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(query:['after_id'=>['10']]), $admissionReader))->status === 422;

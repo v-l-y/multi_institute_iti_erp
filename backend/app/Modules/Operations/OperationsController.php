@@ -7,10 +7,10 @@ use App\Core\Database;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
-use App\Modules\Admissions\AdmissionService;
-use App\Modules\Admissions\AdmissionDraftService;
-use App\Modules\Admissions\AdmissionReviewService;
-use App\Modules\Admissions\TraineeUploadService;
+use App\Modules\Admissions\Application\AdmissionService;
+use App\Modules\Admissions\Application\AdmissionDraftService;
+use App\Modules\Admissions\Application\AdmissionReviewService;
+use App\Modules\Admissions\Application\TraineeUploadService;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Exams\EligibilityService;
 

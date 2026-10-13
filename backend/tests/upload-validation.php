@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/bootstrap/autoload.php';
-use App\Modules\Admissions\TraineeUploadValidator;
+use App\Modules\Admissions\Domain\TraineeUploadValidator;
 use App\Modules\Fees\Money;
 use App\Http\HttpException;
 

@@ -4,7 +4,7 @@ require dirname(__DIR__).'/bootstrap/autoload.php';
 
 use App\Core\SchemaInstaller;
 use App\Http\HttpException;
-use App\Modules\Admissions\AdmissionService;
+use App\Modules\Admissions\Application\AdmissionService;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Exams\EligibilityService;
 use App\Modules\Fees\FeeService;
@@ -51,7 +51,7 @@ try {
     $attendanceWrongStudent = new AuthContext(9203,9101,2,'other-student',false,['student'],['attendance.view.own'],null,9102);
     $attendanceWrongTeacher = new AuthContext(9202,9101,1,'other-staff',false,['instructor'],['attendance.view.assigned'],9102,null);
     $attendanceOtherInstitute = new AuthContext(9204,9102,3,'other-institute',false,['principal'],['attendance.view'],9102,null);
-    $admissionRegistry = new App\Modules\Admissions\AdmissionRegistryController($attendanceDatabase);
+    $admissionRegistry = new App\Modules\Admissions\Http\AdmissionRegistryController($attendanceDatabase);
     $admissionReader = new AuthContext(9202,9101,1,'local-institute-reader',false,['administrator'],
         ['enrollment.view','seatmatrix.view','calendar.view'],9101,null);
     $otherAdmissionReader = new AuthContext(9204,9102,3,'local-other-reader',false,['administrator'],
@@ -141,7 +141,7 @@ try {
         '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]),'QUALIFICATION_EXISTS');
     foundationReject(fn()=>$qualificationService->create($qualificationActor,9101,9102,
         '10','LOCAL SCHOOL',2024,'FOREIGN SCHOOL CERT',[]),'NOT_FOUND');
-    $drafts = new App\Modules\Admissions\AdmissionDraftService($db);
+    $drafts = new App\Modules\Admissions\Application\AdmissionDraftService($db);
     $newDraft = $drafts->create($actor,9101,9111,9101,9111,9101,
         'LOCAL-DRAFT-001','2026-08-01','LOCAL');
     $draftRow = $db->query("SELECT * FROM enrollments WHERE id=$newDraft")->fetch(PDO::FETCH_ASSOC);
@@ -177,7 +177,7 @@ try {
         FROM auth_roles WHERE code='principal'");
     $principalActor = new AuthContext(9215,9101,8,'local-review-principal',false,
         ['principal'],['enrollment.manage'],9115,null);
-    $review = new App\Modules\Admissions\AdmissionReviewService($db);
+    $review = new App\Modules\Admissions\Application\AdmissionReviewService($db);
     foundationReject(fn()=>$review->verify($actor,9101,$newDraft,
         'institute_direct',9101,'LOCAL-ROUTE',null),'PRINCIPAL_REVIEW_REQUIRED');
     foundationReject(fn()=>$review->verify($principalActor,9101,$newDraft,

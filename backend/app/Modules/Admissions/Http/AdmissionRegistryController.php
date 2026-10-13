@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Modules\Admissions;
+namespace App\Modules\Admissions\Http;
 
 use App\Core\Database;
 use App\Http\HttpException;

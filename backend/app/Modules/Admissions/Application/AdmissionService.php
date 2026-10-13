@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace App\Modules\Admissions;
+namespace App\Modules\Admissions\Application;
 
 use App\Core\InstituteTransaction;
 use App\Http\HttpException;

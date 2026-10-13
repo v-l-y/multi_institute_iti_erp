@@ -15,7 +15,7 @@ use App\Modules\Catalog\CatalogController;
 use App\Modules\Fees\FeeController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
-use App\Modules\Admissions\AdmissionRegistryController;
+use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Http\Request;
 use App\Http\Response;
 

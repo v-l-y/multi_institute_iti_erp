@@ -60,6 +60,60 @@ final readonly class FormativeController
         return $date;
     }
 
+    private static function officialDecimal(Request $r,string $field,int $whole,int $scale): string
+    {
+        $value=self::text($r,$field,$whole+$scale+1);
+        if (!preg_match('/^(?:0|[1-9][0-9]{0,'.($whole-1).'})'
+            .'(?:\\.[0-9]{1,'.$scale.'})?$/D',$value)
+            || (float)$value<=0) {
+            throw new HttpException('INVALID_INPUT',
+                'Source-declared positive decimal required for '.$field.'.',422);
+        }
+        return $value;
+    }
+
+    public function configureScheme(Request $r,AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'formative.template.manage');
+        if (!in_array('principal',$actor->roles,true)) {
+            throw new HttpException('FORBIDDEN','Principal scheme review required.',403);
+        }
+        $year=self::id($r,'batch_year_id');
+        $source=self::id($r,'regulatory_source_id');
+        $method=self::text($r,'formative_method',32);
+        if (!in_array($method,['points_ratio','template_weighted'],true)) {
+            throw new HttpException('INVALID_INPUT','Only explicit source-declared formative methods are supported.',422);
+        }
+        $reference=self::text($r,'review_reference',500);
+        (new FormativeSchemeService($this->database->connection()))->configure(
+            $actor,$institute,$year,$source,$method,$reference);
+        return new Response(['success'=>true,'data'=>[
+            'batch_year_id'=>$year,'formative_method'=>$method,'reviewed'=>true
+        ]]);
+    }
+
+    public function templateItem(Request $r,AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'formative.template.manage');
+        if (!in_array('principal',$actor->roles,true)) {
+            throw new HttpException('FORBIDDEN','Principal template review required.',403);
+        }
+        $year=self::id($r,'batch_year_id');
+        $code=self::text($r,'item_code',80);
+        $description=self::text($r,'description',500);
+        $max=self::officialDecimal($r,'max_marks',6,3);
+        $weight=self::officialDecimal($r,'weight_percent',3,4);
+        if ((float)$weight>100) {
+            throw new HttpException('INVALID_INPUT','Source-declared weight cannot exceed 100%.',422);
+        }
+        $reference=self::text($r,'review_reference',500);
+        (new FormativeSchemeService($this->database->connection()))->item(
+            $actor,$institute,$year,$code,$description,$max,$weight,$reference);
+        return new Response(['success'=>true,'data'=>[
+            'batch_year_id'=>$year,'item_code'=>$code,'weight_percent'=>$weight
+        ]],201);
+    }
+
     public function recordAssigned(Request $request,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'formative.record.assigned');

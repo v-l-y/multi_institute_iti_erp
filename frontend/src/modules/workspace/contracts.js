@@ -77,6 +77,12 @@ export const workspace = {
   attendance: {
     title:"Attendance",description:"Source-backed recorded attendance; corrections and eligibility remain backend-controlled.",
     datasets:[
+      dataset("sessions","Attendance sessions","/api/v1/attendance/sessions","attendance.view","sessions",
+        [["id","Session ID"],["batch_id","Batch"],["batch_year_id","Year"],["session_date","Date"],["component","Component"],["instructor_id","Instructor"],["scheduled_minutes","Scheduled min"],["locked_on","Locked"]]),
+      dataset("assigned-sessions","My assigned sessions","/api/v1/attendance/sessions","attendance.view.assigned","sessions",
+        [["id","Session ID"],["batch_id","Batch"],["session_date","Date"],["component","Component"],["scheduled_minutes","Scheduled min"],["locked_on","Locked"]],{identity:"staff_id"}),
+      dataset("corrections","Attendance correction history","/api/v1/academic/corrections","audit.view","corrections",
+        [["id","ID"],["session_id","Session"],["enrollment_id","Enrollment"],["reason","Reason"],["authority_reference","Authority"],["created_at","Recorded"]],{query:{type:"attendance"}}),
       dataset("all","Institute records","/api/v1/attendance/records","attendance.view","records",
         [["session_id","Session"],["enrollment_id","Enrollment"],["session_date","Date"],["component","Component"],["effective_status","Effective status"],["effective_attended_minutes","Effective minutes"],["correction_id","Correction"]],
         { cursor:"next_cursor" }),
@@ -151,6 +157,8 @@ export const workspace = {
   formative: {
     title:"Formative assessments",description:"Recorded marks and reviewed corrections; no frontend eligibility calculation.",
     datasets:[
+      dataset("corrections","Assessment correction history","/api/v1/academic/corrections","audit.view","corrections",
+        [["id","ID"],["enrollment_id","Enrollment"],["batch_year_id","Year"],["reason","Reason"],["authority_reference","Authority"],["created_at","Recorded"]],{query:{type:"formative"}}),
       dataset("points","Points assessments","/api/v1/formative/records","formative.template.manage","records",
         [["id","ID"],["enrollment_id","Enrollment"],["learning_outcome_id","LO"],["max_marks","Maximum"],["effective_obtained_marks","Effective marks"],["assessed_on","Assessed"],["locked_on","Locked"]],{cursor:"next_cursor",query:{type:"points"}}),
       dataset("template","Template assessments","/api/v1/formative/records","formative.template.manage","records",

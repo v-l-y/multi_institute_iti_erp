@@ -716,6 +716,29 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateI
     new Request([...$templateItemInput,'max_marks'=>50]),$formativeReviewer)),422, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateItem(
     new Request($templateItemInput),$formativeAdmin)),403, __LINE__);
+$templateScore=['enrollment_id'=>1,'batch_year_id'=>1,'item_code'=>'TC1',
+    'assessed_on'=>'2026-09-15','obtained_marks'=>'25.125',
+    'evidence_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreAssigned(
+    new Request([...$templateScore,'obtained_marks'=>'25.1234']),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreAssigned(
+    new Request([...$templateScore,'obtained_marks'=>25]),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreAssigned(
+    new Request($templateScore),$formativeReviewer)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreLock(
+    new Request(['enrollment_id'=>1,'batch_year_id'=>1,'item_code'=>'TC1',
+        'review_reference'=>'LOCAL']),$formativeAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreLock(
+    new Request(['enrollment_id'=>'1','batch_year_id'=>1,'item_code'=>'TC1',
+        'review_reference'=>'LOCAL']),$formativeReviewer)),422, __LINE__);
+$templateCorrection=[...$templateScore,'reason'=>'Error verified',
+    'review_reference'=>'Local source correction'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreCorrectUnlocked(
+    new Request($templateCorrection),$formativeAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreCorrectUnlocked(
+    new Request([...$templateCorrection,'obtained_marks'=>'-1.000']),$formativeReviewer)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateScoreCorrectUnlocked(
+    new Request([...$templateCorrection,'reason'=>'']),$formativeReviewer)),422, __LINE__);
 $formativeInput=['enrollment_id'=>1,'batch_year_id'=>1,'learning_outcome_id'=>1,
     'assessed_on'=>'2026-09-01','max_marks'=>'100.00',
     'obtained_marks'=>'72.50','evidence_reference'=>'LOCAL'];

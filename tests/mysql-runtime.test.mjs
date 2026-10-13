@@ -110,6 +110,16 @@ const fixtures = [
 // Replace the refund fixture with a legal reference to the original payment:
 fixtures[fixtures.length - 1] = "INSERT INTO fee_transactions (id,institute_id,student_id,enrollment_id,fee_head,transaction_type,amount,paid_on,receipt_no,payment_mode,reverses_transaction_id,recorded_by) VALUES (9101,9101,9101,9101,'tuition','payment',100,'2026-08-02','LOCAL-FEE-1','cash',NULL,'LOCAL'),(9102,9101,9101,9101,'tuition','refund',20,'2026-08-03','LOCAL-FEE-2','cash',9101,'LOCAL');";
 
+// Authentication fixtures validate database identities, not HTTP login or password verification.
+fixtures.push(
+  "INSERT INTO auth_users (id,institute_id,username,password_hash) VALUES (9201,NULL,'local-dev','NOT-A-REAL-PASSWORD-HASH'),(9202,9101,'local-instructor','NOT-A-REAL-PASSWORD-HASH'),(9203,9101,'local-student','NOT-A-REAL-PASSWORD-HASH'),(9204,9102,'local-staff-b','NOT-A-REAL-PASSWORD-HASH');",
+  "INSERT INTO auth_staff_links (institute_id,user_id,staff_id) VALUES (9101,9202,9101),(9102,9204,9102);",
+  "INSERT INTO auth_student_links (institute_id,user_id,student_id) VALUES (9101,9203,9101);",
+  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope) VALUES (NULL,9201,(SELECT id FROM auth_roles WHERE code='developer'),'developer','platform');",
+  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope,staff_link_user_id) VALUES (9101,9202,(SELECT id FROM auth_roles WHERE code='instructor'),'instructor','institute',9202);",
+  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope,student_link_user_id) VALUES (9101,9203,(SELECT id FROM auth_roles WHERE code='student'),'student','institute',9203);"
+);
+
 before(() => {
   if (!enabled) return;
   // Safety: refuse to run potentially destructive SQL against any remote DB or user-named DB.
@@ -140,6 +150,20 @@ test('tenant isolation: qualification from institute B cannot replace enrollment
 
 test('NIMS mapping: active instructor cannot drop linked verified identity', { skip }, () => {
   rejectsSql('UPDATE instructor_mappings SET identity_id=NULL WHERE id=9101;', '(?:3819|4025)');
+});
+
+test('RBAC database identities distinguish platform developer from institute staff and students', { skip }, () => {
+  assert.equal(scalar("SELECT COUNT(*) FROM auth_user_roles WHERE scope='platform' AND institute_id IS NULL;"), '1');
+  assert.equal(scalar("SELECT COUNT(*) FROM auth_user_roles WHERE scope='institute' AND staff_link_user_id IS NOT NULL;"), '1');
+  assert.equal(scalar("SELECT COUNT(*) FROM auth_user_roles WHERE scope='institute' AND student_link_user_id IS NOT NULL;"), '1');
+});
+
+test('RBAC: assigning an instructor identity across institute boundaries is rejected', { skip }, () => {
+  rejectsSql("INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope,staff_link_user_id) VALUES (9102,9202,(SELECT id FROM auth_roles WHERE code='instructor'),'instructor','institute',9202);", 1452);
+});
+
+test('RBAC: student login role requires actual linked student identity', { skip }, () => {
+  rejectsSql("INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope) VALUES (9101,9202,(SELECT id FROM auth_roles WHERE code='student'),'student','institute');", '(?:3819|4025)');
 });
 
 test('seat matrix: incorrect official calendar portal shift is rejected', { skip }, () => {

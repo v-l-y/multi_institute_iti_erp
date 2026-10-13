@@ -14,6 +14,23 @@ final readonly class ExamCycleService
 {
     public function __construct(private PDO $db) {}
 
+    /**
+     * A published syllabus/training calendar is not evidence of an exam date.
+     * This is a type guard, not independent authentication of the publication.
+     */
+    public static function acceptsScheduleDocumentType(string $type): bool
+    {
+        $normalized = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', trim($type));
+        $normalized = preg_replace('/([A-Z]+)([A-Z][a-z])/', '$1_$2', $normalized ?? '');
+        $tokens = preg_split('/[^a-z0-9]+/i', strtolower($normalized ?? ''),
+            -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $isExam = array_intersect($tokens, ['exam', 'examination', 'aitt']) !== [];
+        $isSchedule = array_intersect($tokens, [
+            'schedule', 'calendar', 'timetable', 'datesheet', 'programme', 'program',
+        ]) !== [];
+        return $isExam && $isSchedule;
+    }
+
     private function one(string $sql, array $args): ?array
     {
         $q = $this->db->prepare($sql);
@@ -42,12 +59,16 @@ final readonly class ExamCycleService
                         JOIN global_regulatory_documents d ON d.id=s.global_document_id
                         WHERE s.global_document_id=? AND s.institute_id=? FOR UPDATE',
                         [$rule['source_document_id'], $institute]);
-                    $schedule = $this->one('SELECT d.id,d.status,d.sha256,d.authority
+                    $schedule = $this->one('SELECT d.id,d.status,d.sha256,d.authority,d.document_type
                         FROM regulatory_sources s JOIN global_regulatory_documents d ON d.id=s.global_document_id
                         WHERE s.id=? AND s.institute_id=? FOR UPDATE', [$scheduleSource, $institute]);
                     if (!$ruleSource || $ruleSource['status'] !== 'published' || !$ruleSource['sha256']
                         || !$schedule || $schedule['status'] !== 'published' || !$schedule['sha256']) {
                         throw new HttpException('EXAM_SOURCE_UNREVIEWED', 'Published institute-linked official rule and schedule evidence required.', 409);
+                    }
+                    if (!self::acceptsScheduleDocumentType((string)$schedule['document_type'])) {
+                        throw new HttpException('EXAM_SCHEDULE_SOURCE_TYPE',
+                            'Exam calendar or schedule source required, not a general training document.', 409);
                     }
                     $q = $this->db->prepare('INSERT INTO exam_cycles
                         (institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,
@@ -90,7 +111,7 @@ final readonly class ExamCycleService
                     FROM exam_rule_versions r JOIN global_exam_rule_versions g ON g.id=r.global_exam_rule_id
                     WHERE r.id=? AND r.cycle_type=? AND r.institute_id=? FOR UPDATE',
                     [$cycle['rule_id'], $cycle['cycle_type'], $institute]);
-                $schedule = $this->one('SELECT d.id,d.status,d.sha256
+                $schedule = $this->one('SELECT d.id,d.status,d.sha256,d.document_type
                     FROM regulatory_sources s JOIN global_regulatory_documents d ON d.id=s.global_document_id
                     WHERE s.id=? AND s.institute_id=? FOR UPDATE', [$cycle['schedule_source_id'], $institute]);
                 $ruleSource = $rule ? $this->one('SELECT d.id,d.status,d.sha256
@@ -101,6 +122,10 @@ final readonly class ExamCycleService
                     || !$schedule || $schedule['status'] !== 'published' || !$schedule['sha256']
                     || !$ruleSource || $ruleSource['status'] !== 'published' || !$ruleSource['sha256']) {
                     throw new HttpException('EXAM_SOURCE_UNREVIEWED', 'Published rule and schedule required at opening.', 409);
+                }
+                if (!self::acceptsScheduleDocumentType((string)$schedule['document_type'])) {
+                    throw new HttpException('EXAM_SCHEDULE_SOURCE_TYPE',
+                        'Published document is not an exam schedule.', 409);
                 }
                 $q = $this->db->prepare("UPDATE exam_cycles SET status='eligibility_open'
                     WHERE id=? AND institute_id=? AND status='draft'");

@@ -924,3 +924,34 @@ invents template marks or weights.
 append-only revision design and an official source decision. Existing frozen
 records must not be overwritten simply to make a release gate green.
 
+
+## Local CTS Practical Exam records
+
+These are **local evidence records, not DGT/State exam issuance or portal submission**.
+No government acceptance is inferred from a successful HTTP response.
+
+- `POST /api/v1/exams/practicals/sessions`: Principal with
+  `exam.practical.manage` supplies `cycle_id`, `batch_year_id`,
+  completed `ended_at` (Asia/Kolkata `YYYY-MM-DD HH:MM:SS`),
+  `examiner_name`, `examiner_reference`, `question_paper_authority`
+  (`DGT` or `STATE_UT`), `question_paper_reference` and institute-linked
+  `question_paper_source_id`. The official source must be reviewed/published,
+  have a SHA-256 hash and describe practical/question-paper evidence.
+  Existing eligible frozen trainee records must match the batch year and cycle.
+- `POST /api/v1/exams/practicals/marks/assigned`: currently assigned,
+  NIMS-verified Trade instructor with `exam.practical.record.assigned`
+  supplies `practical_session_id`, `eligibility_id`, `attendance_status`,
+  source-declared positive decimal-string `max_marks`, optional
+  `obtained_marks` (mandatory only when present), `marks_source_id`,
+  and `evidence_reference`. Requires an eligible frozen snapshot and a
+  published institute-linked official practical assessment source. Scores
+  are bounded by the explicitly entered maximum; the maximum is held
+  consistent within each session. Duplicate practical marks are rejected
+  by the existing primary key and by the service.
+
+The local record is source-referenced and audited. Official mark maxima and
+candidate records still require human comparison with the actual authorized
+source. The existing practical_marks table has no independent acceptance flag
+or source_id column, so portal upload and official acceptance are **not**
+implied; independent response evidence must be maintained separately.
+

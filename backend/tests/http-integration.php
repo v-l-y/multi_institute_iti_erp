@@ -829,6 +829,33 @@ try {
         WHERE id=$batchYearId")->fetchColumn()==='draft',
         'New batch year must not auto-certify attendance calendar.');
     expectStatus(http('POST',$batchYearUrl,$yearInput,$tokens['administrator']),409);
+    $dailyPlan='/api/v1/academic/calendar-entries';
+    $calendarEntry=['batch_year_id'=>$batchYearId,'session_date'=>'2026-10-05',
+        'component'=>'trade_theory','scheduled_minutes'=>60];
+    expectStatus(http('POST',$dailyPlan,[...$calendarEntry,'scheduled_minutes'=>'60'],
+        $tokens['administrator']),422);
+    expectStatus(http('POST',$dailyPlan,$calendarEntry,$tokens['student']),403);
+    expectStatus(http('POST',$dailyPlan,$calendarEntry,$tokens['administrator']),201);
+    expectStatus(http('POST',$dailyPlan,$calendarEntry,$tokens['administrator']),409);
+    $reviewUrl='/api/v1/academic/calendars/review';
+    $reviewInput=['batch_year_id'=>$batchYearId,'reviewed_through'=>'2026-10-05',
+        'review_evidence_reference'=>'LOCAL REVIEW ONLY'];
+    expectStatus(http('POST',$reviewUrl,$reviewInput,$tokens['administrator']),403);
+    expectStatus(http('POST',$reviewUrl,$reviewInput,$tokens['principal']),200);
+    expectStatus(http('POST',$reviewUrl,$reviewInput,$tokens['principal']),409);
+    verify($db->query("SELECT calendar_status FROM batch_years WHERE id=$batchYearId")
+        ->fetchColumn()==='reviewed','Calendar review not persisted.');
+    $newSession=http('POST','/api/v1/attendance/sessions',[
+        'batch_year_id'=>$batchYearId,'session_date'=>'2026-10-05',
+        'component'=>'trade_theory','instructor_id'=>$instructorStaff
+    ],$tokens['administrator']);
+    expectStatus($newSession,201);
+    $dailySessionId=(int)$newSession['body']['data']['session_id'];
+    verify((int)$db->query("SELECT scheduled_minutes FROM attendance_sessions
+        WHERE id=$dailySessionId")->fetchColumn()===60,
+        'Daily attendance session must take its minutes from reviewed plan.');
+    expectStatus(http('POST','/api/v1/attendance/sessions/lock',[
+        'session_id'=>$dailySessionId],$tokens['principal']),409);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

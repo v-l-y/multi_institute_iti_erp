@@ -510,6 +510,57 @@ try {
     expectStatus(http('POST',$lockEndpoint,['session_id'=>1],$tokens['administrator']),403);
     expectStatus(http('POST',$lockEndpoint,['session_id'=>'1'],$tokens['principal']),422);
     expectStatus(http('POST',$lockEndpoint,['session_id'=>999999],$tokens['principal']),404);
+    // Platform Developer performs institute onboarding, not regulatory affiliation.
+    $platformBase='/api/v1/platform/institutes';
+    $newInstitute=['name'=>'LOCAL TEST C','mis_code'=>'LOCAL-C',
+        'address'=>'LOCAL ONBOARDING','district_name'=>'LOCAL',
+        'management_type'=>'LOCAL'];
+    expectStatus(http('POST',$platformBase,$newInstitute),401);
+    expectStatus(http('POST',$platformBase,$newInstitute,$tokens['principal']),403);
+    expectStatus(http('POST',$platformBase,[...$newInstitute,'mis_code'=>''],$tokens['developer']),422);
+    $createdInstitute=http('POST',$platformBase,$newInstitute,$tokens['developer']);
+    expectStatus($createdInstitute,201);
+    $instituteC=(int)$createdInstitute['body']['data']['institute_id'];
+    verify($instituteC>2 && $createdInstitute['body']['data']['affiliation_verified']===false,
+        'Institute registration must not represent official affiliation approval.');
+    expectStatus(http('POST',$platformBase,$newInstitute,$tokens['developer']),409);
+    $instituteList=http('GET',$platformBase.'?page_size=100',token:$tokens['developer']);
+    expectStatus($instituteList,200);
+    verify(in_array($instituteC,array_map('intval',array_column(
+        $instituteList['body']['data']['institutes'],'id')),true),
+        'Developer institute directory missing newly onboarded tenant.');
+    expectStatus(http('GET',$platformBase,token:$tokens['administrator']),403);
+    $principalUrl=$platformBase.'/principal';
+    $principalInput=['institute_id'=>$instituteC,'employee_code'=>'PRINCIPAL-C',
+        'full_name'=>'Local Principal C','designation'=>'Principal','joined_on'=>'2026-01-01',
+        'appointment_reference'=>'LOCAL APPOINTMENT - NOT OFFICIAL',
+        'username'=>'local-principal-c','temporary_password'=>'Local-Principal-Password-123'];
+    expectStatus(http('POST',$principalUrl,[...$principalInput,'institute_id'=>1],$tokens['administrator']),403);
+    expectStatus(http('POST',$principalUrl,[...$principalInput,'joined_on'=>'2026-02-30'],$tokens['developer']),422);
+    expectStatus(http('POST',$principalUrl,[...$principalInput,'institute_id'=>999999],$tokens['developer']),404);
+    $principalCreated=http('POST',$principalUrl,$principalInput,$tokens['developer']);
+    expectStatus($principalCreated,201);
+    $principalId=(int)$principalCreated['body']['data']['user_id'];
+    verify($principalId>0 && $principalCreated['body']['data']['must_change_password']===true,
+        'Principal provisioning must enforce first-login password change.');
+    expectStatus(http('POST',$principalUrl,$principalInput,$tokens['developer']),409);
+    verify((int)$db->query("SELECT COUNT(*) FROM staff WHERE institute_id=$instituteC
+        AND principal_assignment='principal' AND left_on IS NULL")->fetchColumn()===1,
+        'Only one current Principal assignment is allowed.');
+    $principalLogin=http('POST','/api/v1/auth/login',[
+        'username'=>$principalInput['username'],'password'=>$principalInput['temporary_password'],
+        'institute_id'=>$instituteC]);
+    expectStatus($principalLogin,200);
+    $principalToken=$principalLogin['body']['data']['access_token'];
+    expectStatus(http('GET','/api/v1/institute/profile',token:$principalToken),403);
+    expectStatus(http('POST','/api/v1/auth/change-password',[
+        'current_password'=>$principalInput['temporary_password'],
+        'new_password'=>'New-Principal-Password-456'],$principalToken),200);
+    expectStatus(http('GET','/api/v1/auth/me',token:$principalToken),401);
+    verify((int)$db->query("SELECT COUNT(*) FROM auth_audit_log
+        WHERE event_type IN ('platform.institute.create','platform.principal.provision')
+        AND user_id={$users['developer']['id']}")->fetchColumn()===2,
+        'Platform onboarding and Principal provisioning must retain audit events.');
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

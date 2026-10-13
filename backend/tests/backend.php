@@ -368,6 +368,25 @@ $checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request([
 $checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request($sessionBody),$attendanceStudent))->status===403;
 $checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>'1']),$principalLocker))->status===422;
 $checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>1]),$calendarWriter))->status===403;
+$platformController=new App\Modules\Institutes\PlatformInstituteController(new App\Core\Database([]));
+$developerActor=new AuthContext(1,null,1,'developer',false,['developer'],[
+    'platform.institute.create','platform.institute.update','platform.institute.view'],null,null);
+$checks[]=$kernel->handle(static fn()=>$platformController->create(new Request([
+    'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$platformController->create(new Request([
+    'name'=>'A','mis_code'=>'','address'=>'Test']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+    'institute_id'=>'1','employee_code'=>'P','full_name'=>'Principal',
+    'designation'=>'Principal','joined_on'=>'2026-01-01',
+    'appointment_reference'=>'TEST','username'=>'principal01',
+    'temporary_password'=>'123456789012']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+    'institute_id'=>1,'employee_code'=>'P','full_name'=>'Principal',
+    'designation'=>'Principal','joined_on'=>'2026-02-30',
+    'appointment_reference'=>'TEST','username'=>'principal01',
+    'temporary_password'=>'123456789012']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$platformController->index(
+    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

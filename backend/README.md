@@ -65,6 +65,31 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Platform institute onboarding
+
+Only an authenticated, active platform `developer` can create institute
+tenants and provision their first Principal account.
+
+- `GET /api/v1/platform/institutes`: `platform.institute.view`, paginated
+  by `page_size` and `after_id`.
+- `POST /api/v1/platform/institutes`: `platform.institute.create`; JSON
+  `name`, `mis_code`, `address`, optional `district_name`,
+  `management_type`. Records a local institute directory entry only:
+  **not DGT affiliation, Seat Matrix approval or recognition**.
+- `POST /api/v1/platform/institutes/principal`:
+  `platform.institute.update`; JSON `institute_id`, `employee_code`,
+  `full_name`, `designation`, `joined_on`, `appointment_reference`,
+  `username`, `temporary_password`. Creates a staff identity, principal
+  assignment, linked user identity, Principal role and Argon2id credentials
+  with mandatory first-login password change. Refuses a second current
+  Principal/appointment. The appointment reference records *local
+  declaration*, not verification by a government portal.
+
+Both mutations use a single DB transaction and platform-auth audit event,
+keep credentials out of responses/audits and cannot be used by institute
+accounts. Existing Principal replacements/handover still need a separately
+approved historical workflow.
+
 ## Authentication
 
 | Method | Endpoint | Input / authorization |

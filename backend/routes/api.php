@@ -12,6 +12,7 @@ use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
+use App\Modules\Regulatory\CurriculumMasterController;
 use App\Modules\Reports\ReportingController;
 use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
@@ -61,6 +62,15 @@ return static function (Router $router, Database $database): void {
         [$globalTrades,'draftRevision'], 'platform.regulatory.manage'));
     $router->post('/api/v1/platform/trades/revisions/activate', $guard->wrap(
         [$globalTrades,'activate'], 'platform.regulatory.manage'));
+    $curricula=new CurriculumMasterController($database);
+    $router->post('/api/v1/platform/curricula', $guard->wrap(
+        [$curricula,'draft'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/years', $guard->wrap(
+        [$curricula,'year'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/outcomes', $guard->wrap(
+        [$curricula,'outcome'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/publish', $guard->wrap(
+        [$curricula,'publish'], 'platform.regulatory.manage'));
     $regulatoryDocuments=new RegulatoryDocumentController($database);
     $router->get('/api/v1/platform/regulatory/documents', $guard->wrap(
         [$regulatoryDocuments,'index'], 'platform.regulatory.manage'));

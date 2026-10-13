@@ -111,3 +111,9 @@ has not been confirmed.
 Complete Admission, Fees, Attendance, OJT, Assessments, Documents, Reports, Exams and institute setup/edit workflows; full CRUD and role-specific self-service; i18n; download UX; production static hosting; live browser UAT and production acceptance. These are later workflow implementations, not foundation completion claims.
 
 **No automated tests or CI runs were executed as part of this frontend foundation.** Run checks only when explicitly requested.
+
+## Backend API workspaces
+
+The frontend now includes permission-scoped **Fees**, **Attendance**, **OJT**, **Formative assessments**, **CTS Syllabus/Curriculum**, and **Student Documents** workspaces. They use actual PHP GET/POST contract fields, backend pagination cursors, and real user permissions. Documents use the PHP JSON/base64 upload contract and authenticated binary downloads. Financial statement totals are exclusively calculated by the backend.
+
+See [API integration contracts, authorization and verification boundaries](docs/API_INTEGRATION.md). The new backend-only read endpoints are documented there. No live integration execution, CI, Docker, or automated tests were run in this pass.

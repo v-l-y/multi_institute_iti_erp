@@ -16,6 +16,7 @@ use App\Modules\Students\Http\StudentController;
 use App\Modules\Catalog\CatalogController;
 use App\Modules\Fees\Http\FeeController;
 use App\Modules\Attendance\AttendanceController;
+use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Academic\Http\AcademicCalendarController;
@@ -70,6 +71,9 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/refunds/decide', $guard->wrap([$fees, 'decideRefund'], 'fee.refund'));
     $router->post('/api/v1/fees/payments/reverse', $guard->wrap([$fees, 'reversePayment'], 'fee.refund'));
     $router->post('/api/v1/fees/payments/reversal-request', $guard->wrap([$fees, 'requestReversal'], 'fee.refund'));
+    $sessions = new AttendanceSessionController($database);
+    $router->post('/api/v1/attendance/sessions', $guard->wrap([$sessions,'create'], 'calendar.manage'));
+    $router->post('/api/v1/attendance/sessions/lock', $guard->wrap([$sessions,'lock'], 'attendance.correct'));
     $attendance = new AttendanceController($database);
     $router->get('/api/v1/attendance/records', $guard->wrap([$attendance, 'instituteRecords'], 'attendance.view'));
     $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));

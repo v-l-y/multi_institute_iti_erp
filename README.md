@@ -9,7 +9,7 @@ Execution evidence: [verification reports](deployment/reports/README.md).
 
 ```text
 backend/     PHP API, configuration, database schema and tests
-frontend/    Empty, reserved for future frontend work
+frontend/    Dependency-free web frontend (login, shell, live registers)
 compose.yaml PHP 8.5 + Apache and MariaDB containers
 ```
 
@@ -17,8 +17,23 @@ Backend setup and API instructions: [backend/README.md](backend/README.md).
 Run backend commands from the `backend/` directory. Apache DocumentRoot must
 point to `backend/public/`.
 
-The frontend directory is intentionally empty. Git does not track empty
-directories; recreate it after cloning if needed.
+## Frontend (local development)
+
+The frontend foundation now exists. With the API running locally on port 8080,
+start it in a separate PowerShell window:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Use Node.js 20+. Browse http://127.0.0.1:5173. The local-only Node server
+proxies /api/v1 requests to http://127.0.0.1:8080 by default; set BACKEND_URL
+to use a different backend origin. Sign in with an existing backend username,
+password, and institute ID (platform developers leave the ID blank). The
+frontend does not install third-party dependencies or run tests automatically.
+See [frontend setup, API mapping and limitations](frontend/README.md).
+
 
 ## Docker (local development)
 
@@ -36,7 +51,8 @@ docker compose up --build -d --wait
 
 Open [API health](http://localhost:8080/api/v1/health). Change BACKEND_PORT if
 8080 is already used. Only the API is published, bound to this computer's loopback
-interface; the database stays inside the Docker network. Frontend remains empty.
+interface; the database stays inside the Docker network. Start the frontend
+separately as described above.
 
 The backend uses the [official PHP image](https://hub.docker.com/_/php) and the
 database uses the [official MariaDB image](https://hub.docker.com/_/mariadb).

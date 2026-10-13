@@ -57,6 +57,32 @@ final readonly class FeeCashController
         return new Response(['success' => true, 'data' => ['cash_transfer_id' => $id]], 201);
     }
 
+    public function reviewClosing(Request $r, AuthContext $actor): Response
+    {
+        $actor->requirePermission('fee.refund');
+        $institute = $actor->instituteId
+            ?? throw new HttpException('FORBIDDEN', 'Institute scope required.', 403);
+        if (!in_array('principal', $actor->roles, true)) {
+            throw new HttpException('PRINCIPAL_REQUIRED', 'Principal review required.', 403);
+        }
+        $id = $r->body['closing_id'] ?? null;
+        if (!is_int($id) || $id < 1) {
+            throw new HttpException('INVALID_INPUT', 'Positive closing_id required.', 422);
+        }
+        $decision = self::text($r, 'decision', 40);
+        if (!in_array($decision, ['reviewed', 'requires_correction'], true)) {
+            throw new HttpException('INVALID_INPUT', 'Unknown closing review decision.', 422);
+        }
+        $reference = self::text($r, 'evidence_reference', 190);
+        (new FeeCashService($this->database->connection()))->reviewClosing(
+            $actor, $institute, $id, $decision, $reference
+        );
+        return new Response(['success' => true, 'data' => [
+            'closing_id' => $id, 'review_decision' => $decision,
+            'closing_records_modified' => false,
+        ]]);
+    }
+
     public function close(Request $r, AuthContext $actor): Response
     {
         $institute = self::institute($actor);

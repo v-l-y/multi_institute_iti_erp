@@ -955,9 +955,10 @@ try {
     } finally {
         $db->rollBack();
     }
-    // In this disposable database only, simulate a missing immutable-result
-    // guard while connectivity remains healthy. Readiness must fail closed.
-    $db->exec('DROP TRIGGER official_results_immutable_update');
+    // In this disposable database only, simulate a missing critical
+    // schema table while connectivity remains healthy. DDL/trigger
+    // verification is a separate privileged, manual preflight task.
+    $db->exec('DROP TABLE fee_cash_closings');
     expectStatus(http('GET', '/api/v1/ready'), 503);
     expectStatus(http('GET', '/api/v1/health'), 200);
     // Restart only the isolated HTTP server with an unreachable database endpoint.

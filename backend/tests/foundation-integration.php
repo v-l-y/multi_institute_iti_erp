@@ -144,6 +144,40 @@ try {
         '10','LOCAL SCHOOL',2024,'LOCAL-SCHOOL-REFERENCE',['Mathematics'=>80]),'QUALIFICATION_EXISTS');
     foundationReject(fn()=>$qualificationService->create($qualificationActor,9101,9102,
         '10','LOCAL SCHOOL',2024,'FOREIGN SCHOOL CERT',[]),'NOT_FOUND');
+    // Working staff profiles and recorded qualifications carry local evidence.
+    $staffActor=new AuthContext(9202,9101,1,'local-administrator',false,
+        ['administrator'],['staff.manage'],9101,null);
+    $staffLifecycle=new App\Modules\Staff\Application\StaffLifecycleService($db);
+    $db->exec("INSERT INTO staff
+      (id,institute_id,employee_code,full_name,staff_category,designation,joined_on)
+      VALUES (9116,9101,'LOCAL-STAFF-LIFECYCLE','Local Staff','non_teaching','Clerk','2026-01-01')");
+    $staffLifecycle->update($staffActor,9101,9116,'Updated Staff','Senior Clerk');
+    foundationCheck($db->query("SELECT designation FROM staff WHERE id=9116")->fetchColumn()==='Senior Clerk',
+        'Audited local staff profile update not persisted.');
+    $qualification=$staffLifecycle->qualification($staffActor,9101,9116,
+        'ITI','LOCAL','LOCAL-STAFF-CERT',12);
+    foundationCheck($qualification>0 &&
+        $db->query("SELECT verified_on FROM staff_qualifications WHERE id=$qualification")->fetchColumn()===null,
+        'Recorded staff qualification must not invent government verification.');
+    foundationReject(fn()=>$staffLifecycle->qualification($staffActor,9101,9116,
+        'ITI','LOCAL','LOCAL-STAFF-CERT',12),'QUALIFICATION_EXISTS');
+    foundationReject(fn()=>$staffLifecycle->exit($staffActor,9101,9101,
+        '2026-10-01','LOCAL TEST'),'INSTRUCTOR_MAPPING_ACTIVE');
+    $staffLifecycle->exit($staffActor,9101,9116,'2026-10-01','LOCAL STAFF EXIT');
+    foundationCheck($db->query("SELECT left_on FROM staff WHERE id=9116")->fetchColumn()==='2026-10-01',
+        'Staff exit date must be recorded without rewriting history.');
+    foundationReject(fn()=>$staffLifecycle->exit($staffActor,9101,9116,
+        '2026-10-01','LOCAL STAFF EXIT'),'STAFF_INACTIVE');
+    $contactActor=new AuthContext(9202,9101,1,'local-principal',false,
+        ['principal'],['institute.profile.update'],9101,null);
+    $contactController=new App\Modules\Institutes\InstituteContactController($attendanceDatabase);
+    $contactController->update(new App\Http\Request(['contact_phone'=>'+91-1234567890']),$contactActor);
+    foundationCheck($db->query("SELECT contact_phone FROM institute WHERE id=9101")->fetchColumn()==='+91-1234567890',
+        'Institute contact changes must remain institute-local.');
+    foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code IN ('staff.employment.exit','staff.profile.update',
+            'staff.qualification.record','institute.contact.update')")->fetchColumn()===4,
+        'Staff and institute contact mutations must have atomic audit events.');
     $drafts = new App\Modules\Admissions\Application\AdmissionDraftService($db);
     $newDraft = $drafts->create($actor,9101,9111,9101,9111,9101,
         'LOCAL-DRAFT-001','2026-08-01','LOCAL');

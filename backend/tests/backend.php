@@ -1,0 +1,121 @@
+<?php
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/bootstrap/autoload.php';
+
+use App\Http\Router;
+use App\Modules\Health\HealthController;
+use App\Http\Request;
+use App\Http\HttpException;
+use App\Modules\Auth\AuthContext;
+
+$router = new Router();
+$router->get('/api/v1/health', new HealthController());
+$checks = [
+    $router->dispatch('GET', '/api/v1/health')->body['data']['status'] === 'ok',
+    $router->dispatch('GET', '/unknown')->status === 404,
+    $router->dispatch('POST', '/api/v1/health')->status === 405,
+    $router->dispatch('POST', '/api/v1/health')->headers['Allow'] === 'GET',
+];
+$router->post('/test', static fn(Request $request) => new App\Http\Response(['value' => $request->body['value']]));
+$checks[] = $router->dispatch('POST', '/test', new Request(['value' => 17]))->body['value'] === 17;
+$application = require dirname(__DIR__) . '/bootstrap/app.php';
+$checks[] = $application->dispatch('GET', '/api/v1/health')->status === 200;
+$checks[] = $application->dispatch('GET', '/api/v1/auth/login')->status === 405;
+$kernel = new App\Http\Kernel();
+$checks[] = $kernel->handle(static fn() => $application->dispatch('GET', '/api/v1/auth/me'))->status === 401;
+$checks[] = $kernel->handle(static fn() => new App\Http\Response(['bad' => "\xff"]))->status === 500;
+$checks[] = $kernel->handle(static fn() => throw new HttpException('TEST_ERROR', 'Safe test error.', 422))->status === 422;
+$errorResponse = $kernel->handle(static fn() => throw new RuntimeException('private-database-detail'));
+$checks[] = !str_contains(json_encode($errorResponse->body), 'private-database-detail');
+$checks[] = $errorResponse->headers['X-Request-ID'] !== $kernel->handle(static fn() => new App\Http\Response([]))->headers['X-Request-ID'];
+$environmentFile = tempnam(sys_get_temp_dir(), 'iti-env-test-');
+try {
+    putenv('ITI_TEST_EXISTING=process-wins');
+    file_put_contents($environmentFile, "ITI_TEST_EXISTING=file-value\nITI_TEST_QUOTED='quoted value'\nITI_TEST_LITERAL=trailing'\nITI_TEST_EMPTY=\n");
+    App\Core\Environment::load($environmentFile);
+    $checks[] = App\Core\Environment::get('ITI_TEST_EXISTING') === 'process-wins';
+    $checks[] = App\Core\Environment::get('ITI_TEST_QUOTED') === 'quoted value';
+    $checks[] = App\Core\Environment::get('ITI_TEST_LITERAL') === "trailing'";
+    $checks[] = App\Core\Environment::get('ITI_TEST_EMPTY', 'default') === '';
+    file_put_contents($environmentFile, "invalid-key=value\n");
+    try {
+        App\Core\Environment::load($environmentFile);
+        $checks[] = false;
+    } catch (RuntimeException) {
+        $checks[] = true;
+    }
+} finally {
+    unlink($environmentFile);
+    foreach (['ITI_TEST_EXISTING','ITI_TEST_QUOTED','ITI_TEST_LITERAL','ITI_TEST_EMPTY'] as $environmentKey) {
+        putenv($environmentKey);
+    }
+}
+$throttleDirectory = sys_get_temp_dir() . '/iti-throttle-test-' . bin2hex(random_bytes(6));
+try {
+    $throttle = new App\Modules\Auth\LoginThrottle($throttleDirectory, 2, 60);
+    $throttle->check('127.0.0.1');
+    $throttle->check('127.0.0.1');
+    $checks[] = $kernel->handle(static function() use ($throttle) {
+        $throttle->check('127.0.0.1');
+        return new App\Http\Response([]);
+    })->status === 429;
+    $throttle->check('127.0.0.2');
+    $checks[] = true;
+    $bucket = $throttleDirectory . '/' . hash('sha256', '127.0.0.1') . '.json';
+    file_put_contents($bucket, json_encode(['until'=>time()-1,'count'=>2]));
+    $throttle->check('127.0.0.1');
+    $checks[] = json_decode(file_get_contents($bucket), true)['count'] === 1;
+    $storageFailure = new App\Modules\Auth\LoginThrottle($bucket . '/not-a-directory');
+    $checks[] = $kernel->handle(static function() use ($storageFailure) {
+        $storageFailure->check('127.0.0.1');
+        return new App\Http\Response([]);
+    })->status === 503;
+    // Multiple processes must share one atomic limit, not each allow two attempts.
+    $workers = [];
+    $workerCode = 'require $argv[1]; try { (new App\\Modules\\Auth\\LoginThrottle($argv[2],2,60))->check("127.0.0.3"); echo "200"; } catch (App\\Http\\HttpException $e) { echo $e->status; }';
+    for ($workerIndex=0; $workerIndex<6; $workerIndex++) {
+        $worker = proc_open([PHP_BINARY,'-r',$workerCode,dirname(__DIR__) . '/bootstrap/autoload.php',$throttleDirectory], [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $workerPipes);
+        if (!is_resource($worker)) {
+            throw new RuntimeException('Throttle test worker could not start.');
+        }
+        fclose($workerPipes[0]);
+        $workers[] = [$worker,$workerPipes];
+    }
+    $statuses = [];
+    foreach ($workers as [$worker,$workerPipes]) {
+        $statuses[] = stream_get_contents($workerPipes[1]);
+        $workerError = stream_get_contents($workerPipes[2]);
+        fclose($workerPipes[1]);
+        fclose($workerPipes[2]);
+        if (proc_close($worker) !== 0 || $workerError !== '') {
+            throw new RuntimeException('Throttle test worker failed.');
+        }
+    }
+    $checks[] = count(array_filter($statuses, static fn($status) => $status === '200')) === 2;
+    $checks[] = count(array_filter($statuses, static fn($status) => $status === '429')) === 4;
+} finally {
+    foreach (glob($throttleDirectory . '/*.json') ?: [] as $throttleFile) {
+        unlink($throttleFile);
+    }
+    if (is_dir($throttleDirectory)) {
+        rmdir($throttleDirectory);
+    }
+}
+$context = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['staff.view'], 7, null);
+$context->requirePermission('staff.view');
+$context->requireInstitute(3);
+foreach ([static fn() => $context->requirePermission('fee.refund'), static fn() => $context->requireInstitute(4)] as $reject) {
+    try {
+        $reject();
+        $checks[] = false;
+    } catch (HttpException $exception) {
+        $checks[] = $exception->status === 403;
+    }
+}
+foreach ($checks as $check) {
+    if (!$check) {
+        throw new RuntimeException('Backend contract failed.');
+    }
+}
+echo 'Backend contracts passed (' . count($checks) . " checks).\n";

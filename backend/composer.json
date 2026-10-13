@@ -1,0 +1,8 @@
+{
+  "name": "iti-erp/backend",
+  "description": "Multi-institute ITI ERP backend foundation",
+  "type": "project",
+  "require": { "php": "~8.5.0", "ext-pdo": "*", "ext-pdo_mysql": "*", "ext-json": "*" },
+  "autoload": { "psr-4": { "App\\": "app/" } },
+  "scripts": { "test": "php tests/backend.php", "test:integration": "php tests/auth-integration.php", "test:http": "php tests/http-integration.php", "serve": "php -S 127.0.0.1:8000 -t public public/index.php" }
+}

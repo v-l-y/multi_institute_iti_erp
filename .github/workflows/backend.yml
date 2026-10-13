@@ -1,0 +1,20 @@
+name: Backend foundation
+on: workflow_dispatch
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Schema contracts
+        run: node --test backend/tests/schema-contracts.test.mjs
+      - name: PHP 8.5 and database integration
+        run: docker compose -p iti-erp-ci -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+      - name: Test stack logs
+        if: failure()
+        run: docker compose -p iti-erp-ci -f compose.test.yaml logs --tail=100
+      - name: Clean up test stack
+        if: always()
+        run: docker compose -p iti-erp-ci -f compose.test.yaml down

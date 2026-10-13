@@ -1,0 +1,3 @@
+# Prevent exposure of .env, SQL, configuration and source on XAMPP.
+# Configure the Apache DocumentRoot to this project's backend/public directory.
+Require all denied

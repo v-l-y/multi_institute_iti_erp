@@ -1,0 +1,29 @@
+# Independent test stack: no host ports, application volumes or local secrets.
+services:
+  test-database:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: isolated-test-only-password
+      MARIADB_ROOT_HOST: "%"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+  tests:
+    build:
+      context: ./backend
+    environment:
+      TEST_DB_DSN: mysql:host=test-database;port=3306;charset=utf8mb4
+      TEST_DB_USERNAME: root
+      TEST_DB_PASSWORD: isolated-test-only-password
+    depends_on:
+      test-database:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - "find app bootstrap config public routes bin tests -name '*.php' -print0 | xargs -0 -n1 php -l > /tmp/lint.log; php tests/backend.php; php tests/auth-integration.php; php tests/http-integration.php"

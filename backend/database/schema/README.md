@@ -79,21 +79,24 @@ Some schema changes **break existing populated databases and callers**, includin
 
 ## Tests and outstanding runtime gates
 
-Three separate test files now exist. They are deliberately different kinds of evidence:
+Database test files provide two different kinds of evidence. Application and HTTP
+test instructions are in the [backend README](../../README.md#authentication-testing).
 
 | Test file | Cases | What it does | What it does not prove |
 | --- | ---: | --- | --- |
 | [schema-contracts.test.mjs](../../tests/schema-contracts.test.mjs) | 22 | Pure static SQL checks | MySQL imports, login, application behavior |
 | [mysql-runtime.test.mjs](../../tests/mysql-runtime.test.mjs) | 14 | Opt-in real MySQL/MariaDB import, local-only fixtures, FK/CHECK negative tests, cross-institute and role identities, attendance evidence, conditional seat race, mysqldump and restore | Official admission/eligibility policy correctness or live APIs |
-| [pending-integration.test.mjs](../../tests/pending-integration.test.mjs) | 9 TODO | Shows coverage blocked by missing migrations, seeding, backend and official-evidence workflows | TODO is **not** a PASS |
 
 Run static tests (no database or external packages needed):
 
 ~~~powershell
-node --test tests/schema-contracts.test.mjs tests/pending-integration.test.mjs
+node --test tests/schema-contracts.test.mjs
 ~~~
 
-Run real SQL tests **only against local MySQL/MariaDB** using a disposable throwaway database. The runner creates a random \`iti_erp_gate_...\` database, imports the schema, inserts **explicitly fictional** evidence/people, and drops only databases that it created. It never uses or resets \`iti_erp\`, \`iti_erp_test\`, or any other existing named database. Ensure MySQL/MariaDB is running and the chosen dedicated local test account has CREATE/DROP database permission.
+Run SQL tests against local MySQL/MariaDB using a disposable database. The runner
+creates a random `iti_erp_gate_...` database, imports the schema and fictional
+fixtures, then drops only its own databases. Existing databases are not reset.
+The dedicated test account needs CREATE/DROP database permission.
 
 ~~~powershell
 $env:ITI_ERP_RUN_MYSQL = "1"
@@ -106,9 +109,15 @@ $env:ITI_ERP_MYSQLDUMP_BIN = "C:\xampp\mysql\bin\mysqldump.exe"
 node --test tests/mysql-runtime.test.mjs
 ~~~
 
-If the CLI tools are already on PATH, the two binary-path settings can be omitted. The runner rejects remote database hosts; use a local service or local Docker port mapped to \`127.0.0.1\`. It requires \`ITI_ERP_RUN_MYSQL=1\` and does nothing except report SKIP without that opt-in. Use one runner at a time to limit CPU usage. **Do not treat SKIP, TODO, static matching, fixture-backed success or a successful backup drill as live ERP release certification.**
+If the tools are on PATH, omit the binary-path settings. The runner rejects remote
+hosts; use a local service or Docker port mapped to `127.0.0.1`. It requires
+`ITI_ERP_RUN_MYSQL=1` and reports SKIP without that opt-in. Fixture-backed checks
+and backup drills do not certify a live ERP release.
 
-The repo currently has no populated-schema migration runner, seed runner, or implemented HTTP login/admission/exam backend. Those nine pending tests stay TODO, not silently skipped as a claimed PASS. Full app end-to-end tests can only be implemented once real API routes, authorization policy and authoritative evidence workflows exist.
+The backend implements and tests authentication HTTP routes and a scoped institute
+profile. Populated-schema migrations, official-data loading and admission/exam
+workflows remain [future work](../../README.md#future-work), rather than executable
+tests. Fixture-backed success does not certify production or regulatory workflows.
 
 ## Installation — fresh, empty database only
 

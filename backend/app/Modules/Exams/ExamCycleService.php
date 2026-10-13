@@ -27,8 +27,12 @@ final readonly class ExamCycleService
         $isExam = array_intersect($tokens, ['exam', 'examination', 'aitt']) !== [];
         $isSchedule = array_intersect($tokens, [
             'schedule', 'calendar', 'timetable', 'datesheet', 'programme', 'program',
-        ]) !== [];
-        return $isExam && $isSchedule;
+        ]) !== [] || (in_array('time', $tokens, true) && in_array('table', $tokens, true))
+            || (in_array('date', $tokens, true) && in_array('sheet', $tokens, true));
+        // Labels explicitly stating that they are not an exam schedule are
+        // not accepted even if they contain positive words.
+        return $isExam && $isSchedule
+            && array_intersect($tokens, ['non', 'not', 'invalid']) === [];
     }
 
     private function one(string $sql, array $args): ?array

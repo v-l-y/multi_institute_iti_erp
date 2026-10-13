@@ -1,6 +1,6 @@
 # Database Migrations
 
-This directory is for reviewed, numbered **forward-only** upgrades to populated ERP databases. Fresh installation uses `../schema/iti_erp_schema.sql` and `../schema/integrity_guards.sql` instead. No migration SQL files have been added by the architecture refactor, so applying now makes no schema changes.
+This directory is for reviewed, numbered **forward-only** upgrades to populated ERP databases. Fresh installation uses `../schema/iti_erp_schema.sql` and `../schema/integrity_guards.sql` instead. No reviewed numbered SQL migrations are installed yet. `--apply` therefore fails closed rather than reporting a misleading successful no-op.
 
 Run from `backend/`:
 

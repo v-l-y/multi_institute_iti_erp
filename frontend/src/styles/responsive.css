@@ -23,7 +23,11 @@
   .app-footer { padding: 20px 16px; }
   .auth-layout { grid-template-columns: 1fr; }
   .auth-story { padding: 28px 22px; }
-  .auth-story h1, .auth-story > p, .scope-pill, .story-footer { display: none; }
+  .auth-story > p, .scope-pill, .story-footer { display: none; }
+  .auth-story h1 {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
   .brand-large { margin: 0; }
   .auth-main { padding: 30px 16px; align-items: start; }
 }

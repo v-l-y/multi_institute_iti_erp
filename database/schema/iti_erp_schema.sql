@@ -376,6 +376,7 @@ CREATE TABLE trade_unit_shifts (
  UNIQUE(trade_unit_id,shift_no,valid_from,institute_id),
  UNIQUE(current_unit_guard,current_shift_guard,institute_id),
  UNIQUE(id,trade_id,institute_id),
+ UNIQUE(id,shift_no,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(trade_unit_id,trade_id,institute_id) REFERENCES trade_units(id,trade_id,institute_id),
  FOREIGN KEY(global_shift_id,shift_no) REFERENCES global_shifts(id,shift_no),
@@ -418,6 +419,7 @@ CREATE TABLE instructor_mappings (
  CHECK((mapping_type='trade' AND trade_unit_shift_id IS NOT NULL AND subject_code IS NULL)
     OR (mapping_type='subject' AND trade_unit_shift_id IS NULL AND subject_code IS NOT NULL AND subject_code IN('ES','WCS','ED','WCS_ED'))),
  CHECK(valid_to IS NULL OR valid_to>=valid_from),
+ CHECK(status<>'active' OR identity_id IS NOT NULL),
  UNIQUE(id,staff_id,institute_id),
  UNIQUE(id,trade_unit_shift_id,institute_id),
  UNIQUE(id,institute_id)
@@ -490,6 +492,7 @@ CREATE TABLE cts_portal_shift_mappings (
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(calendar_id,session_part,physical_shift_no),
+ UNIQUE(calendar_id,session_part,physical_shift_no,portal_shift_no),
  UNIQUE(calendar_id,session_part,portal_shift_no),
  FOREIGN KEY(calendar_id) REFERENCES cts_training_calendars(id),
  CHECK(physical_shift_no BETWEEN 1 AND 3 AND portal_shift_no>0)
@@ -507,6 +510,7 @@ CREATE TABLE admission_intakes (
  UNIQUE(admission_year,intake_code,institute_id),
  UNIQUE(id,admission_year,institute_id),
  UNIQUE(id,calendar_id,institute_id),
+ UNIQUE(id,calendar_id,session_part,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(calendar_id,admission_year) REFERENCES cts_training_calendars(id,admission_year),
  FOREIGN KEY(institute_id) REFERENCES institute(id)
@@ -570,6 +574,9 @@ CREATE TABLE seat_matrix_entries (
  version_id BIGINT UNSIGNED NOT NULL,
  intake_id BIGINT UNSIGNED NOT NULL,
  trade_unit_shift_id BIGINT UNSIGNED NOT NULL,
+ calendar_id BIGINT UNSIGNED NOT NULL,
+ session_part ENUM('primary','six_month_second') NOT NULL,
+ physical_shift_no TINYINT UNSIGNED NOT NULL,
  portal_shift_no TINYINT UNSIGNED NOT NULL,
  seat_capacity SMALLINT UNSIGNED NOT NULL,
  admission_allowed TINYINT NOT NULL,
@@ -585,7 +592,9 @@ CREATE TABLE seat_matrix_entries (
  UNIQUE(id,trade_unit_shift_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(version_id,intake_id,institute_id) REFERENCES seat_matrix_versions(id,intake_id,institute_id),
- FOREIGN KEY(trade_unit_shift_id,institute_id) REFERENCES trade_unit_shifts(id,institute_id),
+ FOREIGN KEY(intake_id,calendar_id,session_part,institute_id) REFERENCES admission_intakes(id,calendar_id,session_part,institute_id),
+ FOREIGN KEY(trade_unit_shift_id,physical_shift_no,institute_id) REFERENCES trade_unit_shifts(id,shift_no,institute_id),
+ FOREIGN KEY(calendar_id,session_part,physical_shift_no,portal_shift_no) REFERENCES cts_portal_shift_mappings(calendar_id,session_part,physical_shift_no,portal_shift_no),
  FOREIGN KEY(instructor_mapping_id,trade_unit_shift_id,institute_id) REFERENCES instructor_mappings(id,trade_unit_shift_id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(admission_allowed IN(0,1) AND consumed_previous_session IN(0,1) AND instructor_mapping_satisfied IN(0,1)),
@@ -794,6 +803,7 @@ CREATE TABLE batch_quotas (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(batch_id,category_code,quota_type,institute_id),
  UNIQUE(id,batch_id,institute_id),
+ UNIQUE(id,batch_id,quota_type,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(batch_id,admission_year,institute_id) REFERENCES batches(id,admission_year,institute_id),
  FOREIGN KEY(policy_id,admission_year,institute_id) REFERENCES reservation_policies(id,admission_year,institute_id),
@@ -879,7 +889,9 @@ CREATE TABLE enrollments (
  checked_by VARCHAR(190) NOT NULL,
  checked_on DATE NOT NULL,
  vertical_quota_id BIGINT UNSIGNED NULL,
+ vertical_quota_type ENUM('vertical','horizontal') NOT NULL DEFAULT 'vertical',
  horizontal_quota_id BIGINT UNSIGNED NULL,
+ horizontal_quota_type ENUM('vertical','horizontal') NOT NULL DEFAULT 'horizontal',
  quota_evidence_reference VARCHAR(190) NULL,
  active_student_guard BIGINT UNSIGNED GENERATED ALWAYS AS
    (CASE WHEN status IN('pending_verification','active') THEN student_id ELSE NULL END) STORED UNIQUE,
@@ -897,9 +909,10 @@ CREATE TABLE enrollments (
  FOREIGN KEY(admission_intake_revision_id,intake_id,institute_id) REFERENCES admission_intake_revisions(id,intake_id,institute_id),
  FOREIGN KEY(admission_rule_id,institute_id) REFERENCES admission_rules(id,institute_id),
  FOREIGN KEY(qualification_id,student_id,institute_id) REFERENCES student_qualifications(id,student_id,institute_id),
- FOREIGN KEY(vertical_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
- FOREIGN KEY(horizontal_quota_id,batch_id,institute_id) REFERENCES batch_quotas(id,batch_id,institute_id),
+ FOREIGN KEY(vertical_quota_id,batch_id,vertical_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id),
+ FOREIGN KEY(horizontal_quota_id,batch_id,horizontal_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(vertical_quota_type='vertical' AND horizontal_quota_type='horizontal'),
  CHECK(qualification_check_passed IN(0,1)),
  CHECK(status NOT IN ('active','completed') OR qualification_check_passed=1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1234,6 +1247,7 @@ CREATE TABLE fee_transactions (
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  UNIQUE(receipt_no,institute_id),
  UNIQUE(id,student_id,institute_id),
+ UNIQUE(id,transaction_type,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
  FOREIGN KEY(enrollment_id,student_id,institute_id) REFERENCES enrollments(id,student_id,institute_id),
@@ -1249,10 +1263,12 @@ CREATE TABLE fee_transactions (
 CREATE TABLE fee_payment_balances (
  institute_id BIGINT UNSIGNED NOT NULL,
  payment_id BIGINT UNSIGNED NOT NULL,
+ payment_transaction_type ENUM('payment','refund','reversal') NOT NULL DEFAULT 'payment',
  original_amount DECIMAL(10,2) NOT NULL,
  remaining_amount DECIMAL(10,2) NOT NULL,
  PRIMARY KEY(payment_id,institute_id),
- FOREIGN KEY(payment_id,institute_id) REFERENCES fee_transactions(id,institute_id),
+ FOREIGN KEY(payment_id,payment_transaction_type,institute_id) REFERENCES fee_transactions(id,transaction_type,institute_id),
+ CHECK(payment_transaction_type='payment'),
  CHECK(original_amount>0 AND remaining_amount BETWEEN 0 AND original_amount)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

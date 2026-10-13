@@ -38,5 +38,5 @@ export function attendanceMatrix({
               }, "Multiple records — review"));
             }
             return el("td", {}, matches.length ? formatValue(matches[0][recordStatus]) : "—");
-          })))));
+          }))))));
 }

@@ -4,14 +4,14 @@ declare(strict_types=1);
 namespace App\Modules\Students\Http;
 
 use App\Core\Database;
+use App\Modules\Students\Application\StudentRegistrationService;
+use App\Modules\Students\Domain\StudentIdentity;
+use App\Modules\Students\Infrastructure\StudentRepository;
 use App\Modules\Students\Application\StudentQualificationService;
-use App\Core\InstituteTransaction;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Auth\Domain\AuthContext;
-use DateTimeImmutable;
-use PDO;
 
 /** Locally registered learner identities, not official admissions or verified PRNs. */
 final readonly class StudentController
@@ -49,26 +49,13 @@ final readonly class StudentController
         return $value;
     }
 
-    private static function fields(): string
-    {
-        return 'id,local_student_code,full_name,date_of_birth,gender,prn,prn_verified_on';
-    }
-
     public function index(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'student.view');
         $pageSize = self::integerQuery($request, 'page_size', 50, 100);
         $cursor = self::integerQuery($request, 'after_id', 0, PHP_INT_MAX);
-        $statement = $this->database->connection()->prepare(
-            'SELECT ' . self::fields() . ' FROM students WHERE institute_id=? AND id>? ORDER BY id ASC LIMIT ?'
-        );
-        $statement->bindValue(1, $institute, PDO::PARAM_INT);
-        $statement->bindValue(2, $cursor, PDO::PARAM_INT);
-        $statement->bindValue(3, $pageSize, PDO::PARAM_INT);
-        $statement->execute();
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-        $next = count($rows) === $pageSize ? (int) $rows[count($rows)-1]['id'] : null;
-        return new Response(['success' => true, 'data' => ['students' => $rows, 'next_after_id' => $next]]);
+        $page = (new StudentRepository($this->database->connection()))->page($institute, $cursor, $pageSize);
+        return new Response(['success' => true, 'data' => $page]);
     }
 
     public function own(Request $request, AuthContext $actor): Response
@@ -77,14 +64,7 @@ final readonly class StudentController
         if ($actor->studentId === null) {
             throw new HttpException('FORBIDDEN', 'Linked student identity required.', 403);
         }
-        $statement = $this->database->connection()->prepare(
-            'SELECT ' . self::fields() . ' FROM students WHERE id=? AND institute_id=?'
-        );
-        $statement->execute([$actor->studentId, $institute]);
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
-        if ($row === false) {
-            throw new HttpException('NOT_FOUND', 'Student record not found.', 404);
-        }
+        $row = (new StudentRepository($this->database->connection()))->own($actor->studentId, $institute);
         return new Response(['success' => true, 'data' => $row]);
     }
 
@@ -131,29 +111,10 @@ final readonly class StudentController
         $address = self::text($request, 'address', 16000);
         $mode = self::text($request, 'identity_mode', 30);
         $reference = self::text($request, 'identity_evidence_reference', 190);
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $birth);
-        if (!in_array($mode, ['aadhaar', 'non_aadhaar'], true)
-            || !preg_match('/^\d{4}-\d{2}-\d{2}$/D', $birth)
-            || $date === false || $date->format('Y-m-d') !== $birth) {
+        if (!StudentIdentity::validIdentityModeAndBirthDate($mode, $birth)) {
             throw new HttpException('INVALID_INPUT', 'Valid date of birth and identity mode required.', 422);
         }
-        $db = $this->database->connection();
-        $transaction = new InstituteTransaction($db);
-        $id = $transaction->run($actor, $institute, 'student.manage', function () use ($db, $transaction, $actor, $institute, $code, $name, $birth, $gender, $address, $mode, $reference): int {
-            $existing = $db->prepare('SELECT id FROM students WHERE institute_id=? AND local_student_code=? LIMIT 1 FOR UPDATE');
-            $existing->execute([$institute, $code]);
-            if ($existing->fetchColumn() !== false) {
-                throw new HttpException('STUDENT_CODE_EXISTS', 'Student code already exists in this institute.', 409);
-            }
-            $insert = $db->prepare(
-                'INSERT INTO students (institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference)
-                 VALUES (?,?,?,?,?,?,?,?)'
-            );
-            $insert->execute([$institute, $code, $name, $birth, $gender, $address, $mode, $reference]);
-            $id = (int) $db->lastInsertId();
-            $transaction->audit($actor, $institute, 'student.create', 'students', $id, ['local_student_code' => $code]);
-            return $id;
-        });
+        $id = (new StudentRegistrationService($this->database->connection()))->create($actor, $institute, $code, $name, $birth, $gender, $address, $mode, $reference);
         return new Response(['success' => true, 'data' => ['student_id' => $id]], 201);
     }
 }

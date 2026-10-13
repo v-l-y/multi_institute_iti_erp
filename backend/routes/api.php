@@ -117,6 +117,7 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/fees/payments', $guard->wrap([$fees, 'payments'], 'fee.view'));
     $router->get('/api/v1/fees/payments/me', $guard->wrap([$fees, 'ownPayments'], 'fee.view.own'));
     $router->post('/api/v1/fees/assessments/issue', $guard->wrap([$fees, 'issueAssessment'], 'fee.record'));
+    $router->post('/api/v1/fees/demands', $guard->wrap([$fees, 'issueDemand'], 'fee.record'));
     $router->post('/api/v1/fees/waivers/approve', $guard->wrap([$fees, 'approveWaiver'], 'fee.refund'));
     $router->post('/api/v1/fees/payments', $guard->wrap([$fees, 'recordPayment'], 'fee.record'));
     $router->post('/api/v1/fees/allocations', $guard->wrap([$fees, 'allocate'], 'fee.record'));

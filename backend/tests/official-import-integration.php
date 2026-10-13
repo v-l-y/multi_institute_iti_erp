@@ -73,6 +73,8 @@ try {
       'ojt_grade'=>null,'revision_no'=>1,'supersedes_result_id'=>null,
       'declared_at'=>'2026-10-01 10:00:00',
     ];
+    $reject(fn()=>$service->result($importer,9101,$resultData),'EXAM_CYCLE_UNOPENED');
+    $db->exec("UPDATE exam_cycles SET status='eligibility_open' WHERE id=9101");
     $resultId = $service->result($importer,9101,$resultData);
     $check($resultId>0, 'Official result local import missing.');
     $check((int)$db->query('SELECT enrollment_id FROM official_results WHERE id='.$resultId)
@@ -100,6 +102,14 @@ try {
     $revision = $service->result($importer,9101,[...$resultData,
       'revision_no'=>2,'supersedes_result_id'=>$resultId,'result_status'=>'fail']);
     $check($revision>$resultId,'Historical correction not appended.');
+    // A previously valid NTC can only be newly imported from the current
+    // result revision, not from a superseded historical pass.
+    $reject(fn()=>$service->certificate($importer,9101,[
+        ...$certData,
+        'certificate_number'=>'TEST-NTC-REV2',
+        'revision_no'=>2,
+        'supersedes_certificate_id'=>$certificateId,
+    ]),'OFFICIAL_RESULT_SUPERSEDED');
     $reject(fn()=>$service->result($importer,9101,[...$resultData,
       'revision_no'=>2,'supersedes_result_id'=>$resultId]),'OFFICIAL_REVISION');
     echo "Official local import integration passed (".$count." checks).\n";

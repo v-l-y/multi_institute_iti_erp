@@ -51,8 +51,46 @@ async function request(path, { method = "GET", body, signal } = {}) {
   return payload.data;
 }
 
+
+/** Authenticated binary GET for institute documents; bearer stays in the header. */
+async function download(path, { signal } = {}) {
+  if (typeof path !== "string" || !path.startsWith("/api/v1/") || path.startsWith("//")) {
+    throw new ApiError("Invalid download path.", "INVALID_PATH");
+  }
+  const token = getAccessToken();
+  if (!token) throw new ApiError("Sign in before downloading documents.", "UNAUTHORIZED", 401);
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: { Authorization: "Bearer " + token, Accept: "application/octet-stream" },
+      cache: "no-store", credentials: "omit", redirect: "error", signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw new ApiError("Could not download this document.");
+  }
+  if (!response.ok) {
+    let error;
+    try { error = await response.json(); } catch {}
+    if (response.status === 401 && token === getAccessToken()) {
+      clearAccessToken();
+      window.dispatchEvent(new Event("erp:session-expired"));
+    }
+    throw new ApiError(error?.error?.message || "Document download denied.",
+      error?.error?.code || "DOWNLOAD_FAILED", response.status);
+  }
+  const mime = response.headers.get("content-type")?.split(";")[0].trim();
+  if (!["application/pdf", "image/png", "image/jpeg"].includes(mime)) {
+    throw new ApiError("Unexpected document content type.", "INVALID_DOCUMENT");
+  }
+  const blob = await response.blob();
+  if (blob.size > 5242880) throw new ApiError("Document exceeds download limit.", "INVALID_DOCUMENT");
+  return blob;
+}
+
 export const api = Object.freeze({
   get: (path, options) => request(path, options),
+  download,
   post: (path, body, options = {}) => request(path, { ...options, method: "POST", body }),
   login: (username, password, instituteId) =>
     request("/api/v1/auth/login", {

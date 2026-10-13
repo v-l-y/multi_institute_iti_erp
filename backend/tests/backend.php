@@ -672,6 +672,46 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->lock(
     new Request(['formative_assessment_id'=>1,'review_reference'=>'LOCAL']),$assignedAssessor)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->lock(
     new Request(['formative_assessment_id'=>'1','review_reference'=>'LOCAL']),$formativeReviewer)),422, __LINE__);
+$ojtController=new App\Modules\Ojt\OjtController(new App\Core\Database([]));
+$ojtPrincipal=new AuthContext(1,3,1,'principal',false,['principal'],
+    ['calendar.manage'],1,null);
+$ojtAdmin=new AuthContext(2,3,1,'administrator',false,['administrator'],
+    ['calendar.manage'],2,null);
+$ojtStudent=new AuthContext(3,3,1,'student',false,['student'],
+    ['ojt.log.own'],null,3);
+$ojtInstructor=new AuthContext(4,3,1,'instructor',false,['instructor'],
+    ['ojt.evaluate.assigned'],4,null);
+$ojtPlan=['enrollment_id'=>1,'batch_year_id'=>1,'mode'=>'ojt','title'=>'Local OJT',
+    'industry_name'=>'Fixture','industry_mentor'=>'Fixture','coordinator_id'=>1,
+    'starts_on'=>'2026-08-10','ends_on'=>'2027-05-29','required_minutes'=>9000,
+    'safety_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->plan(
+    new Request([...$ojtPlan,'mode'=>'unverified']),$ojtPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->plan(
+    new Request([...$ojtPlan,'ends_on'=>'2026-01-01']),$ojtPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->plan(
+    new Request($ojtPlan),$ojtAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->start(
+    new Request(['project_id'=>1,'review_reference'=>'LOCAL']),$ojtAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->start(
+    new Request(['project_id'=>'1','review_reference'=>'LOCAL']),$ojtPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->ownLog(
+    new Request(['project_id'=>1,'entry_date'=>'2026-09-01',
+        'attended_minutes'=>1441,'activity'=>'LOCAL','mentor_confirmation'=>'LOCAL']),$ojtStudent)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->ownLog(
+    new Request(['project_id'=>1,'entry_date'=>'2026-09-01',
+        'attended_minutes'=>60,'activity'=>'LOCAL','mentor_confirmation'=>'LOCAL']),$ojtAdmin)),403, __LINE__);
+$ojtEvaluation=['project_id'=>1,'primary_evaluator_role'=>'trade_instructor',
+    'primary_evaluator_name'=>'LOCAL','primary_marks'=>'5.00','primary_max_marks'=>'10.00',
+    'external_examiner_name'=>'LOCAL','external_marks'=>'5.00',
+    'external_max_marks'=>'10.00','final_grade'=>'A','evaluated_on'=>'2026-10-12',
+    'evaluation_source_id'=>1,'signed_evidence_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evaluateAssigned(
+    new Request([...$ojtEvaluation,'primary_marks'=>'11.00']),$ojtInstructor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evaluateAssigned(
+    new Request([...$ojtEvaluation,'final_grade'=>'X']),$ojtInstructor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evaluateAssigned(
+    new Request($ojtEvaluation),$ojtStudent)),403, __LINE__);
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

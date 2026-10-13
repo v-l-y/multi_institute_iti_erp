@@ -249,3 +249,10 @@ test('Docker PHP readiness probe cannot be altered by Compose interpolation', ()
   assert.ok(probe.includes("['data']['status']??null)==='ready'?0:1"));
   assert.ok(!probe.includes(String.fromCharCode(36)), 'Compose healthcheck must not contain interpolated PHP variables');
 });
+
+test('Formative marks use official LO maximum when DGT syllabus declares one', () => {
+  const service = readFileSync(new URL('../app/Modules/Assessment/FormativeService.php', import.meta.url), 'utf8');
+  assert.ok(service.includes('g.formative_max_marks AS official_max_marks'));
+  assert.ok(service.includes('FORMATIVE_OFFICIAL_MAX'));
+  assert.ok(service.includes("!==$maximum"));
+});

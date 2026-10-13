@@ -10,7 +10,7 @@ final class StaffRecord
     {
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $joinedOn);
         return in_array($category, ['teaching', 'non_teaching'], true)
-            && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/D', $joinedOn) === 1
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $joinedOn) === 1
             && $date !== false && $date->format('Y-m-d') === $joinedOn;
     }
 }

@@ -368,143 +368,156 @@ $checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request([
 $checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request($sessionBody),$attendanceStudent))->status===403;
 $checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>'1']),$principalLocker))->status===422;
 $checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>1]),$calendarWriter))->status===403;
+// Show the exact failing input contract instead of throwing an unlabeled
+// failure at the very end of the suite. Only this test file uses this helper.
+function backendExpectStatus(\App\Http\Response $response, int $expected, int $line): bool
+{
+    if ($response->status === $expected) {
+        return true;
+    }
+    $error = $response->body['error']['code'] ?? 'NO_ERROR_CODE';
+    fwrite(STDERR, "Backend contract input at line $line: expected HTTP "
+        . $expected . ", got HTTP " . $response->status . " (" . $error . ")\n");
+    return false;
+}
+
 $platformController=new App\Modules\Institutes\PlatformInstituteController(new App\Core\Database([]));
 $developerActor=new AuthContext(1,null,1,'developer',false,['developer'],[
     'platform.institute.create','platform.institute.update','platform.institute.view'],null,null);
-$checks[]=$kernel->handle(static fn()=>$platformController->create(new Request([
-    'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$platformController->create(new Request([
-    'name'=>'A','mis_code'=>'','address'=>'Test']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
+    'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
+    'name'=>'A','mis_code'=>'','address'=>'Test']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
     'institute_id'=>'1','employee_code'=>'P','full_name'=>'Principal',
     'designation'=>'Principal','joined_on'=>'2026-01-01',
     'appointment_reference'=>'TEST','username'=>'principal01',
-    'temporary_password'=>'123456789012']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+    'temporary_password'=>'123456789012']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
     'institute_id'=>1,'employee_code'=>'P','full_name'=>'Principal',
     'designation'=>'Principal','joined_on'=>'2026-02-30',
     'appointment_reference'=>'TEST','username'=>'principal01',
-    'temporary_password'=>'123456789012']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$platformController->index(
-    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+    'temporary_password'=>'123456789012']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->index(
+    new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
 $regulatoryController=new App\Modules\Regulatory\RegulatoryDocumentController(new App\Core\Database([]));
 $regulatoryBody=[
     'authority'=>'DGT','document_type'=>'CTS','title'=>'Local source',
     'reference_no'=>'LOCAL-001','issued_on'=>'2026-05-08',
     'evidence_reference'=>'LOCAL-FIXTURE','sha256'=>str_repeat('a',64)
 ];
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
-    new Request([...$regulatoryBody,'sha256'=>'not-a-hash']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
-    new Request([...$regulatoryBody,'authority'=>'UNKNOWN']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
-    new Request([...$regulatoryBody,'authority'=>'STATE_UT']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->draft(
-    new Request($regulatoryBody),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->publish(
-    new Request(['document_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$regulatoryController->index(
-    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'sha256'=>'not-a-hash']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'authority'=>'UNKNOWN']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request([...$regulatoryBody,'authority'=>'STATE_UT']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->draft(
+    new Request($regulatoryBody),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->publish(
+    new Request(['document_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$regulatoryController->index(
+    new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
 $tradeController=new App\Modules\Regulatory\TradeMasterController(new App\Core\Database([]));
 $tradeInput=['dgt_code'=>'LOCAL-TRADE','source_document_id'=>1,'version_code'=>'LOCAL-V1',
     'official_name'=>'LOCAL ONLY','trade_type'=>'engineering','effective_from'=>'2026-05-08'];
-$checks[]=$kernel->handle(static fn()=>$tradeController->create(
-    new Request([...$tradeInput,'trade_type'=>'other']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$tradeController->create(
-    new Request([...$tradeInput,'effective_from'=>'2026-02-30']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$tradeController->create(
-    new Request($tradeInput),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$tradeController->draftRevision(
-    new Request([...$tradeInput,'trade_id'=>'1']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$tradeController->activate(
-    new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$tradeController->index(
-    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->create(
+    new Request([...$tradeInput,'trade_type'=>'other']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->create(
+    new Request([...$tradeInput,'effective_from'=>'2026-02-30']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->create(
+    new Request($tradeInput),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->draftRevision(
+    new Request([...$tradeInput,'trade_id'=>'1']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->activate(
+    new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->index(
+    new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
 $itsuController=new App\Modules\Catalog\ItsuSetupController(new App\Core\Database([]));
 $itsuWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
     ['tradeunit.manage','institute.affiliation.manage'],7,null);
-$checks[]=$kernel->handle(static fn()=>$itsuController->attachSource(
-    new Request(['global_document_id'=>'1']),$itsuWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$itsuController->createTradeUnit(
-    new Request(['global_trade_id'=>1,'unit_no'=>0]),$itsuWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$itsuController->createTradeUnit(
-    new Request(['global_trade_id'=>1,'unit_no'=>1]),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$itsuController->createShiftRevision(
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->attachSource(
+    new Request(['global_document_id'=>'1']),$itsuWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->createTradeUnit(
+    new Request(['global_trade_id'=>1,'unit_no'=>0]),$itsuWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->createTradeUnit(
+    new Request(['global_trade_id'=>1,'unit_no'=>1]),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->createShiftRevision(
     new Request(['trade_unit_id'=>1,'global_shift_id'=>1,
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
-        'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter))->status===422;
+        'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter)),422, __LINE__);
 $matrixController=new App\Modules\Admissions\Http\SeatMatrixSetupController(new App\Core\Database([]));
 $matrixActor=new AuthContext(1,3,1,'admin',false,['administrator'],[
     'batch.manage','seatmatrix.draft'],1,null);
 $matrixPrincipal=new AuthContext(2,3,1,'principal',false,['principal'],[
     'seatmatrix.publish'],2,null);
-$checks[]=$kernel->handle(static fn()=>$matrixController->intake(
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->intake(
     new Request(['calendar_id'=>'1','admission_year'=>2026,
-        'intake_code'=>'X','session_part'=>'primary']),$matrixActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$matrixController->intake(
+        'intake_code'=>'X','session_part'=>'primary']),$matrixActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->intake(
     new Request(['calendar_id'=>1,'admission_year'=>2026,
-        'intake_code'=>'X','session_part'=>'invalid']),$matrixActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$matrixController->matrixDraft(
+        'intake_code'=>'X','session_part'=>'invalid']),$matrixActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->matrixDraft(
     new Request(['intake_id'=>1,'regulatory_source_id'=>1,
-        'version_code'=>'V1','portal_reference'=>'X','supersedes_id'=>'1']),$matrixActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$matrixController->matrixEntry(
+        'version_code'=>'V1','portal_reference'=>'X','supersedes_id'=>'1']),$matrixActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->matrixEntry(
     new Request(['matrix_version_id'=>1,'itsu_revision_id'=>1,'seat_capacity'=>20,
-        'admission_allowed'=>1,'portal_itsu_reference'=>'X']),$matrixActor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
-    new Request(['matrix_version_id'=>1,'review_reference'=>'TEST']),$matrixActor))->status===403;
-$checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
-    new Request(['matrix_version_id'=>'1','review_reference'=>'TEST']),$matrixPrincipal))->status===422;
+        'admission_allowed'=>1,'portal_itsu_reference'=>'X']),$matrixActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->finalize(
+    new Request(['matrix_version_id'=>1,'review_reference'=>'TEST']),$matrixActor)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$matrixController->finalize(
+    new Request(['matrix_version_id'=>'1','review_reference'=>'TEST']),$matrixPrincipal)),422, __LINE__);
 $batchSetup=new App\Modules\Academic\Http\BatchSetupController(new App\Core\Database([]));
 $batchWriter=new AuthContext(1,3,1,'admin',false,['administrator'],[
     'batch.manage','curriculum.manage'],1,null);
-$checks[]=$kernel->handle(static fn()=>$batchSetup->linkCurriculum(
-    new Request(['global_curriculum_id'=>'1']),$batchWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$batchSetup->linkCurriculumYear(
-    new Request(['curriculum_id'=>1,'global_curriculum_year_id'=>'1']),$batchWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$batchSetup->linkAdmissionRule(
-    new Request(['curriculum_id'=>1,'global_admission_rule_id'=>0]),$batchWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatch(
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->linkCurriculum(
+    new Request(['global_curriculum_id'=>'1']),$batchWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->linkCurriculumYear(
+    new Request(['curriculum_id'=>1,'global_curriculum_year_id'=>'1']),$batchWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->linkAdmissionRule(
+    new Request(['curriculum_id'=>1,'global_admission_rule_id'=>0]),$batchWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->createBatch(
     new Request(['seat_matrix_entry_id'=>1,'curriculum_id'=>1,'admission_rule_id'=>1,
-        'batch_code'=>'X','starts_on'=>'2026-02-30','ends_on'=>'2027-05-30']),$batchWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatchYear(
+        'batch_code'=>'X','starts_on'=>'2026-02-30','ends_on'=>'2027-05-30']),$batchWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->createBatchYear(
     new Request(['batch_id'=>1,'curriculum_year_id'=>1,'starts_on'=>'2026-10-01',
-        'ends_on'=>'2027-05-30','attendance_basis'=>'none','attendance_basis_source_id'=>1]),$batchWriter))->status===422;
-$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatch(
+        'ends_on'=>'2027-05-30','attendance_basis'=>'none','attendance_basis_source_id'=>1]),$batchWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$batchSetup->createBatch(
     new Request(['seat_matrix_entry_id'=>1,'curriculum_id'=>1,'admission_rule_id'=>1,
-        'batch_code'=>'X','starts_on'=>'2026-10-01','ends_on'=>'2027-05-30']),$accountStudent))->status===403;
+        'batch_code'=>'X','starts_on'=>'2026-10-01','ends_on'=>'2027-05-30']),$accountStudent)),403, __LINE__);
 $planning=new App\Modules\Academic\Http\CalendarPlanningController(new App\Core\Database([]));
 $calendarManager=new AuthContext(1,3,1,'administrator',false,['administrator'],['calendar.manage'],1,null);
 $calendarReviewer=new AuthContext(2,3,1,'principal',false,['principal'],['calendar.manage'],2,null);
 $calendarInput=['batch_year_id'=>1,'session_date'=>'2026-10-05',
     'component'=>'trade_theory','scheduled_minutes'=>60];
-$checks[]=$kernel->handle(static fn()=>$planning->entry(
-    new Request([...$calendarInput,'scheduled_minutes'=>0]),$calendarManager))->status===422;
-$checks[]=$kernel->handle(static fn()=>$planning->entry(
-    new Request([...$calendarInput,'session_date'=>'2026-02-30']),$calendarManager))->status===422;
-$checks[]=$kernel->handle(static fn()=>$planning->entry(
-    new Request([...$calendarInput,'component'=>'invalid']),$calendarManager))->status===422;
-$checks[]=$kernel->handle(static fn()=>$planning->review(
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'scheduled_minutes'=>0]),$calendarManager)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'session_date'=>'2026-02-30']),$calendarManager)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'component'=>'invalid']),$calendarManager)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$planning->review(
     new Request(['batch_year_id'=>1,'reviewed_through'=>'2026-10-05',
-        'review_evidence_reference'=>'LOCAL']),$calendarManager))->status===403;
-$checks[]=$kernel->handle(static fn()=>$planning->review(
+        'review_evidence_reference'=>'LOCAL']),$calendarManager)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$planning->review(
     new Request(['batch_year_id'=>'1','reviewed_through'=>'2026-10-05',
-        'review_evidence_reference'=>'LOCAL']),$calendarReviewer))->status===422;
+        'review_evidence_reference'=>'LOCAL']),$calendarReviewer)),422, __LINE__);
 $reporting=new App\Modules\Reports\ReportingController(new App\Core\Database([]));
 $auditor=new AuthContext(1,3,1,'principal',false,['principal'],['audit.view'],1,null);
 $platformAuditor=new AuthContext(2,null,2,'developer',false,['developer'],['platform.audit.view'],null,null);
-$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
-    new Request(query:['page_size'=>'101']),$auditor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
-    new Request(query:['action_code'=>[]]),$auditor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
-    new Request(),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$reporting->platformAudit(
-    new Request(query:['after_id'=>'bad']),$platformAuditor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$reporting->platformAudit(
-    new Request(),$auditor))->status===403;
-$checks[]=$kernel->handle(static fn()=>$reporting->summary(
-    new Request(),$accountStudent))->status===403;
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(query:['page_size'=>'101']),$auditor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(query:['action_code'=>[]]),$auditor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->platformAudit(
+    new Request(query:['after_id'=>'bad']),$platformAuditor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->platformAudit(
+    new Request(),$auditor)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$reporting->summary(
+    new Request(),$accountStudent)),403, __LINE__);
 $formative=new App\Modules\Assessment\FormativeController(new App\Core\Database([]));
 $assignedAssessor=new AuthContext(3,3,1,'instructor',false,['instructor'],
     ['formative.record.assigned'],3,null);
@@ -513,20 +526,20 @@ $formativeReviewer=new AuthContext(4,3,1,'principal',false,['principal'],
 $formativeInput=['enrollment_id'=>1,'batch_year_id'=>1,'learning_outcome_id'=>1,
     'assessed_on'=>'2026-09-01','max_marks'=>'100.00',
     'obtained_marks'=>'72.50','evidence_reference'=>'LOCAL'];
-$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
-    new Request([...$formativeInput,'obtained_marks'=>'101.00']),$assignedAssessor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
-    new Request([...$formativeInput,'max_marks'=>'0']),$assignedAssessor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
-    new Request([...$formativeInput,'max_marks'=>100]),$assignedAssessor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
-    new Request([...$formativeInput,'assessed_on'=>'2026-02-30']),$assignedAssessor))->status===422;
-$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
-    new Request($formativeInput),$accountStudent))->status===403;
-$checks[]=$kernel->handle(static fn()=>$formative->lock(
-    new Request(['formative_assessment_id'=>1,'review_reference'=>'LOCAL']),$assignedAssessor))->status===403;
-$checks[]=$kernel->handle(static fn()=>$formative->lock(
-    new Request(['formative_assessment_id'=>'1','review_reference'=>'LOCAL']),$formativeReviewer))->status===422;
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'obtained_marks'=>'101.00']),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'max_marks'=>'0']),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'max_marks'=>100]),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'assessed_on'=>'2026-02-30']),$assignedAssessor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request($formativeInput),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->lock(
+    new Request(['formative_assessment_id'=>1,'review_reference'=>'LOCAL']),$assignedAssessor)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->lock(
+    new Request(['formative_assessment_id'=>'1','review_reference'=>'LOCAL']),$formativeReviewer)),422, __LINE__);
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

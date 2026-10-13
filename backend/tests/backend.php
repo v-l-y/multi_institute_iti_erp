@@ -456,6 +456,20 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->crea
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
         'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter)),422, __LINE__);
+$affiliationController=new App\Modules\Institutes\AffiliationHistoryController(new App\Core\Database([]));
+$affiliationActor=new AuthContext(1,3,1,'principal',false,['principal'],['institute.affiliation.manage'],7,null);
+$affiliationAdmin=new AuthContext(2,3,1,'administrator',false,['administrator'],['institute.affiliation.manage'],2,null);
+$affiliationBody=['regulatory_source_id'=>1,'change_type'=>'source_order',
+    'approved_name'=>'LOCAL ITI','approved_address'=>'LOCAL',
+    'affiliation_status'=>'affiliated','affiliation_order_reference'=>'LOCAL','effective_from'=>'2026-01-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request([...$affiliationBody,'affiliation_status'=>'invalid']),$affiliationActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request([...$affiliationBody,'effective_from'=>'2026-02-30']),$affiliationActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request($affiliationBody),$affiliationAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request($affiliationBody),$accountStudent)),403, __LINE__);
 $intakeRevisionController=new App\Modules\Admissions\Http\IntakeRevisionController(new App\Core\Database([]));
 $intakeRevisionWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
     ['admission.intake.manage'],7,null);

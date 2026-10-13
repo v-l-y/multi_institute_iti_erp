@@ -717,6 +717,13 @@ $ojtStudent=new AuthContext(3,3,1,'student',false,['student'],
     ['ojt.log.own'],null,3);
 $ojtInstructor=new AuthContext(4,3,1,'instructor',false,['instructor'],
     ['ojt.evaluate.assigned'],4,null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->ownProjects(
+    new Request(),$ojtAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->instituteProjects(
+    new Request(),$ojtStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->ownProjects(
+    new Request(query:['page_size'=>'101']),new AuthContext(3,3,1,'student',false,
+        ['student'],['ojt.view.own'],null,3))),422, __LINE__);
 $ojtPlan=['enrollment_id'=>1,'batch_year_id'=>1,'mode'=>'ojt','title'=>'Local OJT',
     'industry_name'=>'Fixture','industry_mentor'=>'Fixture','coordinator_id'=>1,
     'starts_on'=>'2026-08-10','ends_on'=>'2027-05-29','required_minutes'=>9000,

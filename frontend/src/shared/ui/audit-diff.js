@@ -21,6 +21,6 @@ export function auditDiff(before = {}, after = {}, fields = [], {
       el("tbody", {}, ...changed.map(([key, label]) => el("tr", {},
         el("th", { scope: "row" }, label),
         el("td", {}, formatValue(before?.[key])),
-        el("td", {}, formatValue(after?.[key])))))));
+        el("td", {}, formatValue(after?.[key]))))))));
   return node;
 }

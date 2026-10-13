@@ -36,8 +36,18 @@ try {
 
     // Synthetic published DGT evidence, explicitly *not* a real publication.
     $db->exec("UPDATE global_regulatory_documents
-      SET status='published',reviewed_by='LOCAL TEST',reviewed_at=UTC_TIMESTAMP(),
+      SET document_type='official_result',status='published',
+          reviewed_by='LOCAL TEST',reviewed_at=UTC_TIMESTAMP(),
           sha256=REPEAT('a',64) WHERE id=9101");
+    // Different published, linked and typed source for certificate records.
+    $db->exec("INSERT INTO global_regulatory_documents
+      (id,authority,document_type,title,reference_no,issued_on,
+       evidence_reference,sha256,status,reviewed_by,reviewed_at)
+      VALUES (9201,'DGT','official_certificate','LOCAL CERTIFICATE FIXTURE',
+              'LOCAL-CERT-TEST','2026-10-02','NOT-OFFICIAL',
+              REPEAT('b',64),'published','LOCAL TEST',UTC_TIMESTAMP())");
+    $db->exec("INSERT INTO regulatory_sources (id,institute_id,global_document_id)
+      VALUES (9201,9101,9201)");
     $db->exec("INSERT INTO global_exam_rule_versions
       (id,source_document_id,code,cycle_type,minimum_attendance,minimum_formative,
        principal_relaxation_cap,requires_prn,requires_cbt_fee,requires_practical_fee,
@@ -71,7 +81,7 @@ try {
     $reject(fn()=>$service->result($importer,9101,[...$resultData,'revision_no'=>2]),'OFFICIAL_REVISION');
 
     $certData = [
-      'regulatory_source_id'=>9101,'source_system'=>'DGT',
+      'regulatory_source_id'=>9201,'source_system'=>'DGT',
       'source_reference'=>'LOCAL-ONLY-TEST','evidence_reference'=>'NOT-OFFICIAL-FIXTURE',
       'enrollment_id'=>9101,'official_result_id'=>$resultId,'document_type'=>'NTC',
       'certificate_number'=>'TEST-NTC-1','revision_no'=>1,'supersedes_certificate_id'=>null,
@@ -79,6 +89,10 @@ try {
       'ojt_grade_as_issued'=>null,'verification_reference'=>'LOCAL-TEST',
       'issued_on'=>'2026-10-02',
     ];
+    $reject(fn()=>$service->result($importer,9101,[...$resultData,
+      'regulatory_source_id'=>9201]),'OFFICIAL_DOCUMENT_TYPE');
+    $reject(fn()=>$service->certificate($importer,9101,[...$certData,
+      'regulatory_source_id'=>9101]),'OFFICIAL_DOCUMENT_TYPE');
     $certificateId = $service->certificate($importer,9101,$certData);
     $check($certificateId>0,'Certificate local import missing.');
     $reject(fn()=>$service->certificate($other,9101,$certData),'FORBIDDEN');

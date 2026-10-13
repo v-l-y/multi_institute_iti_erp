@@ -10,6 +10,7 @@ use App\Modules\Auth\Http\AuthMiddleware;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Institutes\PlatformInstituteController;
+use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
@@ -41,6 +42,13 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/auth/users/disable', $guard->wrap([$userManagement, 'disable'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/revoke-role', $guard->wrap([$userManagement, 'revokeRole'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/reset-password', $guard->wrap([$userManagement, 'resetPassword'], 'auth.password.reset_user'));
+    $regulatoryDocuments=new RegulatoryDocumentController($database);
+    $router->get('/api/v1/platform/regulatory/documents', $guard->wrap(
+        [$regulatoryDocuments,'index'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/regulatory/documents/draft', $guard->wrap(
+        [$regulatoryDocuments,'draft'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/regulatory/documents/publish', $guard->wrap(
+        [$regulatoryDocuments,'publish'], 'platform.regulatory.manage'));
     $platformInstitute=new PlatformInstituteController($database);
     $router->get('/api/v1/platform/institutes', $guard->wrap(
         [$platformInstitute,'index'], 'platform.institute.view'));

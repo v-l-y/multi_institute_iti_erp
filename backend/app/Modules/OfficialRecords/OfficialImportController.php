@@ -14,6 +14,18 @@ final readonly class OfficialImportController
 {
     public function __construct(private Database $database) {}
 
+    /** Fail closed until the operator has verified access to official exports and provenance. */
+    private static function requireEnabled(): void
+    {
+        if (getenv('ALLOW_OFFICIAL_RECORD_IMPORT') !== '1') {
+            throw new HttpException(
+                'OFFICIAL_IMPORT_DISABLED',
+                'Official record imports are disabled until authorized source verification is configured.',
+                503
+            );
+        }
+    }
+
     private static function institute(AuthContext $actor, string $permission): int
     {
         $actor->requirePermission($permission);
@@ -96,6 +108,7 @@ final readonly class OfficialImportController
     public function result(Request $r, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'result.import');
+        self::requireEnabled();
         $marks = $r->body['component_marks'] ?? null;
         if ($marks instanceof \stdClass) {
             $marks = (array)$marks;
@@ -132,6 +145,7 @@ final readonly class OfficialImportController
     public function certificate(Request $r, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'certificate.record');
+        self::requireEnabled();
         $grade = self::optionalText($r, 'ojt_grade_as_issued', 2);
         if ($grade !== null && !in_array($grade, ['A1', 'A', 'B', 'C'], true)) {
             throw new HttpException('INVALID_INPUT', 'Unknown official OJT grade.', 422);

@@ -57,6 +57,15 @@ final readonly class FeeSetupService
             if ($q->fetchColumn() === false) {
                 throw new HttpException('TRADE_NOT_FOUND', 'Global trade does not exist.', 404);
             }
+            // A globally valid trade must also belong to this particular
+            // institute through an actual configured Trade Unit.
+            $q = $this->db->prepare('SELECT id FROM trade_units
+                WHERE institute_id=? AND trade_id=? LIMIT 1 FOR UPDATE');
+            $q->execute([$institute, $trade]);
+            if ($q->fetchColumn() === false) {
+                throw new HttpException('INSTITUTE_TRADE_NOT_CONFIGURED',
+                    'Institute Trade Unit must exist before fee structure setup.', 409);
+            }
             $q = $this->db->prepare('INSERT INTO fee_structures
                 (institute_id,trade_id,version_no,effective_from,effective_to,created_by)
                 VALUES (?,?,?,?,?,?)');

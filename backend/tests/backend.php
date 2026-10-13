@@ -691,6 +691,24 @@ $assignedAssessor=new AuthContext(3,3,1,'instructor',false,['instructor'],
     ['formative.record.assigned'],3,null);
 $formativeReviewer=new AuthContext(4,3,1,'principal',false,['principal'],
     ['formative.template.manage'],4,null);
+$formativeAdmin=new AuthContext(5,3,1,'administrator',false,['administrator'],
+    ['formative.template.manage'],5,null);
+$schemeInput=['batch_year_id'=>1,'regulatory_source_id'=>1,
+    'formative_method'=>'points_ratio','review_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->configureScheme(
+    new Request([...$schemeInput,'formative_method'=>'invented']),$formativeReviewer)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->configureScheme(
+    new Request($schemeInput),$formativeAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->configureScheme(
+    new Request([...$schemeInput,'regulatory_source_id'=>'1']),$formativeReviewer)),422, __LINE__);
+$templateItemInput=['batch_year_id'=>1,'item_code'=>'TC1','description'=>'LOCAL',
+    'max_marks'=>'50.000','weight_percent'=>'40.0000','review_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateItem(
+    new Request([...$templateItemInput,'weight_percent'=>'101.0000']),$formativeReviewer)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateItem(
+    new Request([...$templateItemInput,'max_marks'=>50]),$formativeReviewer)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$formative->templateItem(
+    new Request($templateItemInput),$formativeAdmin)),403, __LINE__);
 $formativeInput=['enrollment_id'=>1,'batch_year_id'=>1,'learning_outcome_id'=>1,
     'assessed_on'=>'2026-09-01','max_marks'=>'100.00',
     'obtained_marks'=>'72.50','evidence_reference'=>'LOCAL'];

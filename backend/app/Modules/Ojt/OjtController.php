@@ -67,6 +67,39 @@ final readonly class OjtController
         return new OjtService($this->database->connection());
     }
 
+    private static function queryNumber(Request $r,string $name,int $default,int $max): int
+    {
+        if (!array_key_exists($name,$r->query)) return $default;
+        $v=$r->query[$name];
+        $n=(is_int($v)||is_string($v))
+            ? filter_var($v,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>$max]])
+            : false;
+        if ($n===false) throw new HttpException('INVALID_INPUT','Invalid '.$name.'.',422);
+        return (int)$n;
+    }
+
+    private function listing(Request $r,AuthContext $actor,bool $own): Response
+    {
+        $institute=self::institute($actor,$own?'ojt.view.own':'ojt.view');
+        if ($own && $actor->studentId===null) {
+            throw new HttpException('FORBIDDEN','Linked trainee identity required.',403);
+        }
+        $size=self::queryNumber($r,'page_size',50,100);
+        $after=self::queryNumber($r,'after_id',0,PHP_INT_MAX);
+        return new Response(['success'=>true,'data'=>$this->service()->list(
+            $actor,$institute,$after,$size,$own)]);
+    }
+
+    public function instituteProjects(Request $r,AuthContext $actor): Response
+    {
+        return $this->listing($r,$actor,false);
+    }
+
+    public function ownProjects(Request $r,AuthContext $actor): Response
+    {
+        return $this->listing($r,$actor,true);
+    }
+
     public function plan(Request $r,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'calendar.manage');

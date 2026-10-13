@@ -13,7 +13,7 @@ The canonical DDL is the `ADVANCED FEE MANAGEMENT v1` section of `iti_erp_schema
 
 ## Required transactional service rules
 
-Internal transactional fee services and database record guards are now added; see [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md). There are no financial HTTP write routes or automatic permission grants. Financial writes must use the service; direct SQL does not enforce aggregate sums.
+Internal transactional fee services and database record guards are now added; see [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md). Guarded financial HTTP routes now call this service; no automatic permission grants were added. Financial writes must use the service; direct SQL does not enforce aggregate sums.
 
 The fee service serializes institute transactions before reading assessment/payment totals. It checks allocation limits, pending/approved/paid refund reservations, waiver limits and refund/reversal conflicts. Reversed payments cease contributing to paid totals and credit. Draft/cancelled assessment/demand allocations fail. Payment/refund retries require matching fingerprints. Further API integration, approval UI and legacy cutover must preserve these invariants.
 
@@ -50,7 +50,7 @@ docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-
 docker compose -f compose.test.yaml down
 ```
 
-The Docker suite verifies fresh SQL import, backend/auth/HTTP regressions, fee SQL constraints and the new transactional foundation services in disposable databases. Fee checks cover allocation/refund limits, retries, wrong student/institute links, independent approval and cash closing calculations. The opt-in `mysql-runtime.test.mjs` provides additional SQL checks with local mysql/mysqldump; see its header. New test results must be reviewed before enabling financial APIs.
+The Docker suite verifies fresh SQL import, backend/auth/HTTP regressions, fee SQL constraints and the new transactional foundation services in disposable databases. Fee checks cover allocation/refund limits, retries, wrong student/institute links, independent approval and cash closing calculations. The opt-in `mysql-runtime.test.mjs` provides additional SQL checks with local mysql/mysqldump; see its header. New runtime test results must be reviewed before production acceptance of financial APIs.
 
 To inspect the existing main database without changing data, first rebuild the application image so it contains the verifier, then run:
 

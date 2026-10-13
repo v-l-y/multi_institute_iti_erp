@@ -1,6 +1,6 @@
 # Bihar institute foundation hardening
 
-This change adds source-aware internal services and database protection for institute management. It does not create government authority accounts or submit official data. Selected institute-scoped admission and exam HTTP adapters were subsequently added; they call the existing guarded services. Fee writes remain internal and no additional permission grants are seeded.
+This change adds source-aware internal services and database protection for institute management. It does not create government authority accounts or submit official data. Selected institute-scoped admission, exam and fee HTTP adapters were subsequently added; they call the existing guarded services. No additional permission grants are seeded.
 
 ## What changed
 

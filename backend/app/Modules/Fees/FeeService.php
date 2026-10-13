@@ -7,7 +7,7 @@ use App\Http\HttpException;
 use App\Modules\Auth\AuthContext;
 use PDO;
 
-/** Internal write boundary. No financial HTTP routes are enabled by this foundation. */
+/** Audited financial write service. HTTP callers must use FeeController; no direct SQL writes. */
 final readonly class FeeService
 {
     public function __construct(private PDO $db) {}

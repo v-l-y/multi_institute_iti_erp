@@ -261,6 +261,21 @@ try {
     $ownLedger = http('GET', '/api/v1/fees/payments/me', token:$tokens['student']);
     expectStatus($ownLedger, 200);
     verify(count($ownLedger['body']['data']['payments']) === 0, 'Student own fee view leaked another student payment.');
+    // An actual payment belonging to the linked student must be visible to
+    // that student and not reveal the other locally registered student's rows.
+    $linkedId = (int)$db->query("SELECT id FROM students WHERE institute_id=1 AND local_student_code='LOCAL-STUDENT'")->fetchColumn();
+    $linkedPayment = http('POST', '/api/v1/fees/payments', [
+        'student_id'=>$linkedId,'amount'=>'5.00','payment_mode'=>'cash',
+        'payment_no'=>'LOCAL-HTTP-PAY-2','receipt_no'=>'LOCAL-HTTP-RCT-2',
+        'idempotency_key'=>'local-http-payment-2'
+    ], $tokens['administrator']);
+    expectStatus($linkedPayment, 201);
+    $linkedPaymentId = (int)$linkedPayment['body']['data']['payment_id'];
+    $onlyOwn = http('GET', '/api/v1/fees/payments/me', token:$tokens['student']);
+    expectStatus($onlyOwn, 200);
+    $ownRows = $onlyOwn['body']['data']['payments'];
+    verify(count($ownRows) === 1 && (int)$ownRows[0]['id'] === $linkedPaymentId && (int)$ownRows[0]['student_id'] === $linkedId, 'Linked student payment visibility or isolation failed.');
+    verify((int)$db->query("SELECT COUNT(*) FROM fee_payments WHERE institute_id=1 AND idempotency_key='local-http-payment-1'")->fetchColumn()===1, 'Idempotent payment replay duplicated rows.');
     expectStatus(http('GET', '/api/v1/fees/payments/me', token:$tokens['administrator']), 403);
     expectStatus(http('POST', '/api/v1/fees/assessments/issue', ['assessment_id'=>999999], $tokens['administrator']), 404);
     expectStatus(http('POST', '/api/v1/fees/refunds/decide', ['refund_id'=>1,'action'=>'made_up'], $tokens['principal']), 422);

@@ -285,6 +285,34 @@ $checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Req
 $checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(), $attendanceStudent))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $attendanceAdmin))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $platform))->status === 403;
+$practicalExamController=new App\Modules\Exams\PracticalExamController(new App\Core\Database([]));
+$practicalPrincipal=new AuthContext(10,3,4,'principal',false,['principal'],
+    ['exam.practical.manage'],10,null);
+$practicalAdmin=new AuthContext(11,3,5,'admin',false,['administrator'],
+    ['exam.practical.manage'],11,null);
+$practicalInstructor=new AuthContext(12,3,6,'instructor',false,['instructor'],
+    ['exam.practical.record.assigned'],12,null);
+$practicalSessionInput=['cycle_id'=>1,'batch_year_id'=>1,'ended_at'=>'2026-09-01 10:30:00',
+    'examiner_name'=>'LOCAL','examiner_reference'=>'LOCAL',
+    'question_paper_authority'=>'DGT','question_paper_reference'=>'LOCAL',
+    'question_paper_source_id'=>1];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->session(
+    new Request([...$practicalSessionInput,'ended_at'=>'2026-02-30 10:30:00']),$practicalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->session(
+    new Request([...$practicalSessionInput,'question_paper_authority'=>'LOCAL']),$practicalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->session(
+    new Request($practicalSessionInput),$practicalAdmin)),403, __LINE__);
+$practicalMarksInput=['practical_session_id'=>1,'eligibility_id'=>1,'attendance_status'=>'present',
+    'max_marks'=>'100.00','obtained_marks'=>'75.00','marks_source_id'=>1,
+    'evidence_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->assignedMarks(
+    new Request([...$practicalMarksInput,'obtained_marks'=>'101.00']),$practicalInstructor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->assignedMarks(
+    new Request([...$practicalMarksInput,'attendance_status'=>'absent']),$practicalInstructor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->assignedMarks(
+    new Request([...$practicalMarksInput,'max_marks'=>100]),$practicalInstructor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$practicalExamController->assignedMarks(
+    new Request($practicalMarksInput),$practicalPrincipal)),403, __LINE__);
 $examCycleController = new App\Modules\Exams\ExamCycleController(new App\Core\Database([]));
 $officialImportController = new App\Modules\OfficialRecords\OfficialImportController(new App\Core\Database([]));
 $examSetupActor = new AuthContext(7, 3, 1, 'admin', false, ['administrator'], ['exam.eligibility.manage'], 7, null);

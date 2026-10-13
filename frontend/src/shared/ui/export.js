@@ -43,8 +43,9 @@ export function printCurrentPage(rows, columns, {
   if (typeof authorize !== "function" || authorize() !== true) {
     throw new Error("Print requires explicit authorization from the owning module.");
   }
-  const popup = window.open("", "_blank", "noopener,noreferrer");
+  const popup = window.open("", "_blank");
   if (!popup) throw new Error("Browser blocked print preview.");
+  popup.opener = null;
   const safe = value => String(formatValue(value)).replace(/[&<>"']/g, char =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   // The popup receives only escaped current-page values, no tokens or credentials.

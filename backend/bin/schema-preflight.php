@@ -27,6 +27,42 @@ try {
     }
     $presentTables = $db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
     $presentTriggers = $db->query('SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()')->fetchAll(PDO::FETCH_COLUMN);
+    // Compare column identity as well as table and trigger identity. This is
+    // deliberately read-only and does not infer a safe ALTER from a difference.
+    $expectedColumns = [];
+    preg_match_all('/CREATE TABLE\s+([a-z0-9_]+)\s*\(([\s\S]*?)\n\)\s+ENGINE=InnoDB/i',
+        $ddl, $definitions, PREG_SET_ORDER);
+    foreach ($definitions as $definition) {
+        $table = $definition[1];
+        preg_match_all('/^\s+([a-z_][a-z0-9_]*)\s+(?:BIGINT|SMALLINT|TINYINT|MEDIUMINT|INT|VARCHAR|CHAR|DECIMAL|DATE|DATETIME|TIMESTAMP|TEXT|LONGTEXT|MEDIUMTEXT|ENUM|JSON|DOUBLE|FLOAT)\b/mi',
+            $definition[2], $columns);
+        $expectedColumns[$table] = array_values(array_unique($columns[1]));
+    }
+    $liveColumns = [];
+    $columnRows = $db->query('SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE()')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($columnRows as $column) {
+        $liveColumns[$column['TABLE_NAME']][] = $column['COLUMN_NAME'];
+    }
+    $missingColumns = [];
+    $extraColumns = [];
+    foreach ($expectedColumns as $table => $columns) {
+        if (!in_array($table, $presentTables, true)) {
+            continue;
+        }
+        $missing = array_values(array_diff($columns, $liveColumns[$table] ?? []));
+        $extra = array_values(array_diff($liveColumns[$table] ?? [], $columns));
+        if ($missing !== []) {
+            $missingColumns[$table] = $missing;
+        }
+        if ($extra !== []) {
+            $extraColumns[$table] = $extra;
+        }
+    }
+    $foreignKeyCount = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+        WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_TYPE='FOREIGN KEY'")->fetchColumn();
+    $checkCount = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+        WHERE CONSTRAINT_SCHEMA=DATABASE() AND CONSTRAINT_TYPE='CHECK'")->fetchColumn();
     $report = [
         'database' => (string)$db->query('SELECT DATABASE()')->fetchColumn(),
         'canonical_table_count' => count($expectedTables),
@@ -37,12 +73,16 @@ try {
         'installed_trigger_count' => count($presentTriggers),
         'missing_triggers' => array_values(array_diff($expectedTriggers, $presentTriggers)),
         'extra_triggers' => array_values(array_diff($presentTriggers, $expectedTriggers)),
+        'missing_columns' => $missingColumns,
+        'extra_columns' => $extraColumns,
+        'installed_foreign_key_count' => $foreignKeyCount,
+        'installed_check_count' => $checkCount,
         'migration_ledger_present' => in_array('iti_erp_schema_migrations', $presentTables, true),
         'upgrade_safe_to_apply_without_review' => false,
     ];
     echo json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), PHP_EOL;
     // Presence checks are not proof of exact DDL, proper grants or provenance.
-    exit($report['missing_tables'] === [] && $report['missing_triggers'] === [] ? 0 : 1);
+    exit($report['missing_tables'] === [] && $report['missing_triggers'] === [] && $missingColumns === [] ? 0 : 1);
 } catch (Throwable $exception) {
     fwrite(STDERR, 'Schema preflight failed: ' . $exception::class . PHP_EOL);
     exit(1);

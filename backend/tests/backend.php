@@ -158,6 +158,17 @@ $checks[] = $kernel->handle(static fn() => $fees->recordPayment(new Request([]),
 $checks[] = $kernel->handle(static fn() => $fees->payments(new Request(query:['page_size'=>'101']), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->ownPayments(new Request(query:['after_id'=>['3']]), $feeStudent))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->ownPayments(new Request(), $feeWriter))->status === 403;
+$attendance = new App\Modules\Attendance\AttendanceController(new App\Core\Database([]));
+$attendanceAdmin = new AuthContext(7, 3, 1, 'test', false, ['administrator'], ['attendance.view'], 7, null);
+$attendanceInstructor = new AuthContext(8, 3, 2, 'test-instructor', false, ['instructor'], ['attendance.view.assigned'], 12, null);
+$attendanceStudent = new AuthContext(9, 3, 3, 'test-student', false, ['student'], ['attendance.view.own'], null, 5);
+$checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Request(query:['page_size'=>'101']), $attendanceAdmin))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(query:['after_session_id'=>'1']), $attendanceInstructor))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(query:['after_session_id'=>'1','after_enrollment_id'=>['2']]), $attendanceStudent))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Request(), $attendanceInstructor))->status === 403;
+$checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(), $attendanceStudent))->status === 403;
+$checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $attendanceAdmin))->status === 403;
+$checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

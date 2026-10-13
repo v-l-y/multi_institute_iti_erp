@@ -264,6 +264,26 @@ try {
     expectStatus(http('GET', '/api/v1/fees/payments/me', token:$tokens['administrator']), 403);
     expectStatus(http('POST', '/api/v1/fees/assessments/issue', ['assessment_id'=>999999], $tokens['administrator']), 404);
     expectStatus(http('POST', '/api/v1/fees/refunds/decide', ['refund_id'=>1,'action'=>'made_up'], $tokens['principal']), 422);
+    foreach (['/api/v1/attendance/records',
+              '/api/v1/attendance/records/assigned',
+              '/api/v1/attendance/records/me'] as $route) {
+        expectStatus(http('GET', $route), 401);
+    }
+    expectStatus(http('GET', '/api/v1/attendance/records', token:$tokens['student']), 403);
+    expectStatus(http('GET', '/api/v1/attendance/records/assigned', token:$tokens['student']), 403);
+    expectStatus(http('GET', '/api/v1/attendance/records/me', token:$tokens['administrator']), 403);
+    $adminAttendance = http('GET', '/api/v1/attendance/records', token:$tokens['administrator']);
+    expectStatus($adminAttendance, 200);
+    verify(array_key_exists('next_cursor', $adminAttendance['body']['data']), 'Institute attendance cursor missing.');
+    $assignedAttendance = http('GET', '/api/v1/attendance/records/assigned', token:$tokens['instructor']);
+    expectStatus($assignedAttendance, 200);
+    verify(is_array($assignedAttendance['body']['data']['records']), 'Instructor assignment response missing.');
+    $ownAttendance = http('GET', '/api/v1/attendance/records/me', token:$tokens['student']);
+    expectStatus($ownAttendance, 200);
+    verify(count($ownAttendance['body']['data']['records']) === 0, 'Student attendance unexpectedly exposed unrelated data.');
+    expectStatus(http('GET', '/api/v1/attendance/records?after_session_id=1', token:$tokens['administrator']), 422);
+    expectStatus(http('GET', '/api/v1/attendance/records/me?after_session_id=1&after_enrollment_id=0', token:$tokens['student']), 422);
+    expectStatus(http('GET', '/api/v1/attendance/records/assigned?page_size=101', token:$tokens['instructor']), 422);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

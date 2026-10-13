@@ -203,6 +203,22 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Attendance read APIs
+
+| Method | Endpoint | Permission | Record boundary |
+| --- | --- | --- | --- |
+| GET | `/api/v1/attendance/records` | `attendance.view` | Caller institute only |
+| GET | `/api/v1/attendance/records/assigned` | `attendance.view.assigned` | Sessions with `instructor_id` matching the logged-in staff |
+| GET | `/api/v1/attendance/records/me` | `attendance.view.own` | Enrollments belonging to the linked student |
+
+These read-only endpoints use joined institute/batch/session identities so
+`.assigned` and `.own` permissions never expand into institute-wide reads.
+Only recorded attendance is returned; absent rows do not imply absence.
+Pagination accepts `page_size` (1–100), and then the two integers
+`after_session_id` and `after_enrollment_id` **together** from
+`data.next_cursor`. No instructor can mark/edit/lock attendance through these
+read endpoints. Source-backed data entry/correction APIs remain pending.
+
 ## Fee APIs
 
 Existing `FeeService` methods are exposed through strict institute-bound adapters.
@@ -295,7 +311,7 @@ The following features are not implemented or certified by the current tests:
 - Populated-database migrations with history, checksums and rollback.
 - Verified official-master data loading without invented regulatory defaults.
 - Refresh token rotation and forgot-password delivery.
-- Instructor assigned-record and student own-record access on business endpoints.
+- Broader instructor-assigned and student-own access for formative/OJT/exams; attendance and own fee reads now have scoped endpoints.
 - Admission creation/review, fee setup/report/cash-closing workflows, official submission, certificate imports, and complete approval/correction workflows. Guarded activation, cancellation, upload preparation and eligibility freeze HTTP endpoints exist, but are not end-to-end official workflows.
 - Broader attendance/formative data-entry workflows and official reconciliation policies beyond the configured freeze service.
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.

@@ -13,6 +13,7 @@ use App\Modules\Staff\StaffController;
 use App\Modules\Students\StudentController;
 use App\Modules\Catalog\CatalogController;
 use App\Modules\Fees\FeeController;
+use App\Modules\Attendance\AttendanceController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -50,6 +51,10 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/refunds', $guard->wrap([$fees, 'requestRefund'], 'fee.refund'));
     $router->post('/api/v1/fees/refunds/decide', $guard->wrap([$fees, 'decideRefund'], 'fee.refund'));
     $router->post('/api/v1/fees/payments/reverse', $guard->wrap([$fees, 'reversePayment'], 'fee.refund'));
+    $attendance = new AttendanceController($database);
+    $router->get('/api/v1/attendance/records', $guard->wrap([$attendance, 'instituteRecords'], 'attendance.view'));
+    $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));
+    $router->get('/api/v1/attendance/records/me', $guard->wrap([$attendance, 'ownRecords'], 'attendance.view.own'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));

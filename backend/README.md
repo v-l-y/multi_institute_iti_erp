@@ -886,3 +886,35 @@ blocked rather than changing historical calculation silently.
 These setup routes do not implement template score submission or correction
 on their own; those remain separate release gates.
 
+
+## Source-weighted Formative score workflow
+
+Template-weighted assessments use existing `formative_template_items` and
+`formative_template_scores` tables. The Principal first selects an explicit
+published-source `template_weighted` method and enters all the official template
+items. Their weights must total **100%** before score entry; the ERP never
+invents template marks or weights.
+
+- `POST /api/v1/formative/templates/scores/assigned` requires the instructor role,
+  `formative.record.assigned`, an active NIMS-reviewed trade-unit instructor
+  assignment for the assessment date, and matching active admission. Supply
+  `enrollment_id`, `batch_year_id`, `item_code`, `assessed_on`,
+  `obtained_marks` (nonnegative decimal string with up to three fractional
+  digits) and `evidence_reference`. The score cannot exceed the published
+  source-authored template maximum, cannot be entered for an already frozen
+  eligibility, and cannot duplicate a learner/year/item score.
+- `POST /api/v1/formative/templates/scores/lock` requires Principal plus
+  `formative.template.manage`, `enrollment_id`, `batch_year_id`, `item_code`
+  and `review_reference`. Once locked, the score is immutable under
+  the database integrity trigger.
+- `POST /api/v1/formative/templates/scores/correct-unlocked` requires Principal
+  plus `formative.template.manage`. Supply the same score identity,
+  corrected `obtained_marks`, `assessed_on`, `evidence_reference`,
+  mandatory `reason` and `review_reference`. The before/after values are
+  written to the institute audit log in the same transaction. This does not
+  reopen a frozen score or alter an already frozen exam-eligibility snapshot.
+
+**Known boundary:** Locked score corrections require a separate reviewed,
+append-only revision design and an official source decision. Existing frozen
+records must not be overwritten simply to make a release gate green.
+

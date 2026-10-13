@@ -1,13 +1,13 @@
 import { api, ApiError } from "../../core/http/client.js";
-import { el, dataTable, emptyState, loadingState, notice } from "../../shared/ui/index.js";
+import {
+  el, button, dataTable, emptyState, skeleton, errorPanel,
+  cursorPagination, tableFilters, filterRows, permissionButton
+} from "../../shared/ui/index.js";
 import { pageHeader } from "../../shared/ui/headers.js";
 import { creationConfig } from "./create-config.js";
 import { openCreationDialog } from "./create-dialog.js";
 
-/**
- * One view instance owns its cursor history, search, in-flight reads and modal.
- * Refreshing a register never replaces the app shell, toolbar or focused controls.
- */
+/** Shared UI is the single owner of table controls. Backend owns tenant and permissions. */
 export function createRegistryView(page, main, user) {
   let cursors = [0];
   let cursorIndex = 0;
@@ -15,44 +15,38 @@ export function createRegistryView(page, main, user) {
   let disposed = false;
   let activeDialog = null;
   let rows = [];
+  let nextCursor = null;
 
-  const search = el("input", {
-    type: "search", className: "search-input",
-    "aria-label": "Search current page",
-    placeholder: "Search this page…"
-  });
   const count = el("span", { className: "muted", "aria-live": "polite" });
   const dataArea = el("div", { "aria-busy": "false" });
-  const prev = el("button", {
-    type: "button", className: "button button-secondary",
-    onClick: () => {
-      if (cursorIndex > 0 && !inFlight) {
-        cursorIndex--;
-        void load();
-      }
-    }
-  }, "← Previous");
-  const next = el("button", {
-    type: "button", className: "button button-secondary",
-    onClick: () => {
-      if (inFlight || !Number.isSafeInteger(nextCursor) || nextCursor <= cursors[cursorIndex]) return;
+  const pageHint = el("span", { className: "page-hint" }, "25 per page · search and sort this page");
+  const filters = tableFilters({
+    columns: page.columns,
+    onChange: () => renderRows()
+  });
+  const pager = cursorPagination({
+    onPrevious: () => {
+      if (cursorIndex === 0 || inFlight || disposed) return;
+      cursorIndex--;
+      void load();
+    },
+    onNext: () => {
+      if (inFlight || disposed || !Number.isSafeInteger(nextCursor) ||
+          nextCursor <= cursors[cursorIndex]) return;
       cursors = cursors.slice(0, cursorIndex + 1);
       cursors.push(nextCursor);
       cursorIndex++;
       void load();
     }
-  }, "Next →");
-  const refresh = el("button", {
-    type: "button", className: "button button-secondary",
-    onClick: () => void load()
-  }, "↻ Refresh");
+  });
+  const refresh = button("↻ Refresh", { onClick: () => void load() });
   const actions = el("div", { className: "heading-actions" }, refresh);
-  const pageInfo = el("span", { className: "page-hint" });
-  let nextCursor = null;
 
-  if (creationConfig(page.id, user)) {
-    actions.prepend(el("button", {
-      type: "button", className: "button button-primary",
+  const createPermission = page.id === "staff" ? "staff.manage"
+    : page.id === "students" ? "student.manage" : null;
+  if (createPermission && creationConfig(page.id, user)) {
+    const add = permissionButton(user, createPermission, "+ Add record", {
+      variant: "primary",
       onClick: () => {
         if (disposed) return;
         if (activeDialog?.open) activeDialog.close();
@@ -64,42 +58,34 @@ export function createRegistryView(page, main, user) {
           if (activeDialog === dialog) activeDialog = null;
         }, { once: true });
       }
-    }, "+ Add record"));
+    });
+    if (add) actions.prepend(add);
   }
 
-  const toolbar = el("div", { className: "register-tools" }, search, pageInfo);
-  const footer = el("div", { className: "register-bottom" }, count,
-    el("div", { className: "pager" }, prev, next));
+  const footer = el("div", { className: "register-bottom" }, count, pager.node);
   main.replaceChildren(
     pageHeader(page.label, "Records returned by the authenticated ERP API.", actions),
-    el("section", {
-      className: "surface register-surface",
-      "aria-label": page.label + " register"
-    }, toolbar, dataArea, footer)
+    el("section", { className: "surface register-surface", "aria-label": page.label + " register" },
+      el("div", { className: "register-tools" }, filters.node, pageHint),
+      dataArea, footer)
   );
 
   function updatePaging(busy = false) {
     refresh.disabled = busy;
-    prev.disabled = busy || cursorIndex === 0;
-    next.disabled = busy || nextCursor === null;
-    pageInfo.textContent = "Page " + (cursorIndex + 1) + " · 25 per page";
+    pager.update({ page: cursorIndex + 1, hasNext: nextCursor !== null, busy });
   }
 
   function renderRows() {
-    const term = search.value.trim().toLocaleLowerCase();
-    const filtered = term
-      ? rows.filter(row => Object.values(row).some(value =>
-        value !== null && value !== undefined &&
-        String(value).toLocaleLowerCase().includes(term)))
-      : rows;
+    if (disposed) return;
+    const filtered = filterRows(rows, filters.read());
     count.textContent = filtered.length + " of " + rows.length + " records on this page";
     dataArea.replaceChildren(filtered.length
-      ? dataTable(filtered, page.columns)
+      ? dataTable(filtered, page.columns, { caption: page.label + " (current page)" })
       : emptyState(rows.length ? "No matching records" : "No records on this page",
-        rows.length ? "Search applies only to the loaded page." :
+        rows.length ? "Filters apply only to the loaded page." :
           "No data has been registered for this view."));
   }
-  search.addEventListener("input", renderRows);
+
   updatePaging();
 
   async function load() {
@@ -110,7 +96,7 @@ export function createRegistryView(page, main, user) {
     nextCursor = null;
     updatePaging(true);
     dataArea.setAttribute("aria-busy", "true");
-    dataArea.replaceChildren(loadingState());
+    dataArea.replaceChildren(skeleton({ rows: 5, columns: page.columns.length }));
 
     const after = cursors[cursorIndex];
     const path = page.path + "?page_size=25" +
@@ -132,17 +118,13 @@ export function createRegistryView(page, main, user) {
       if (error.name === "AbortError" || disposed || inFlight !== controller) return;
       rows = [];
       count.textContent = "Records unavailable";
-      dataArea.replaceChildren(notice("Unable to load records",
-        error.message || "Please try again.", "error"),
-        el("button", {
-          type: "button", className: "button button-secondary",
-          onClick: () => void load()
-        }, "Try again"));
+      dataArea.replaceChildren(errorPanel(
+        error.message || "Please try again.", { title: "Unable to load records", onRetry: () => void load() }));
     } finally {
       if (inFlight === controller) {
         inFlight = null;
         dataArea.setAttribute("aria-busy", "false");
-        updatePaging(false);
+        updatePaging();
       }
     }
   }

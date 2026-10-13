@@ -12,6 +12,7 @@ use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
+use App\Modules\Reports\ReportingController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
@@ -157,6 +158,13 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
+    $reporting=new ReportingController($database);
+    $router->get('/api/v1/reports/summary', $guard->wrap(
+        [$reporting,'summary'], 'audit.view'));
+    $router->get('/api/v1/audit/events', $guard->wrap(
+        [$reporting,'instituteAudit'], 'audit.view'));
+    $router->get('/api/v1/platform/audit/events', $guard->wrap(
+        [$reporting,'platformAudit'], 'platform.audit.view'));
     $router->get('/api/v1/ready', static function () use ($database): Response {
         try {
             $database->connection()->query('SELECT 1');

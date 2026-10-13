@@ -226,12 +226,40 @@ $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(query: ['p
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(query: ['after_id' => ['5']]), $catalogReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(), $platform))->status === 403;
+$feeSetup = new App\Modules\Fees\Http\FeeSetupController(new App\Core\Database([]));
+$feeCash = new App\Modules\Fees\Http\FeeCashController(new App\Core\Database([]));
+$feeSetupWriter = new AuthContext(7, 3, 1, 'cashier', false, ['administrator'], ['fee.record'], 7, null);
+$checks[] = $kernel->handle(static fn() => $feeSetup->head(
+    new Request(['code'=>'REG','name'=>'Registration','requires_enrollment'=>'no']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->head(
+    new Request(['code'=>'REG','name'=>'Registration','requires_enrollment'=>true]), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structure(
+    new Request(['trade_id'=>1,'version_no'=>1,'effective_from'=>'2026-02-30']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structure(
+    new Request(['trade_id'=>1,'version_no'=>1,'effective_from'=>'2026-01-02','effective_to'=>'2025-12-31']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structureItem(
+    new Request(['structure_id'=>1,'head_id'=>1,'amount'=>-3]), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->assessment(
+    new Request(['student_id'=>1,'structure_id'=>1,'assessment_no'=>'A','assessed_on'=>'2026-02-30']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->activateStructure(
+    new Request(['structure_id'=>'1']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->movement(
+    new Request(['transfer_type'=>'arbitrary','amount'=>'10.00','reference_no'=>'C','idempotency_key'=>'K']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->movement(
+    new Request(['transfer_type'=>'counter_addition','amount'=>'-10.00','reference_no'=>'C','idempotency_key'=>'K']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->close(
+    new Request(['closing_date'=>'2026-02-30','opening_amount'=>'0','actual_amount'=>'10','opening_reference'=>'LOCAL']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->close(
+    new Request(['closing_date'=>'2026-01-02','opening_amount'=>'0','actual_amount'=>'10','opening_reference'=>'LOCAL']), $context))->status === 403;
 $fees = new App\Modules\Fees\Http\FeeController(new App\Core\Database([]));
 $feeWriter = new AuthContext(7, 3, 1, 'cashier', false, ['administrator'], ['fee.record','fee.refund','fee.view'], 7, null);
 $feeStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['fee.view.own'], null, 21);
 $checks[] = $kernel->handle(static fn() => $fees->recordPayment(new Request(['student_id'=>1,'amount'=>10,'payment_mode'=>'cash','payment_no'=>'A','receipt_no'=>'B','idempotency_key'=>'C']), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->allocate(new Request(['payment_id'=>1,'demand_id'=>1,'amount'=>3.50]), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->issueAssessment(new Request(['assessment_id'=>'2']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>'1','demand_no'=>'D1','due_on'=>'2026-10-15']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>1,'demand_no'=>'D1','due_on'=>'2026-02-30']), $feeWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $fees->issueDemand(new Request(['assessment_id'=>1,'demand_no'=>'D1','due_on'=>'2026-10-15']), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $fees->requestRefund(new Request(['allocation_id'=>0]), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->decideRefund(new Request(['refund_id'=>1,'action'=>'created']), $feeWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $fees->reversePayment(new Request(['payment_id'=>2,'requested_by'=>2,'reversal_no'=>'','reason'=>'x']), $feeWriter))->status === 422;
@@ -384,11 +412,19 @@ function backendExpectStatus(\App\Http\Response $response, int $expected, int $l
 $platformController=new App\Modules\Institutes\PlatformInstituteController(new App\Core\Database([]));
 $developerActor=new AuthContext(1,null,1,'developer',false,['developer'],[
     'platform.institute.create','platform.institute.update','platform.institute.view',
-    'platform.regulatory.manage'],null,null);
+    'platform.user.provision_principal','platform.regulatory.manage'],null,null);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
     'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
     'name'=>'A','mis_code'=>'','address'=>'Test']),$developerActor)),422, __LINE__);
+// Directory updates must not grant the independent authority to provision a Principal.
+$directoryOnlyDeveloper=new AuthContext(2,null,1,'developer',false,['developer'],
+    ['platform.institute.update'],null,null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+    'institute_id'=>1,'employee_code'=>'P','full_name'=>'Principal',
+    'designation'=>'Principal','joined_on'=>'2026-01-01',
+    'appointment_reference'=>'TEST','username'=>'principal01',
+    'temporary_password'=>'123456789012']),$directoryOnlyDeveloper)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
     'institute_id'=>'1','employee_code'=>'P','full_name'=>'Principal',
     'designation'=>'Principal','joined_on'=>'2026-01-01',
@@ -434,6 +470,42 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->act
     new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->index(
     new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
+$calendarMasterController=new App\Modules\Regulatory\TrainingCalendarMasterController(new App\Core\Database([]));
+$calendarDraft=['admission_year'=>2026,'session_code'=>'LOCAL','revision_code'=>'V1',
+    'source_document_id'=>1,'training_starts_on'=>'2026-08-01',
+    'training_ends_on'=>'2027-05-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->draft(
+    new Request([...$calendarDraft,'training_ends_on'=>'2026-01-01']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->draft(
+    new Request($calendarDraft),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->milestone(
+    new Request(['calendar_id'=>1,'milestone_code'=>'CLOSE',
+        'milestone_date'=>'2026-02-30','description'=>'LOCAL',
+        'document_section_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->portalShift(
+    new Request(['calendar_id'=>1,'session_part'=>'unsupported',
+        'physical_shift_no'=>1,'portal_shift_no'=>1,
+        'document_section_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->publish(
+    new Request(['calendar_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$curriculumMasterController=new App\Modules\Regulatory\CurriculumMasterController(new App\Core\Database([]));
+$curriculumDraft=['global_trade_id'=>1,'source_document_id'=>1,'version_code'=>'LOCAL',
+    'duration_months'=>12,'nsqf_level'=>'4.0','unit_strength'=>20,'effective_from'=>'2026-01-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request([...$curriculumDraft,'duration_months'=>13]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request([...$curriculumDraft,'nsqf_level'=>4.0]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->draft(
+    new Request($curriculumDraft),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->year(
+    new Request(['global_curriculum_id'=>1,'year_no'=>3,
+        'trade_practical_minutes'=>0,'trade_theory_minutes'=>0,
+        'employability_minutes'=>0,'ojt_project_minutes'=>0]),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->outcome(
+    new Request(['global_curriculum_year_id'=>1,'lo_code'=>'LO1','outcome_text'=>'LOCAL',
+        'assessment_criteria'=>'LOCAL','formative_max_marks'=>'0']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$curriculumMasterController->publish(
+    new Request(['global_curriculum_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $itsuController=new App\Modules\Catalog\ItsuSetupController(new App\Core\Database([]));
 $itsuWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
     ['tradeunit.manage','institute.affiliation.manage'],7,null);
@@ -448,6 +520,65 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->crea
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
         'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter)),422, __LINE__);
+$instructorReviewController=new App\Modules\Staff\Http\InstructorMappingController(new App\Core\Database([]));
+$instructorPrincipal=new AuthContext(4,3,1,'principal',false,['principal'],
+    ['staff.manage','instructor.mapping.manage'],4,null);
+$instructorAdministrator=new AuthContext(5,3,1,'administrator',false,['administrator'],
+    ['staff.manage','instructor.mapping.manage'],5,null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyQualification(
+    new Request(['qualification_id'=>'1','regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyQualification(
+    new Request(['qualification_id'=>1,'regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorAdministrator)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->verifyIpRn(
+    new Request(['staff_id'=>1,'regulatory_source_id'=>1,'iprn'=>'TEST',
+        'verification_reference'=>'LOCAL','verified_on'=>'2026-02-30']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'unknown','valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'subject','subject_code'=>'INVALID',
+        'valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->assign(
+    new Request(['staff_id'=>1,'qualification_id'=>1,'qualification_source_id'=>1,
+        'mapping_type'=>'subject','subject_code'=>'ES',
+        'valid_from'=>'2026-01-01','review_reference'=>'LOCAL']),$instructorAdministrator)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$instructorReviewController->release(
+    new Request(['mapping_id'=>'1','valid_to'=>'2026-01-01',
+        'regulatory_source_id'=>1,'review_reference'=>'LOCAL']),$instructorPrincipal)),422, __LINE__);
+$affiliationController=new App\Modules\Institutes\AffiliationHistoryController(new App\Core\Database([]));
+$affiliationActor=new AuthContext(1,3,1,'principal',false,['principal'],['institute.affiliation.manage'],7,null);
+$affiliationAdmin=new AuthContext(2,3,1,'administrator',false,['administrator'],['institute.affiliation.manage'],2,null);
+$affiliationBody=['regulatory_source_id'=>1,'change_type'=>'source_order',
+    'approved_name'=>'LOCAL ITI','approved_address'=>'LOCAL',
+    'affiliation_status'=>'affiliated','affiliation_order_reference'=>'LOCAL','effective_from'=>'2026-01-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request([...$affiliationBody,'affiliation_status'=>'invalid']),$affiliationActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request([...$affiliationBody,'effective_from'=>'2026-02-30']),$affiliationActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request($affiliationBody),$affiliationAdmin)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$affiliationController->record(
+    new Request($affiliationBody),$accountStudent)),403, __LINE__);
+$intakeRevisionController=new App\Modules\Admissions\Http\IntakeRevisionController(new App\Core\Database([]));
+$intakeRevisionWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
+    ['admission.intake.manage'],7,null);
+$intakeRevisionPrincipal=new AuthContext(2,3,1,'principal',false,['principal'],
+    ['admission.intake.manage'],2,null);
+$intakeRevisionInput=['intake_id'=>1,'regulatory_source_id'=>1,'revision_code'=>'LOCAL',
+    'opens_on'=>'2026-07-01','closes_on'=>'2026-08-01','approval_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'intake_id'=>'1']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'opens_on'=>'2026-02-30']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'closes_on'=>'2026-06-30']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request($intakeRevisionInput),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->publish(
+    new Request(['intake_revision_id'=>1,'review_reference'=>'LOCAL']),$intakeRevisionWriter)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->publish(
+    new Request(['intake_revision_id'=>'1','review_reference'=>'LOCAL']),$intakeRevisionPrincipal)),422, __LINE__);
 $matrixController=new App\Modules\Admissions\Http\SeatMatrixSetupController(new App\Core\Database([]));
 $matrixActor=new AuthContext(1,3,1,'admin',false,['administrator'],[
     'batch.manage','seatmatrix.draft'],1,null);

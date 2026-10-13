@@ -1,0 +1,20 @@
+# Manual production overlay; requires operator-managed DNS, TLS certs and proxy CIDR.
+services:
+  backend:
+    environment:
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?Set trusted proxy network in root .env}
+  reverse-proxy:
+    image: nginx:stable-alpine
+    environment:
+      ERP_DOMAIN: ${ERP_DOMAIN:?Set production hostname in root .env}
+      NGINX_ENVSUBST_FILTER: "^ERP_DOMAIN$"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./deployment/certs:/etc/nginx/certs:ro
+    restart: unless-stopped

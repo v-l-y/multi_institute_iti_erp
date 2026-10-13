@@ -91,6 +91,46 @@ final readonly class FeeService
         });
     }
 
+    /** One issued demand per assessment; totals remain derived from assessment snapshots. */
+    public function createDemand(AuthContext $actor, int $institute, int $assessment, string $number, string $dueOn): int
+    {
+        $tx = new InstituteTransaction($this->db);
+        return $tx->run($actor, $institute, 'fee.record', function () use (
+            $actor, $institute, $assessment, $number, $dueOn, $tx
+        ): int {
+            $record = $this->row('student_fee_assessments', $assessment, $institute);
+            if ($record['status'] !== 'issued') {
+                throw new HttpException('ASSESSMENT_STATE', 'Issued assessment required before demand creation.', 409);
+            }
+            $issuedOn = (string)$this->db->query('SELECT UTC_DATE()')->fetchColumn();
+            if ($dueOn < $issuedOn) {
+                throw new HttpException('INVALID_DUE_DATE', 'Demand due date cannot precede issue date.', 422);
+            }
+            $lookup = $this->db->prepare('SELECT id FROM fee_demands WHERE assessment_id=? AND institute_id=? FOR UPDATE');
+            $lookup->execute([$assessment, $institute]);
+            if ($lookup->fetchColumn() !== false) {
+                throw new HttpException('DEMAND_EXISTS', 'This assessment already has an issued demand.', 409);
+            }
+            $lookup = $this->db->prepare('SELECT id FROM fee_demands WHERE demand_no=? AND institute_id=? FOR UPDATE');
+            $lookup->execute([$number, $institute]);
+            if ($lookup->fetchColumn() !== false) {
+                throw new HttpException('DEMAND_IDENTIFIER_EXISTS', 'Demand number already exists.', 409);
+            }
+            $insert = $this->db->prepare("INSERT INTO fee_demands
+                (institute_id,student_id,assessment_id,demand_no,issued_on,due_on,status)
+                VALUES (?,?,?,?,?,?,'issued')");
+            $insert->execute([$institute, $record['student_id'], $assessment, $number, $issuedOn, $dueOn]);
+            $id = (int)$this->db->lastInsertId();
+            $tx->audit($actor, $institute, 'fee.demand.issue', 'fee_demands', $id, [
+                'assessment_id' => $assessment,
+                'demand_no' => $number,
+                'issued_on' => $issuedOn,
+                'due_on' => $dueOn,
+            ]);
+            return $id;
+        });
+    }
+
     public function approveWaiver(AuthContext $actor,int $institute,int $waiver): void
     {
         $tx=new InstituteTransaction($this->db);

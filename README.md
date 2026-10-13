@@ -82,3 +82,7 @@ covers authentication, request validation, five-role institute-profile access,
 tenant isolation, transaction rollback and JSON/error headers. GitHub Actions
 has no push or pull-request triggers. Run the workflow manually from the Actions
 tab using Run workflow when needed; local Docker tests also run only on request.
+
+## Manual production deployment and recovery
+
+See [deployment/PRODUCTION.md](deployment/PRODUCTION.md) for the opt-in HTTPS perimeter, database readiness, encrypted backups and isolated restore drill. These configurations do **not** activate production, deployment, CI testing or backups automatically.

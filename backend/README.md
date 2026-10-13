@@ -268,7 +268,7 @@ tenants and provision their first Principal account.
   `management_type`. Records a local institute directory entry only:
   **not DGT affiliation, Seat Matrix approval or recognition**.
 - `POST /api/v1/platform/institutes/principal`:
-  `platform.institute.update`; JSON `institute_id`, `employee_code`,
+  `platform.user.provision_principal`; JSON `institute_id`, `employee_code`,
   `full_name`, `designation`, `joined_on`, `appointment_reference`,
   `username`, `temporary_password`. Creates a staff identity, principal
   assignment, linked user identity, Principal role and Argon2id credentials
@@ -708,3 +708,107 @@ The following features are not implemented or certified by the current tests:
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
 - Governed OJT, exam, official-result and certificate imports/revisions.
 - Full recovery drills and reconciliation for a populated application database.
+
+## Source-backed admission intake revisions
+
+`POST /api/v1/admission/intake-revisions` requires `admission.intake.manage` and accepts
+`intake_id`, institute-linked `regulatory_source_id`, `revision_code`, real
+`opens_on` / `closes_on` dates, `approval_reference`, and optional
+`supersedes_id`. The source must be a locally reviewed published official
+reference with SHA-256. New records remain `draft`; no windows are guessed.
+
+`POST /api/v1/admission/intake-revisions/publish` requires the Principal role
+and `admission.intake.manage`. `intake_revision_id` and `review_reference`
+are required. The current published revision of the same intake, if any, must
+be specified as `supersedes_id` when the draft is created. Publication and
+supersession are one audited institute transaction; old records are retained.
+This is institute review of source evidence, not government issuance.
+
+## Institute affiliation history from reviewed DGT orders
+
+`POST /api/v1/institute/affiliation-history` requires Principal with
+`institute.affiliation.manage`, `regulatory_source_id` of a published DGT
+order linked to that institute, `change_type`, `approved_name`,
+`approved_address`, `affiliation_status`, `affiliation_order_reference`,
+and `effective_from`. Each later order closes the prior current period;
+all historical records are kept with an institute audit event.
+This does not issue or verify government approval.
+
+## NIMS instructor identity and assignment review
+
+All four endpoints are institute-scoped; they require the **Principal role**
+plus the stated permission. They create no NIMS portal action or independent
+DGT approval. The caller attests to externally reviewed source evidence.
+
+- `POST /api/v1/staff/qualifications/review` (`staff.manage`):
+  `qualification_id`, `regulatory_source_id`, `review_reference`;
+  records one Principal review of staff qualification evidence.
+- `POST /api/v1/instructors/iprn/review` (`instructor.mapping.manage`):
+  `staff_id`, `regulatory_source_id`, `iprn`, `verification_reference`,
+  `verified_on`; needs published institute-linked NIMS source evidence with
+  SHA-256 and an active teaching employee. Existing verified identity is not
+  silently replaced. A reviewed source record does not authenticate NIMS APIs.
+- `POST /api/v1/instructors/mappings` (`instructor.mapping.manage`):
+  `staff_id`, `qualification_id`, `qualification_source_id`,
+  `mapping_type` (`trade` or `subject`), `valid_from`, `review_reference`,
+  and either `itsu_revision_id` for a Trade or `subject_code` for a subject.
+  Requires a reviewed qualification, matching active NIMS-reviewed instructor,
+  and approved ITSU when applicable. One active staff/IPRN/ITSU assignment is
+  enforced by the existing schema. The source and review are audited.
+- `POST /api/v1/instructors/mappings/release` (`instructor.mapping.manage`):
+  `mapping_id`, `valid_to`, `regulatory_source_id`, `review_reference`;
+  preserves the historical assignment and its reviewed release evidence.
+
+The current supported HTTP workflow records **local review of official
+external evidence**, not a live verification against the NIMS portal.
+
+## DGT CTS syllabus master loading
+
+Platform Developer with `platform.regulatory.manage` may load the **explicit
+values in a locally reviewed, published DGT syllabus source**:
+
+- `POST /api/v1/platform/curricula`: `global_trade_id`,
+  `source_document_id`, `version_code`, source-declared `duration_months`,
+  decimal-string `nsqf_level`, `unit_strength`, `effective_from`, optional
+  `effective_to` (creates draft only).
+- `POST /api/v1/platform/curricula/years`: `global_curriculum_id`,
+  `year_no`, and explicit integer `trade_practical_minutes`,
+  `trade_theory_minutes`, `employability_minutes`, `ojt_project_minutes`,
+  optional decimal-string `credits`.
+- `POST /api/v1/platform/curricula/outcomes`: `global_curriculum_year_id`,
+  `lo_code`, `outcome_text`, `assessment_criteria`, optional `nos_code`
+  and decimal-string `formative_max_marks`.
+- `POST /api/v1/platform/curricula/publish`: `global_curriculum_id`,
+  `review_reference`. A complete 1- or 2-year schema duration with at least
+  one official learning outcome in each applicable year must be recorded.
+
+No official NSQF, trade strength, teaching duration, credits, or formative
+marks are guessed. Platform publication means reviewed institute ERP evidence,
+**not** independent cryptographic or regulatory authority verification.
+When a published global course year is linked locally, its complete official
+learning outcomes are mapped to `learning_outcomes` in the same transaction;
+manual local copy/paste of LO definitions is unnecessary.
+
+## CTS training-calendar source register
+
+Platform Developer with `platform.regulatory.manage` can create a source-backed
+CTS Calendar revision and annexure rows. This does **not** certify external DGT
+content, replace government uploads, or assign default official dates/shifts.
+
+- `POST /api/v1/platform/cts-calendars`: `admission_year`, `session_code`,
+  `revision_code`, `source_document_id` (reviewed published DGT order),
+  `training_starts_on`, `training_ends_on`, optional `upload_profile`
+  JSON object copied explicitly from the applicable reviewed annexure.
+- `POST /api/v1/platform/cts-calendars/milestones`: `calendar_id`,
+  `milestone_code`, `milestone_date`, `description`,
+  `document_section_reference`.
+- `POST /api/v1/platform/cts-calendars/portal-shifts`: `calendar_id`,
+  `session_part` (`primary` or `six_month_second`),
+  `physical_shift_no`, `portal_shift_no`, `document_section_reference`.
+  The portal shift values are operator-supplied from the published source;
+  no shift conversion is hard-coded.
+- `POST /api/v1/platform/cts-calendars/publish`: `calendar_id` and
+  `review_reference`, after milestones and portal shift mapping evidence exist.
+
+Published calendar IDs are referenced by institute admission intake and batch
+year workflows. Draft source annexures are never treated as government-approved.

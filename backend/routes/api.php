@@ -12,20 +12,28 @@ use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
+use App\Modules\Regulatory\CurriculumMasterController;
+use App\Modules\Regulatory\TrainingCalendarMasterController;
 use App\Modules\Reports\ReportingController;
 use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
+use App\Modules\Institutes\AffiliationHistoryController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
+use App\Modules\Staff\Http\InstructorMappingController;
 use App\Modules\Students\Http\StudentController;
 use App\Modules\Catalog\CatalogController;
 use App\Modules\Catalog\ItsuSetupController;
 use App\Modules\Fees\Http\FeeController;
+use App\Modules\Fees\Http\FeeSetupController;
+use App\Modules\Fees\Http\FeeCashController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
+use App\Modules\Exams\ExamCycleController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
+use App\Modules\Admissions\Http\IntakeRevisionController;
 use App\Modules\Academic\Http\AcademicCalendarController;
 use App\Modules\Academic\Http\BatchSetupController;
 use App\Modules\Academic\Http\CalendarPlanningController;
@@ -58,6 +66,24 @@ return static function (Router $router, Database $database): void {
         [$globalTrades,'draftRevision'], 'platform.regulatory.manage'));
     $router->post('/api/v1/platform/trades/revisions/activate', $guard->wrap(
         [$globalTrades,'activate'], 'platform.regulatory.manage'));
+    $curricula=new CurriculumMasterController($database);
+    $router->post('/api/v1/platform/curricula', $guard->wrap(
+        [$curricula,'draft'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/years', $guard->wrap(
+        [$curricula,'year'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/outcomes', $guard->wrap(
+        [$curricula,'outcome'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/curricula/publish', $guard->wrap(
+        [$curricula,'publish'], 'platform.regulatory.manage'));
+    $globalCalendars=new TrainingCalendarMasterController($database);
+    $router->post('/api/v1/platform/cts-calendars', $guard->wrap(
+        [$globalCalendars,'draft'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/milestones', $guard->wrap(
+        [$globalCalendars,'milestone'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/portal-shifts', $guard->wrap(
+        [$globalCalendars,'portalShift'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/publish', $guard->wrap(
+        [$globalCalendars,'publish'], 'platform.regulatory.manage'));
     $regulatoryDocuments=new RegulatoryDocumentController($database);
     $router->get('/api/v1/platform/regulatory/documents', $guard->wrap(
         [$regulatoryDocuments,'index'], 'platform.regulatory.manage'));
@@ -71,19 +97,30 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/platform/institutes', $guard->wrap(
         [$platformInstitute,'create'], 'platform.institute.create'));
     $router->post('/api/v1/platform/institutes/principal', $guard->wrap(
-        [$platformInstitute,'provisionPrincipal'], 'platform.institute.update'));
+        [$platformInstitute,'provisionPrincipal'], 'platform.user.provision_principal'));
     $router->get('/api/v1/institute/profile', $guard->wrap(
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',
     ));
     $router->post('/api/v1/institute/contact', $guard->wrap(
         [new InstituteContactController($database),'update'], 'institute.profile.update'));
+    $router->post('/api/v1/institute/affiliation-history', $guard->wrap(
+        [new AffiliationHistoryController($database),'record'], 'institute.affiliation.manage'));
     $staff = new StaffController($database);
     $router->get('/api/v1/staff', $guard->wrap([$staff, 'index'], 'staff.view'));
     $router->post('/api/v1/staff', $guard->wrap([$staff, 'create'], 'staff.manage'));
     $router->post('/api/v1/staff/profile', $guard->wrap([$staff, 'updateProfile'], 'staff.manage'));
     $router->post('/api/v1/staff/qualifications', $guard->wrap([$staff, 'recordQualification'], 'staff.manage'));
     $router->post('/api/v1/staff/exit', $guard->wrap([$staff, 'exitEmployment'], 'staff.manage'));
+    $instructorReview=new InstructorMappingController($database);
+    $router->post('/api/v1/staff/qualifications/review', $guard->wrap(
+        [$instructorReview,'verifyQualification'], 'staff.manage'));
+    $router->post('/api/v1/instructors/iprn/review', $guard->wrap(
+        [$instructorReview,'verifyIpRn'], 'instructor.mapping.manage'));
+    $router->post('/api/v1/instructors/mappings', $guard->wrap(
+        [$instructorReview,'assign'], 'instructor.mapping.manage'));
+    $router->post('/api/v1/instructors/mappings/release', $guard->wrap(
+        [$instructorReview,'release'], 'instructor.mapping.manage'));
     $students = new StudentController($database);
     $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));
@@ -99,10 +136,20 @@ return static function (Router $router, Database $database): void {
     $catalog = new CatalogController($database);
     $router->get('/api/v1/itsu', $guard->wrap([$catalog, 'itsu'], 'tradeunit.view'));
     $router->get('/api/v1/batches', $guard->wrap([$catalog, 'batches'], 'batch.view'));
+    $feeCash = new FeeCashController($database);
+    $router->post('/api/v1/fees/cash/transfers', $guard->wrap([$feeCash, 'movement'], 'fee.record'));
+    $router->post('/api/v1/fees/cash/close', $guard->wrap([$feeCash, 'close'], 'fee.record'));
+    $feeSetup = new FeeSetupController($database);
+    $router->post('/api/v1/fees/heads', $guard->wrap([$feeSetup, 'head'], 'fee.record'));
+    $router->post('/api/v1/fees/structures', $guard->wrap([$feeSetup, 'structure'], 'fee.record'));
+    $router->post('/api/v1/fees/structures/items', $guard->wrap([$feeSetup, 'structureItem'], 'fee.record'));
+    $router->post('/api/v1/fees/structures/activate', $guard->wrap([$feeSetup, 'activateStructure'], 'fee.record'));
+    $router->post('/api/v1/fees/assessments', $guard->wrap([$feeSetup, 'assessment'], 'fee.record'));
     $fees = new FeeController($database);
     $router->get('/api/v1/fees/payments', $guard->wrap([$fees, 'payments'], 'fee.view'));
     $router->get('/api/v1/fees/payments/me', $guard->wrap([$fees, 'ownPayments'], 'fee.view.own'));
     $router->post('/api/v1/fees/assessments/issue', $guard->wrap([$fees, 'issueAssessment'], 'fee.record'));
+    $router->post('/api/v1/fees/demands', $guard->wrap([$fees, 'issueDemand'], 'fee.record'));
     $router->post('/api/v1/fees/waivers/approve', $guard->wrap([$fees, 'approveWaiver'], 'fee.refund'));
     $router->post('/api/v1/fees/payments', $guard->wrap([$fees, 'recordPayment'], 'fee.record'));
     $router->post('/api/v1/fees/allocations', $guard->wrap([$fees, 'allocate'], 'fee.record'));
@@ -123,6 +170,11 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));
     $router->get('/api/v1/certificates', $guard->wrap([$officialRecords, 'certificates'], 'certificate.view'));
     $router->get('/api/v1/certificates/me', $guard->wrap([$officialRecords, 'ownCertificates'], 'certificate.view.own'));
+    $intakeRevisions=new IntakeRevisionController($database);
+    $router->post('/api/v1/admission/intake-revisions', $guard->wrap(
+        [$intakeRevisions,'draft'], 'admission.intake.manage'));
+    $router->post('/api/v1/admission/intake-revisions/publish', $guard->wrap(
+        [$intakeRevisions,'publish'], 'admission.intake.manage'));
     $admissionSetup=new SeatMatrixSetupController($database);
     $router->post('/api/v1/admission/intakes', $guard->wrap(
         [$admissionSetup,'intake'], 'batch.manage'));
@@ -158,6 +210,9 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
+    $examSetup = new ExamCycleController($database);
+    $router->post('/api/v1/exams/cycles', $guard->wrap([$examSetup, 'draft'], 'exam.eligibility.manage'));
+    $router->post('/api/v1/exams/cycles/open', $guard->wrap([$examSetup, 'open'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
     $formative=new FormativeController($database);
     $router->post('/api/v1/formative/records/assigned', $guard->wrap(

@@ -246,6 +246,7 @@ try {
     $db->exec("INSERT INTO exam_rule_versions (id,institute_id,global_exam_rule_id,cycle_type) VALUES (9101,9101,9101,'mains')");
     $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9101,9101,'LOCAL','mains',9101,9101,'2026-09-01','2026-09-20','{}','eligibility_open')");
     $exam=new EligibilityService($db);
+    $db->exec("UPDATE batch_years SET ends_on='2026-09-01' WHERE id=9101");
     foundationReject(fn()=>$exam->freeze($actor,9101,9101,9101,9101,'LOCAL'),'ATTENDANCE_NOT_RECONCILED');
     $db->exec('UPDATE attendance_sessions SET locked_on=UTC_TIMESTAMP() WHERE id=9101');
     foundationSqlReject($db,'UPDATE attendance_records SET attended_minutes=0 WHERE session_id=9101');
@@ -253,6 +254,9 @@ try {
     foundationCheck($db->query("SELECT eligibility_status FROM exam_eligibility WHERE id=$eligibility")->fetchColumn()==='eligible','Eligible status must be computed from the rule and locked evidence.');
     foundationSqlReject($db,"UPDATE exam_eligibility SET effective_attendance=100 WHERE id=$eligibility");
     foundationReject(fn()=>$exam->freeze($actor,9101,9101,9101,9101,'LOCAL'),'ELIGIBILITY_FROZEN');
+    $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9102,9101,'AFTER-TRAINING','mains',9101,9101,'2026-09-03','2026-09-20','{}','eligibility_open')");
+    $laterEligibility=$exam->freeze($actor,9101,9101,9101,9102,'LOCAL');
+    foundationCheck((int)$db->query("SELECT scheduled_units FROM exam_eligibility WHERE id=$laterEligibility")->fetchColumn()===60,'Post-training cutoff must use only the reviewed training period.');
     $db->exec("INSERT INTO fee_heads (id,institute_id,code,name,requires_enrollment) VALUES (9101,9101,'LOCAL-REG','Local registration',0)");
     $db->exec("INSERT INTO fee_structures (id,institute_id,trade_id,version_no,effective_from,created_by) VALUES (9101,9101,9101,1,'2026-01-01',9202)");
     $db->exec('INSERT INTO fee_structure_items (institute_id,structure_id,head_id,amount) VALUES (9101,9101,9101,1000)');
@@ -266,6 +270,16 @@ try {
     $payment=$fees->recordPayment($actor,9101,9101,'500','cash','P','R','LOCAL-PAY');
     foundationCheck($fees->recordPayment($actor,9101,9101,'500.00','cash','P','R','LOCAL-PAY')===$payment,'Equivalent payment retry must reuse the original receipt.');
     foundationReject(fn()=>$fees->recordPayment($actor,9101,9101,'600','cash','P','R','LOCAL-PAY'),'RETRY_CONFLICT');
+    foundationReject(fn()=>$fees->recordPayment($actor,9101,9101,'500','cash','P','R2','DUP-P'),'PAYMENT_IDENTIFIER_EXISTS');
+    foundationReject(fn()=>$fees->recordPayment($actor,9101,9101,'500','cash','P2','R','DUP-R'),'PAYMENT_IDENTIFIER_EXISTS');
+    $reversible=$fees->recordPayment($actor,9101,9101,'10','cash','REV-P','REV-R','REV-PAY');
+    foundationReject(fn()=>$fees->reverse($approver,9101,$reversible,9202,'RV2','LOCAL'),'REVERSAL_REQUEST_REQUIRED');
+    foundationReject(fn()=>$fees->requestReversal($approver,9101,$reversible,'RV2','LOCAL'),'REVERSAL_REQUESTER');
+    $fees->requestReversal($actor,9101,$reversible,'RV2','LOCAL');
+    foundationReject(fn()=>$fees->reverse($actor,9101,$reversible,9202,'RV2','LOCAL'),'INVALID_REVERSAL');
+    foundationReject(fn()=>$fees->reverse($approver,9101,$reversible,9202,'RV2','CHANGED'),'REVERSAL_REQUEST_REQUIRED');
+    $fees->reverse($approver,9101,$reversible,9202,'RV2','LOCAL');
+    foundationCheck((int)$db->query("SELECT requested_by FROM fee_payment_reversals WHERE payment_id=$reversible")->fetchColumn()===9202,'Reversal must retain the authenticated original requester.');
     foundationReject(fn()=>$fees->allocate($actor,9101,$payment,9101,'501'),'ALLOCATION_LIMIT');
     $allocation=$fees->allocate($actor,9101,$payment,9101,'500');
     foundationCheck($fees->allocate($actor,9101,$payment,9101,'500')===$allocation,'Allocation retry must not allocate twice.');

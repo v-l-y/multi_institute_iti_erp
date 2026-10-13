@@ -55,6 +55,7 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/refunds', $guard->wrap([$fees, 'requestRefund'], 'fee.refund'));
     $router->post('/api/v1/fees/refunds/decide', $guard->wrap([$fees, 'decideRefund'], 'fee.refund'));
     $router->post('/api/v1/fees/payments/reverse', $guard->wrap([$fees, 'reversePayment'], 'fee.refund'));
+    $router->post('/api/v1/fees/payments/reversal-request', $guard->wrap([$fees, 'requestReversal'], 'fee.refund'));
     $attendance = new AttendanceController($database);
     $router->get('/api/v1/attendance/records', $guard->wrap([$attendance, 'instituteRecords'], 'attendance.view'));
     $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));

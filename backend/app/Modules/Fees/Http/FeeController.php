@@ -142,6 +142,16 @@ final readonly class FeeController
         return new Response(['success'=>true,'data'=>['refund_id'=>$id,'status'=>$action]]);
     }
 
+    public function requestReversal(Request $request, AuthContext $actor): Response
+    {
+        $institute = self::institute($actor, 'fee.refund');
+        $id = self::id($request, 'payment_id');
+        $number = self::required($request, 'reversal_no', 100);
+        $reason = self::required($request, 'reason', 500);
+        $this->service()->requestReversal($actor, $institute, $id, $number, $reason);
+        return new Response(['success'=>true,'data'=>['payment_id'=>$id,'status'=>'pending']], 201);
+    }
+
     public function reversePayment(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'fee.refund');

@@ -122,6 +122,11 @@ final readonly class FeeService
             if ($existing !== null) {
                 return $existing;
             }
+            $q = $this->db->prepare('SELECT id FROM fee_payments WHERE institute_id=? AND (payment_no=? OR receipt_no=?) LIMIT 1 FOR UPDATE');
+            $q->execute([$institute,$number,$receipt]);
+            if ($q->fetchColumn() !== false) {
+                throw new HttpException('PAYMENT_IDENTIFIER_EXISTS', 'Payment or receipt number already exists in this institute.', 409);
+            }
             $studentRow = $this->row('students', $student, $institute);
             $q = $this->db->prepare('SELECT name,mis_code FROM institute WHERE id=?');
             $q->execute([$institute]);
@@ -232,6 +237,22 @@ final readonly class FeeService
         });
     }
 
+    public function requestReversal(AuthContext $actor,int $institute,int $payment,string $number,string $reason): void
+    {
+        if (trim($number)==='' || strlen($number)>100 || trim($reason)==='' || strlen($reason)>500) {
+            throw new HttpException('INVALID_REVERSAL','Reversal number and reason required.',422);
+        }
+        $tx=new InstituteTransaction($this->db);
+        $tx->run($actor,$institute,'fee.refund',function () use ($actor,$institute,$payment,$number,$reason,$tx) {
+            $p=$this->row('fee_payments',$payment,$institute);
+            if ((int)$p['received_by']!==$actor->userId) {
+                throw new HttpException('REVERSAL_REQUESTER','Original payment recorder must request the reversal.',403);
+            }
+            $this->assertPaymentLive($payment,$institute);
+            $tx->audit($actor,$institute,'fee.payment.reversal.request','fee_payments',$payment,['reversal_no'=>$number,'reason'=>$reason]);
+        });
+    }
+
     public function reverse(AuthContext $actor,int $institute,int $payment,int $requestedBy,string $number,string $reason): int
     {
         if ($requestedBy===$actor->userId || trim($number)==='' || strlen($number)>100 || trim($reason)==='' || strlen($reason)>500) {
@@ -248,6 +269,13 @@ final readonly class FeeService
             $q->execute([$payment,$institute]);
             if ($q->fetchColumn()!==false) {
                 throw new HttpException('REVERSAL_REFUND_CONFLICT','Payment with reserved or paid refunds cannot be reversed.',409);
+            }
+            $q=$this->db->prepare("SELECT actor_user_id,event_data_json FROM institute_activity_log WHERE institute_id=? AND action_code='fee.payment.reversal.request' AND entity_table='fee_payments' AND entity_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE");
+            $q->execute([$institute,$payment]);
+            $request=$q->fetch(PDO::FETCH_ASSOC);
+            $details=$request ? json_decode($request['event_data_json'],true,32,JSON_THROW_ON_ERROR) : null;
+            if (!$request || (int)$request['actor_user_id']!==$requestedBy || ($details['reversal_no']??null)!==$number || ($details['reason']??null)!==$reason) {
+                throw new HttpException('REVERSAL_REQUEST_REQUIRED','A matching authenticated request from the payment recorder is required.',409);
             }
             $q=$this->db->prepare('INSERT INTO fee_payment_reversals (institute_id,student_id,payment_id,reversal_no,reason,requested_by,approved_by) VALUES (?,?,?,?,?,?,?)');
             $q->execute([$institute,$p['student_id'],$payment,$number,$reason,$requestedBy,$actor->userId]);

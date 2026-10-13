@@ -40,8 +40,9 @@ final readonly class EligibilityService
             $c=$this->one('SELECT * FROM exam_cycles WHERE id=? AND institute_id=? FOR UPDATE',[$cycle,$institute]);
             $r=$this->one('SELECT g.* FROM exam_rule_versions l JOIN global_exam_rule_versions g ON g.id=l.global_exam_rule_id WHERE l.id=? AND l.institute_id=? FOR UPDATE',[$c['rule_id'],$institute]);
             $cutoff=$c['eligibility_cutoff'];
+            $attendanceThrough=min($cutoff,$y['ends_on']);
             $today=(new \DateTimeImmutable('now',new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d');
-            if ($e['batch_id']!==$y['batch_id'] || !in_array($e['status'],['active','completed'],true) || $c['status']!=='eligibility_open' || $cutoff>$today || $y['calendar_status']!=='reviewed' || $y['calendar_reviewed_through']===null || $y['calendar_reviewed_through']<$cutoff || $r['status']!=='published' || $r['effective_from']>$c['exam_starts_on'] || ($r['effective_to']!==null && $r['effective_to']<$c['exam_starts_on'])) {
+            if ($e['batch_id']!==$y['batch_id'] || !in_array($e['status'],['active','completed'],true) || $c['status']!=='eligibility_open' || $cutoff>$today || $attendanceThrough<$y['starts_on'] || $y['calendar_status']!=='reviewed' || $y['calendar_reviewed_through']===null || $y['calendar_reviewed_through']<$attendanceThrough || $r['status']!=='published' || $r['effective_from']>$c['exam_starts_on'] || ($r['effective_to']!==null && $r['effective_to']<$c['exam_starts_on'])) {
                 throw new HttpException('ELIGIBILITY_NOT_READY','Applicable reviewed calendar, rule and enrollment required.',409);
             }
             $doc=$this->one('SELECT status FROM global_regulatory_documents WHERE id=? FOR UPDATE',[$r['source_document_id']]);
@@ -50,7 +51,7 @@ final readonly class EligibilityService
             }
             $scheduled=0;
             $attended=0;
-            $calendar=$this->rows('SELECT * FROM training_calendar_entries WHERE batch_year_id=? AND institute_id=? AND session_date BETWEEN ? AND ? ORDER BY session_date,component FOR UPDATE',[$year,$institute,$y['starts_on'],$cutoff]);
+            $calendar=$this->rows('SELECT * FROM training_calendar_entries WHERE batch_year_id=? AND institute_id=? AND session_date BETWEEN ? AND ? ORDER BY session_date,component FOR UPDATE',[$year,$institute,$y['starts_on'],$attendanceThrough]);
             if (!$calendar) {
                 throw new HttpException('ATTENDANCE_DENOMINATOR','Reviewed training calendar has no applicable entries.',409);
             }

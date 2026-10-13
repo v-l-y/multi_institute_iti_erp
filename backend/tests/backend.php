@@ -179,6 +179,17 @@ $checks[] = $kernel->handle(static fn() => $officialRecords->ownCertificates(new
 $checks[] = $kernel->handle(static fn() => $officialRecords->results(new Request(), $officialStudent))->status === 403;
 $checks[] = $kernel->handle(static fn() => $officialRecords->ownCertificates(new Request(), $officialStaff))->status === 403;
 $checks[] = $kernel->handle(static fn() => $officialRecords->ownResults(new Request(), $platform))->status === 403;
+$attendanceMarker = new AuthContext(8, 3, 2, 'test-instructor', false, ['instructor'], ['attendance.mark.assigned'], 12, null);
+$checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
+    new Request(['session_id'=>'1','enrollment_id'=>2,'attended_minutes'=>40,'status'=>'present']), $attendanceMarker))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
+    new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>40.0,'status'=>'present']), $attendanceMarker))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
+    new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'absent']), $attendanceMarker))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
+    new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'unreviewed']), $attendanceMarker))->status === 422;
+$checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
+    new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'present']), $attendanceAdmin))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

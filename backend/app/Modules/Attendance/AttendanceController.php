@@ -105,6 +105,106 @@ final readonly class AttendanceController
         ]]);
     }
 
+    private static function requiredId(Request $request, string $key): int
+    {
+        $value = $request->body[$key] ?? null;
+        if (!is_int($value) || $value < 1) {
+            throw new HttpException('INVALID_INPUT', $key . ' must be a positive integer.', 422);
+        }
+        return $value;
+    }
+
+    /**
+     * Record one entry, once, on a pre-existing unlocked session assigned to
+     * the authenticated instructor. Corrections are a distinct reviewed flow.
+     */
+    public function markAssigned(Request $request, AuthContext $actor): Response
+    {
+        $actor->requirePermission('attendance.mark.assigned');
+        $institute = $actor->instituteId
+            ?? throw new HttpException('FORBIDDEN', 'Institute access denied.', 403);
+        if ($actor->staffId === null) {
+            throw new HttpException('FORBIDDEN', 'Linked instructor staff identity required.', 403);
+        }
+        $sessionId = self::requiredId($request, 'session_id');
+        $enrollmentId = self::requiredId($request, 'enrollment_id');
+        $minutes = $request->body['attended_minutes'] ?? null;
+        if (!is_int($minutes) || $minutes < 0 || $minutes > 65535) {
+            throw new HttpException('INVALID_INPUT', 'Attended minutes must be a non-negative integer.', 422);
+        }
+        $status = $request->body['status'] ?? null;
+        if (!is_string($status) || !in_array($status,
+            ['present','absent','leave','medical_leave','emergency_leave','ojt'], true)) {
+            throw new HttpException('INVALID_INPUT', 'Invalid attendance status.', 422);
+        }
+        if ($status === 'absent' && $minutes !== 0) {
+            throw new HttpException('INVALID_INPUT', 'Absent records cannot have attended minutes.', 422);
+        }
+        $evidence = $request->body['leave_evidence_reference'] ?? null;
+        if ($evidence !== null && (!is_string($evidence) || trim($evidence) === ''
+            || strlen(trim($evidence)) > 190)) {
+            throw new HttpException('INVALID_INPUT', 'Invalid leave evidence reference.', 422);
+        }
+        $evidence = $evidence === null ? null : trim($evidence);
+
+        $db = $this->database->connection();
+        $transaction = new \App\Core\InstituteTransaction($db);
+        $transaction->run($actor, $institute, 'attendance.mark.assigned',
+            function () use ($db, $transaction, $actor, $institute, $sessionId,
+                $enrollmentId, $minutes, $status, $evidence): void {
+                $statement = $db->prepare(
+                    'SELECT id,batch_id,session_date,scheduled_minutes,instructor_id,locked_on
+                     FROM attendance_sessions WHERE id=? AND institute_id=? FOR UPDATE'
+                );
+                $statement->execute([$sessionId, $institute]);
+                $session = $statement->fetch(PDO::FETCH_ASSOC);
+                if ($session === false) {
+                    throw new HttpException('NOT_FOUND', 'Attendance session not found.', 404);
+                }
+                if ((int)$session['instructor_id'] !== $actor->staffId) {
+                    throw new HttpException('FORBIDDEN', 'Session is not assigned to this instructor.', 403);
+                }
+                if ($session['locked_on'] !== null) {
+                    throw new HttpException('SESSION_LOCKED', 'Locked attendance cannot be changed.', 409);
+                }
+                if ($minutes > (int)$session['scheduled_minutes']) {
+                    throw new HttpException('INVALID_MINUTES', 'Attendance exceeds scheduled minutes.', 422);
+                }
+                $statement = $db->prepare(
+                    "SELECT id FROM enrollments
+                     WHERE id=? AND institute_id=? AND batch_id=?
+                       AND status='active' AND admitted_on<=? FOR UPDATE"
+                );
+                $statement->execute([$enrollmentId, $institute, $session['batch_id'], $session['session_date']]);
+                if ($statement->fetchColumn() === false) {
+                    throw new HttpException('ENROLLMENT_NOT_ACTIVE', 'Active enrolled learner in the session batch required.', 409);
+                }
+                $statement = $db->prepare(
+                    'SELECT enrollment_id FROM attendance_records
+                     WHERE session_id=? AND enrollment_id=? AND institute_id=? FOR UPDATE'
+                );
+                $statement->execute([$sessionId, $enrollmentId, $institute]);
+                if ($statement->fetchColumn() !== false) {
+                    throw new HttpException('ATTENDANCE_EXISTS', 'Attendance is already recorded; use an audited correction.', 409);
+                }
+                $statement = $db->prepare(
+                    'INSERT INTO attendance_records
+                      (institute_id,session_id,batch_id,enrollment_id,attended_minutes,status,leave_evidence_reference,recorded_by)
+                     VALUES (?,?,?,?,?,?,?,?)'
+                );
+                $statement->execute([
+                    $institute, $sessionId, $session['batch_id'], $enrollmentId,
+                    $minutes, $status, $evidence, $actor->username,
+                ]);
+                $transaction->audit($actor, $institute, 'attendance.mark', 'attendance_records',
+                    $sessionId, ['enrollment_id'=>$enrollmentId,'status'=>$status,'minutes'=>$minutes]);
+            }
+        );
+        return new Response(['success'=>true,'data'=>[
+            'session_id'=>$sessionId,'enrollment_id'=>$enrollmentId,'status'=>$status,
+        ]], 201);
+    }
+
     public function instituteRecords(Request $request, AuthContext $actor): Response
     {
         return $this->records($request, $actor, 'institute');

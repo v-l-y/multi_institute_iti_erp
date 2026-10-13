@@ -231,6 +231,19 @@ revocations and corrections require separately audited workflows.
 These read-only endpoints use joined institute/batch/session identities so
 `.assigned` and `.own` permissions never expand into institute-wide reads.
 Only recorded attendance is returned; absent rows do not imply absence.
+
+**Attendance marking:** `POST /api/v1/attendance/records/assigned`
+requires `attendance.mark.assigned` and JSON
+`{"session_id":123,"enrollment_id":456,"attended_minutes":40,"status":"present"}`.
+The server derives the institute and staff identity from the session token.
+Only an existing, unlocked session assigned directly to the instructor may
+receive a new row for an active learner enrolled in that same batch.
+It rejects excess minutes, wrong-batch enrollment, missing/foreign sessions,
+unassigned instructors and duplicate attendance instead of overwriting data.
+Optional `leave_evidence_reference` is a string of up to 190 bytes.
+Writes are serialized per institute and audited. This endpoint does not
+create sessions, lock a daily register, certify a working day or approve
+corrections; those remain separate source-backed workflows.
 Pagination accepts `page_size` (1–100), and then the two integers
 `after_session_id` and `after_enrollment_id` **together** from
 `data.next_cursor`. No instructor can mark/edit/lock attendance through these

@@ -93,6 +93,33 @@ try {
     $db->exec("UPDATE batches SET training_mode='CTS' WHERE id=9101");
     $admissions->activate($actor,9101,9101);
     foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Activation must reconcile occupancy.');
+    // Create a second local attendance session: the first fixture session is
+    // already populated and must not be overwritten by new marking.
+    $db->exec("INSERT INTO attendance_sessions
+       (id,institute_id,batch_year_id,batch_id,session_date,component,scheduled_minutes,instructor_id)
+       VALUES (9111,9101,9101,9101,'2026-09-02','trade_theory',60,9101)");
+    $markActor = new AuthContext(9202,9101,4,'local-instructor',false,
+        ['instructor'],['attendance.mark.assigned'],9101,null);
+    $otherMarker = new AuthContext(9202,9101,4,'local-instructor',false,
+        ['instructor'],['attendance.mark.assigned'],9102,null);
+    $markInput = new App\Http\Request([
+        'session_id'=>9111,'enrollment_id'=>9101,'attended_minutes'=>40,
+        'status'=>'present'
+    ]);
+    foundationReject(fn()=>$attendanceController->markAssigned($markInput,$otherMarker), 'FORBIDDEN');
+    foundationReject(fn()=>$attendanceController->markAssigned(new App\Http\Request([
+        'session_id'=>9111,'enrollment_id'=>9102,'attended_minutes'=>40,'status'=>'present'
+    ]),$markActor),'ENROLLMENT_NOT_ACTIVE');
+    foundationReject(fn()=>$attendanceController->markAssigned(new App\Http\Request([
+        'session_id'=>9111,'enrollment_id'=>9101,'attended_minutes'=>61,'status'=>'present'
+    ]),$markActor),'INVALID_MINUTES');
+    $written = $attendanceController->markAssigned($markInput, $markActor);
+    foundationCheck($written->status===201, 'Assigned instructor should record verified local attendance on unlocked session.');
+    foundationCheck((int)$db->query('SELECT attended_minutes FROM attendance_records WHERE session_id=9111 AND enrollment_id=9101 AND institute_id=9101')->fetchColumn()===40,'Attendance insert not persisted.');
+    foundationReject(fn()=>$attendanceController->markAssigned($markInput,$markActor),'ATTENDANCE_EXISTS');
+    $db->exec("UPDATE attendance_sessions SET locked_on=UTC_TIMESTAMP() WHERE id=9111");
+    foundationReject(fn()=>$attendanceController->markAssigned($markInput,$markActor),'SESSION_LOCKED');
+    foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='attendance.mark' AND entity_id=9111")->fetchColumn()===1,'Attendance marker audit must be exactly once.');
     $admissions->activate($actor,9101,9101);
     foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Activation replay must not count twice.');
     foundationSqlReject($db,"UPDATE global_regulatory_documents SET title='tampered' WHERE id=9101");

@@ -56,6 +56,7 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/attendance/records', $guard->wrap([$attendance, 'instituteRecords'], 'attendance.view'));
     $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));
     $router->get('/api/v1/attendance/records/me', $guard->wrap([$attendance, 'ownRecords'], 'attendance.view.own'));
+    $router->post('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'markAssigned'], 'attendance.mark.assigned'));
     $officialRecords = new OfficialRecordsController($database);
     $router->get('/api/v1/exams/results', $guard->wrap([$officialRecords, 'results'], 'result.view'));
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));

@@ -318,6 +318,20 @@ try {
         verify($ownOfficial['body']['data'][$key] === [], 'Nonexistent official record must not be fabricated.');
         expectStatus(http('GET', $route.'?after_id=0', token:$tokens['student']), 422);
     }
+    // A teacher may mark only pre-existing, assigned and unlocked sessions.
+    $markRoute = '/api/v1/attendance/records/assigned';
+    expectStatus(http('POST', $markRoute, []), 401);
+    expectStatus(http('POST', $markRoute, [], $tokens['student']), 403);
+    expectStatus(http('POST', $markRoute, [], $tokens['administrator']), 403);
+    expectStatus(http('POST', $markRoute, [
+        'session_id'=>1,'enrollment_id'=>1,'attended_minutes'=>10.5,'status'=>'present'
+    ], $tokens['instructor']), 422);
+    expectStatus(http('POST', $markRoute, [
+        'session_id'=>1,'enrollment_id'=>1,'attended_minutes'=>1,'status'=>'absent'
+    ], $tokens['instructor']), 422);
+    expectStatus(http('POST', $markRoute, [
+        'session_id'=>999999,'enrollment_id'=>999999,'attended_minutes'=>0,'status'=>'absent'
+    ], $tokens['instructor']), 404);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

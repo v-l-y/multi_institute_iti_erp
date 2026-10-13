@@ -145,14 +145,14 @@ $checks[] = $kernel->handle(static fn() => $operations->freezeEligibility(new Re
 $checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $context))->status === 403;
 $platform = new AuthContext(2, null, 2, 'developer', false, ['developer'], ['enrollment.manage'], null, null);
 $checks[] = $kernel->handle(static fn() => $operations->activateEnrollment(new Request(['enrollment_id' => 1]), $platform))->status === 403;
-$staffController = new App\Modules\Staff\StaffController(new App\Core\Database([]));
+$staffController = new App\Modules\Staff\Http\StaffController(new App\Core\Database([]));
 $staffWriter = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['staff.manage', 'staff.view'], 7, null);
 $checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'unknown', 'designation' => 'Instructor', 'joined_on' => '2026-01-01']), $staffWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'teaching', 'designation' => 'Instructor', 'joined_on' => '2026-02-30']), $staffWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $staffController->create(new Request(['employee_code' => 'STAFF1', 'full_name' => 'Test', 'staff_category' => 'teaching', 'designation' => 'Instructor', 'joined_on' => '2026-01-01']), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['page_size' => '101']), $staffWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $staffController->index(new Request(query: ['after_id' => ['1']]), $staffWriter))->status === 422;
-$studentController = new App\Modules\Students\StudentController(new App\Core\Database([]));
+$studentController = new App\Modules\Students\Http\StudentController(new App\Core\Database([]));
 $studentWriter = new AuthContext(1, 3, 1, 'test', false, ['administrator'], ['student.manage', 'student.view'], 7, null);
 $draft = ['local_student_code'=>'LOCAL-NEW','full_name'=>'Local Test','date_of_birth'=>'2005-01-01','gender'=>'test','address'=>'local','identity_mode'=>'non_aadhaar','identity_evidence_reference'=>'LOCAL-ONLY'];
 $checks[] = $kernel->handle(static fn() => $studentController->create(new Request([...$draft, 'identity_mode'=>'invalid']), $studentWriter))->status === 422;
@@ -166,7 +166,7 @@ $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(query: ['p
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(query: ['after_id' => ['5']]), $catalogReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(), $platform))->status === 403;
-$fees = new App\Modules\Fees\FeeController(new App\Core\Database([]));
+$fees = new App\Modules\Fees\Http\FeeController(new App\Core\Database([]));
 $feeWriter = new AuthContext(7, 3, 1, 'cashier', false, ['administrator'], ['fee.record','fee.refund','fee.view'], 7, null);
 $feeStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['fee.view.own'], null, 21);
 $checks[] = $kernel->handle(static fn() => $fees->recordPayment(new Request(['student_id'=>1,'amount'=>10,'payment_mode'=>'cash','payment_no'=>'A','receipt_no'=>'B','idempotency_key'=>'C']), $feeWriter))->status === 422;

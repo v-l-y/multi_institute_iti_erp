@@ -7,7 +7,7 @@ use App\Http\HttpException;
 use App\Modules\Admissions\Application\AdmissionService;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Exams\EligibilityService;
-use App\Modules\Fees\FeeService;
+use App\Modules\Fees\Application\FeeService;
 
 $dsn=getenv('TEST_DB_DSN');
 if (!$dsn) { fwrite(STDERR,"Disposable TEST_DB_DSN required.\n"); exit(1); }
@@ -124,7 +124,7 @@ try {
         (id,institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference)
         VALUES (9112,9101,'LOCAL-QUAL-TEST','Local Qualification Test','2005-01-01',
                 'other','LOCAL','non_aadhaar','LOCAL TEST')");
-    $qualificationService=new App\Modules\Students\StudentQualificationService($db);
+    $qualificationService=new App\Modules\Students\Application\StudentQualificationService($db);
     // The shared operations actor intentionally has no student.manage grant.
     // Keep it deny-by-default; use a separate institute operator context with
     // exactly the permission the qualification service requires.

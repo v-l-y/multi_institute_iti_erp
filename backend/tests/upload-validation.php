@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/bootstrap/autoload.php';
 use App\Modules\Admissions\Domain\TraineeUploadValidator;
-use App\Modules\Fees\Money;
+use App\Modules\Fees\Domain\Money;
 use App\Http\HttpException;
 
 // Fictional upload profile. No production official values are seeded by this test.

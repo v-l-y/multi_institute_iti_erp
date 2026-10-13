@@ -9,6 +9,7 @@ use App\Core\Database;
 use App\Modules\Auth\Http\AuthMiddleware;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
+use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
 use App\Modules\Students\Http\StudentController;
@@ -42,9 +43,14 @@ return static function (Router $router, Database $database): void {
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',
     ));
+    $router->post('/api/v1/institute/contact', $guard->wrap(
+        [new InstituteContactController($database),'update'], 'institute.profile.update'));
     $staff = new StaffController($database);
     $router->get('/api/v1/staff', $guard->wrap([$staff, 'index'], 'staff.view'));
     $router->post('/api/v1/staff', $guard->wrap([$staff, 'create'], 'staff.manage'));
+    $router->post('/api/v1/staff/profile', $guard->wrap([$staff, 'updateProfile'], 'staff.manage'));
+    $router->post('/api/v1/staff/qualifications', $guard->wrap([$staff, 'recordQualification'], 'staff.manage'));
+    $router->post('/api/v1/staff/exit', $guard->wrap([$staff, 'exitEmployment'], 'staff.manage'));
     $students = new StudentController($database);
     $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));

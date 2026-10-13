@@ -38,12 +38,12 @@ export const workspace = {
       dataset("reversals","Reversals","/api/v1/fees/reversals","fee.view","records",
         [["id","ID"],["payment_id","Payment"],["reversal_no","Number"],["reason","Reason"],["requested_by","Requester"],["approved_by","Approver"]]),
       dataset("own-payments","My payments","/api/v1/fees/payments/me","fee.view.own","payments",
-        [["id","ID"],["payment_no","Payment"],["receipt_no","Receipt"],["paid_on","Paid"],["amount","Amount"]]),
+        [["id","ID"],["payment_no","Payment"],["receipt_no","Receipt"],["paid_on","Paid"],["amount","Amount"]],{identity:"student_id"}),
       dataset("statement","Student statement","/api/v1/fees/statements","fee.view","demands",
         [["id","ID"],["demand_no","Demand"],["due_on","Due"],["gross","Gross"],["waived","Waived"],["net_due","Net due"],["effective_paid","Paid"],["outstanding","Outstanding"]],
         { requiredQuery: { key: "student_id", label: "Student ID", type: "id" } }),
       dataset("own-statement","My statement","/api/v1/fees/statements/me","fee.view.own","demands",
-        [["id","ID"],["demand_no","Demand"],["due_on","Due"],["gross","Gross"],["waived","Waived"],["net_due","Net due"],["effective_paid","Paid"],["outstanding","Outstanding"]])
+        [["id","ID"],["demand_no","Demand"],["due_on","Due"],["gross","Gross"],["waived","Waived"],["net_due","Net due"],["effective_paid","Paid"],["outstanding","Outstanding"]],{identity:"student_id"})
     ],
     actions: [
       action("Create fee head","/api/v1/fees/heads","fee.record",[text("code","Code",50),text("name","Name",120),{name:"requires_enrollment",label:"Requires enrollment",kind:"boolean"}]),

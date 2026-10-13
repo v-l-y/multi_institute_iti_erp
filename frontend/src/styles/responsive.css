@@ -1,0 +1,49 @@
+@media (min-width: 1700px) {
+  .sidebar { flex-basis: 270px; width: 270px; }
+  .page-content { padding-top: 44px; }
+}
+@media (max-width: 1060px) {
+  .sidebar { flex-basis: 215px; width: 215px; }
+  .topbar, .page-head, .page-content { padding-left: 25px; padding-right: 25px; }
+}
+@media (max-width: 780px) {
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); transition: transform .22s ease; width: 265px; max-height: none; }
+  .sidebar-open .sidebar { transform: translateX(0); }
+  .sidebar-backdrop { display: none; }
+  .sidebar-open .sidebar-backdrop { display: block; position: fixed; inset: 0; background: rgba(7,30,42,.54); border: 0; z-index: 20; }
+  .mobile-menu { display: inline-block; }
+  .topbar { padding: 0 17px; height: 66px; flex-basis: 66px; }
+  .crumb-parent, .account-scope { display: none; }
+  .topbar-right { gap: 9px; }
+  .page-head { padding: 25px 22px 21px; }
+  .page-content { padding: 25px 16px 40px; }
+  .content-heading { flex-direction: column; align-items: stretch; }
+  .heading-actions .button { flex: 1; }
+  .welcome-art { display: none; }
+  .app-footer { padding: 20px 16px; }
+  .auth-layout { grid-template-columns: 1fr; }
+  .auth-story { padding: 28px 22px; }
+  .auth-story > p, .scope-pill, .story-footer { display: none; }
+  .auth-story h1 {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  .brand-large { margin: 0; }
+  .auth-main { padding: 30px 16px; align-items: start; }
+}
+@media (max-width: 480px) {
+  .topbar .signout { padding: 8px 10px; font-size: .77rem; }
+  .avatar { display: none; }
+  .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .module-card { padding: 14px; min-height: 151px; }
+  .module-card strong { font-size: .84rem; }
+  .register-tools { flex-direction: column; align-items: stretch; }
+  .page-hint { align-self: flex-end; }
+  .register-bottom { align-items: stretch; }
+  .pager { width: 100%; }
+  .pager .button { flex: 1; }
+  .form-dialog { padding: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

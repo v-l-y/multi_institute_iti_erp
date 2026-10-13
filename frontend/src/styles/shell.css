@@ -1,0 +1,64 @@
+.app-shell { min-height: 100vh; display: flex; }
+.sidebar {
+  flex: 0 0 246px; width: 246px; min-height: 100vh; position: sticky; top: 0; align-self: flex-start;
+  max-height: 100vh; overflow-y: auto; background: var(--navy-deep); color: #c6d5dc;
+  padding: 27px 14px 18px; display: flex; flex-direction: column; z-index: 25;
+}
+.sidebar-head { padding: 0 13px 26px; }
+.sidebar-head .brand { color: white; }
+.brand-caption { display: block; margin: 9px 0 0 46px; letter-spacing: .12em; font-size: .59rem; color: #92b6bf; font-weight: 800; }
+.side-nav { display: flex; flex-direction: column; gap: 17px; flex: 1; }
+.nav-group-title { padding: 0 13px; margin-bottom: 8px; color: #668c9a; font-size: .63rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.nav-link {
+  display: flex; align-items: center; gap: 13px; color: #bed1d9; font-size: .86rem; font-weight: 560;
+  border-radius: 9px; text-decoration: none; padding: 10px 13px; margin: 2px 0;
+}
+.nav-icon { width: 20px; font-size: 1.15rem; text-align: center; color: #88adb4; }
+.nav-link:hover { background: rgba(255,255,255,.07); color: white; }
+.nav-link.is-active { background: #19544f; color: #fff; font-weight: 730; }
+.nav-link.is-active .nav-icon { color: #9df0da; }
+.sidebar-foot { border-top: 1px solid #21404d; padding: 20px 13px 0; margin-top: 20px; font-size: .71rem; color: #9dbcc2; }
+.tiny-dot { color: #78dcc0; margin-right: 7px; font-size: .54rem; }
+.workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar { height: 76px; flex: 0 0 76px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(22px, 3vw, 46px); gap: 18px; }
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 16px; }
+.crumb-wrap { display: flex; align-items: center; gap: 7px; font-size: .82rem; font-weight: 700; color: #475d69; }
+.crumb-parent { color: #9babb4; font-size: .7rem; font-weight: 700; letter-spacing: .08em; }
+.account-scope { color: #687e8a; font-size: .78rem; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: #e3f1ed; color: #176b61; display: grid; place-items: center; font-weight: 800; font-size: .73rem; }
+.mobile-menu, .sidebar-backdrop { display: none; }
+.page-head {
+  padding: 30px clamp(22px, 3vw, 46px) 24px; background: #fff;
+  border-bottom: 1px solid #e5ebed;
+}
+.page-head .eyebrow { color: #168071; font-size: .66rem; margin-bottom: 7px; }
+.page-head h1 { margin: 0; letter-spacing: -.043em; font-size: clamp(1.65rem, 2.15vw, 2.15rem); line-height: 1.2; }
+.page-head p.muted { font-size: .86rem; margin: 8px 0 0; }
+.page-content { width: 100%; max-width: 1560px; padding: 33px clamp(22px, 3vw, 46px) 60px; flex: 1; }
+.content-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.content-heading h2 { font-size: 1.25rem; font-weight: 760; letter-spacing: -.025em; margin-bottom: 5px; }
+.content-heading .muted { font-size: .84rem; margin-bottom: 0; }
+.heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.welcome-panel {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: clamp(25px, 3vw, 44px); margin-bottom: 35px; color: white; border-radius: 18px;
+  background: radial-gradient(circle at 75% 100%, #245e63 0, transparent 40%), linear-gradient(120deg, #143343, #16494c);
+  position: relative; overflow: hidden; box-shadow: 0 14px 28px rgba(16, 58, 67, .07);
+}
+.welcome-panel h2 { font-size: clamp(1.65rem, 2.4vw, 2.25rem); letter-spacing: -.045em; margin-bottom: 8px; }
+.welcome-panel p:last-child { max-width: 620px; color: #bddbdc; margin-bottom: 0; font-size: .89rem; }
+.welcome-art { padding-right: 33px; font-size: 6rem; font-weight: 900; letter-spacing: -.12em; color: rgba(160,244,223,.16); }
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 15px; }
+.module-card {
+  text-decoration: none; min-height: 171px; border: 1px solid var(--line); padding: 21px;
+  box-shadow: var(--shadow); border-radius: 14px; background: #fff; position: relative;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; transition: border-color .14s, transform .14s;
+}
+.module-card:hover { border-color: #9ccfc4; transform: translateY(-2px); }
+.module-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: #e9f4f1; color: #176e64; font-size: 1.35rem; }
+.module-card strong { font-size: .92rem; margin-top: 4px; }
+.module-meta { font-size: .71rem; color: var(--muted); }
+.module-arrow { position: absolute; right: 20px; bottom: 21px; color: #77a49c; }
+.bottom-note { margin-top: 32px; padding: 23px 26px; background: #e7f0f0; border: 1px solid #dbe8e8; border-radius: 12px; font-size: .84rem; }
+.bottom-note strong { color: #20596a; }
+.bottom-note p { margin: 5px 0 0; color: #68808b; }

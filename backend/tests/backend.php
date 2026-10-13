@@ -505,6 +505,28 @@ $checks[]=$kernel->handle(static fn()=>$reporting->platformAudit(
     new Request(),$auditor))->status===403;
 $checks[]=$kernel->handle(static fn()=>$reporting->summary(
     new Request(),$accountStudent))->status===403;
+$formative=new App\Modules\Assessment\FormativeController(new App\Core\Database([]));
+$assignedAssessor=new AuthContext(3,3,1,'instructor',false,['instructor'],
+    ['formative.record.assigned'],3,null);
+$formativeReviewer=new AuthContext(4,3,1,'principal',false,['principal'],
+    ['formative.template.manage'],4,null);
+$formativeInput=['enrollment_id'=>1,'batch_year_id'=>1,'learning_outcome_id'=>1,
+    'assessed_on'=>'2026-09-01','max_marks'=>'100.00',
+    'obtained_marks'=>'72.50','evidence_reference'=>'LOCAL'];
+$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'obtained_marks'=>'101.00']),$assignedAssessor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'max_marks'=>'0']),$assignedAssessor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'max_marks'=>100]),$assignedAssessor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request([...$formativeInput,'assessed_on'=>'2026-02-30']),$assignedAssessor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$formative->recordAssigned(
+    new Request($formativeInput),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$formative->lock(
+    new Request(['formative_assessment_id'=>1,'review_reference'=>'LOCAL']),$assignedAssessor))->status===403;
+$checks[]=$kernel->handle(static fn()=>$formative->lock(
+    new Request(['formative_assessment_id'=>'1','review_reference'=>'LOCAL']),$formativeReviewer))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

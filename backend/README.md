@@ -863,6 +863,12 @@ A generic published syllabus/calendar reference is not accepted for official imp
 
 `GET /api/v1/exams/cycles/status?cycle_id=...` returns only same-institute cycle metadata, eligibility snapshot counts and official-result revision counts for manual reconciliation. Counts are explicitly **not proof** that all required trainees, attempts or official actions are complete.
 
+## Exam-cycle source and immutable record safeguards
+
+A published CTS **training calendar** is not an exam schedule. Both `POST /api/v1/exams/cycles` and Principal review at `POST /api/v1/exams/cycles/open` now require an institute-linked published regulatory document explicitly identified as an exam/AITT schedule, timetable, exam calendar, date sheet or programme. This string-based document-type guard is not proof that the government's file or activity windows are authentic. The published rule, institute evidence, document digest and manual Principal review remain separately required.
+
+`backend/tests/exam-cycle-integration.php` checks the source gate, tenant isolation and draft-to-reviewed transition. The official import integration covers separate marksheet series per year/exam cycle and refuses a new valid NTC that relies on a superseded passing result. Tests are wired into the Docker runner but execute **only when manually invoked**; no new PASS claim is made.
+
 ## Reviewed formative scheme setup
 
 `POST /api/v1/formative/schemes/configure` requires the **Principal** plus

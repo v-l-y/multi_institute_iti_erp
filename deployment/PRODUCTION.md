@@ -9,7 +9,7 @@ maintenance window or official regulatory data source is provisioned by this cod
 1. Provision your production domain, CA-signed full chain, private key, and
    renewal procedure. Put files at `deployment/certs/fullchain.pem` and
    `deployment/certs/privkey.pem` (never commit either file).
-2. Find the *specific* Docker bridge CIDR used by the reverse proxy via
+2. Set `ERP_DOMAIN` to the production DNS hostname in the root `.env` (no scheme or port). The TLS certificate must match it. Find the *specific* Docker bridge CIDR used by the reverse proxy via
    `docker network inspect`. Set `TRUSTED_PROXY_CIDRS` in the root `.env`
    to that network only; never trust arbitrary internet address ranges.
    The application ignores forwarded headers from untrusted peers. nginx

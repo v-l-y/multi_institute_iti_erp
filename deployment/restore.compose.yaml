@@ -1,0 +1,17 @@
+# Manual isolated restore only; no ports and no application volumes.
+services:
+  restore-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: ${RESTORE_DRILL_ROOT_PASSWORD:?Set a unique temporary drill password}
+      MARIADB_DATABASE: multi_institute_iti_erp
+    volumes:
+      - restore_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 50s
+volumes:
+  restore_data:

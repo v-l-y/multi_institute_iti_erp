@@ -28,3 +28,5 @@ jobs:
         run: docker compose -p iti-erp-ci -f compose.test.yaml down
 
 # Verification attempt 2: frontend syntax repairs.
+
+# Verification attempt 3: PHP TrainingService parse repair.

@@ -1,9 +1,11 @@
 # Database migrations
 
-Migrations 001–008 upgrade the previous canonical 97-table schema to 99 application tables and 74 triggers, plus the migration ledger. They add private documents and immutable academic correction history. They are not a universal upgrade for older legacy databases.
+The previous canonical 97-table schema upgrades via 001–008 to the document/correction baseline (99 tables, 74 triggers). Migrations 009–014 add instructional training (101 application tables, 78 triggers). The separate iti_erp_schema_migrations ledger adds one installed table. These are reviewed additive upgrades, not a universal legacy database conversion.
 
-Run `php bin/migrate.php --status` for read-only status; use `--apply` only after backup and rehearsal on a restored copy. The integration suite rehearses the populated previous schema upgrade and verifies repeat application is a no-op. Applied files must never be modified or renamed.
+Read-only status: php bin/migrate.php --status. Explicit upgrades: --apply. Back up and rehearse first; DDL auto-commits, so a partial failure requires manual reconciliation. Never change applied files/checksums.
 
-Fresh installation uses the canonical schema and integrity guards, which already contain these objects. Do not replay 001–008 on a fresh installation. Before future numbered upgrades, fresh installations currently require an operator-reviewed migration ledger baseline. Never baseline a partially upgraded database.
+Fresh current canonical installs already contain all migration objects. Use php bin/migrate.php --baseline-current before --apply. The baseline compares every application table's SHOW CREATE TABLE and trigger body against a disposable canonical install with matching database defaults, rejecting schema drift or missing guards. It records checksums only after validation. It requires operator permissions to create/drop its randomly named disposable reference database; it never resets application tables or data.
 
-MariaDB DDL auto-commits. Failed DDL tracking requires manual reconciliation; the runner does not reset or roll back a populated database. Files must contain exactly one statement with contiguous numbered prefixes. Schema preflight proves object presence, not complete compatibility.
+For the previously installed canonical 99-table document baseline without a ledger, explicitly use --baseline-through=008, then --apply to install 009–014. Earlier-prefix reconstruction is supported only when later migrations are additive CREATE TABLE/TRIGGER operations, and occurs only in the disposable reference database. Unsupported reverse operations fail closed. Do not baseline a partially applied or unreviewed legacy upgrade.
+
+Files use contiguous three-digit prefixes and one SQL statement. A narrowly validated single conditional immutable-status CREATE TRIGGER body is supported; trailing SQL batches remain rejected. Runtime application credentials have no DDL privileges and cannot perform maintenance.

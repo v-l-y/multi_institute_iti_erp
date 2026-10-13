@@ -23,7 +23,7 @@ Legacy `fee_transactions`, `fee_payment_balances` and `exam_fee_clearances` rema
 
 ## Existing database upgrade (manual)
 
-Back up the existing database first. Do not import the complete create-only schema into an existing database and do not remove the Docker volume. Fresh empty databases now receive 99 application tables and 74 record-protection triggers. An already upgraded fee database needs the later foundation migration in [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md).
+Back up the existing database first. Do not import the complete create-only schema into an existing database and do not remove the Docker volume. Fresh empty databases now receive 101 application tables and 78 record-protection triggers. An already upgraded fee database needs the later foundation migration in [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md).
 
 For an existing original 81-table database, rebuild the backend image to include the new schema and exporter:
 

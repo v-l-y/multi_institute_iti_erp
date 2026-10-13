@@ -946,6 +946,18 @@ try {
         'Platform audit search must not expose unrestricted JSON.');
     expectStatus(http('GET','/api/v1/platform/audit/events',
         token:$tokens['administrator']),403);
+    // Public route contracts for the new bounded fee/training read views.
+    foreach (['heads','structures','structure-items','assessments','demands','refunds','waivers','reversals'] as $register) {
+        expectStatus(http('GET','/api/v1/fees/'.$register,token:$tokens['administrator']),200);
+        expectStatus(http('GET','/api/v1/fees/'.$register,token:$tokens['student']),403);
+    }
+    expectStatus(http('GET','/api/v1/fees/demands?student_id='.$studentId,token:$tokens['other-admin']),404);
+    foreach (['plans','progress'] as $register) {
+        expectStatus(http('GET','/api/v1/training/'.$register,token:$tokens['administrator']),200);
+        expectStatus(http('GET','/api/v1/training/'.$register,token:$tokens['student']),200);
+        expectStatus(http('GET','/api/v1/training/'.$register,token:$tokens['developer']),403);
+    }
+    expectStatus(http('POST','/api/v1/training/plans',[],$tokens['student']),403);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);
@@ -1012,6 +1024,12 @@ try {
     expectStatus($unknownRecovery,202); expectStatus($knownRecovery,202);
     verify($unknownRecovery['body']===$knownRecovery['body'],'Recovery must not enumerate account existence.');
     verify(!str_contains(json_encode($knownRecovery['body']),'reset_token'),'Recovery response must not expose reset token.');
+    // In this disposable database only, simulate a missing critical
+    $db->exec('ALTER TABLE training_progress RENAME TO training_progress_offline');
+    expectStatus(http('GET','/api/v1/ready'),503);
+    expectStatus(http('GET','/api/v1/health'),200);
+    $db->exec('ALTER TABLE training_progress_offline RENAME TO training_progress');
+    expectStatus(http('GET','/api/v1/ready'),200);
     // In this disposable database only, simulate a missing critical
     // schema table while connectivity remains healthy. DDL/trigger
     // verification is a separate privileged, manual preflight task.

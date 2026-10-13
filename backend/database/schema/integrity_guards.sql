@@ -491,3 +491,22 @@ BEGIN
  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Academic corrections are append-only';
 END$$
 DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER lesson_plans_approved_update BEFORE UPDATE ON lesson_plans FOR EACH ROW
+BEGIN
+ IF OLD.status='approved' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Approved lesson plans are immutable'; END IF;
+END$$
+CREATE TRIGGER lesson_plans_approved_delete BEFORE DELETE ON lesson_plans FOR EACH ROW
+BEGIN
+ IF OLD.status='approved' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Approved lesson plans are immutable'; END IF;
+END$$
+CREATE TRIGGER training_progress_immutable_update BEFORE UPDATE ON training_progress FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Training progress is append-only';
+END$$
+CREATE TRIGGER training_progress_immutable_delete BEFORE DELETE ON training_progress FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Training progress is append-only';
+END$$
+DELIMITER ;

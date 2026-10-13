@@ -28,14 +28,17 @@ try {
     $db->exec(file_get_contents(dirname(__DIR__).'/database/seeders/rbac_seed.sql'));
     $db->exec(file_get_contents(__DIR__.'/fixtures/foundation.sql'));
     // Reconstruct the populated 97-table baseline without touching an app DB.
+    foreach (['lesson_plans_approved_update','lesson_plans_approved_delete','training_progress_immutable_update','training_progress_immutable_delete'] as $trigger) $db->exec("DROP TRIGGER $trigger");
+    $db->exec('DROP TABLE training_progress'); $db->exec('DROP TABLE lesson_plans');
     foreach (['private_documents','formative_corrections','attendance_corrections'] as $table) {
         foreach (['update','delete'] as $event) $db->exec("DROP TRIGGER {$table}_immutable_$event");
     }
     $db->exec('DROP TABLE private_documents'); $db->exec('DROP TABLE formative_corrections');
     $migrated=MigrationRunner::run($db,dirname(__DIR__).'/database/migrations',true);
-    $check(count($migrated['applied'])===8,'Additive upgrade must apply all reviewed files.');
+    $check(count($migrated['applied'])===14,'Additive upgrade must apply all reviewed files.');
     $check((int)$db->query('SELECT COUNT(*) FROM students')->fetchColumn()===2,'Migration must preserve populated student records.');
     $check(MigrationRunner::run($db,dirname(__DIR__).'/database/migrations',true)['applied']===[],'Applied migrations must not replay.');
+    $check(\App\Core\MigrationBaseline::run($db,dirname(__DIR__).'/database/migrations')['baselined']===[],'Migrated populated schema must match canonical DDL and existing ledger.');
     $db->exec("INSERT INTO staff(id,institute_id,employee_code,full_name,staff_category,designation,joined_on) VALUES (9115,9101,'P','Principal','non_teaching','Principal','2026-01-01')");
     $db->exec("INSERT INTO auth_users(id,institute_id,username,password_hash) VALUES (9215,9101,'principal','TEST')");
     $permissions=['student.manage','enrollment.manage','document.manage','document.view','attendance.correct','formative.template.manage'];

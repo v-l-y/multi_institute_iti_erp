@@ -62,6 +62,11 @@ final class MigrationRunner
         if (str_ends_with($statement, ';')) {
             $statement = rtrim(substr($statement, 0, -1));
         }
+        // Narrow supported compound statement: one conditional immutable-record
+        // trigger. Anchor the whole grammar so no trailing SQL batch is accepted.
+        if (preg_match("/\\ACREATE TRIGGER [a-z0-9_]+ BEFORE (?:UPDATE|DELETE) ON [a-z0-9_]+ FOR EACH ROW BEGIN IF OLD\\.status='[a-z_]+' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='[A-Za-z -]+'; END IF; END\\z/D", $statement)===1) {
+            return $statement;
+        }
         if ($statement === '' || str_contains($statement, ';')) {
             throw new RuntimeException('Each migration file must contain exactly one SQL statement.');
         }

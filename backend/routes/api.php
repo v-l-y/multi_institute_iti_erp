@@ -48,6 +48,17 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/health', new HealthController());
     $auth = new AuthController($database);
     $guard = new AuthMiddleware($database);
+    $training=new \App\Modules\Training\TrainingController($database);
+    $router->post('/api/v1/training/plans',$guard->wrap([$training,'draft']));
+    $router->post('/api/v1/training/plans/delete',$guard->wrap([$training,'delete']));
+    $router->post('/api/v1/training/plans/approve',$guard->wrap([$training,'approve'],'training.plan.manage'));
+    $router->post('/api/v1/training/progress',$guard->wrap([$training,'record']));
+    $router->get('/api/v1/training/plans',$guard->wrap([$training,'plans']));
+    $router->get('/api/v1/training/progress',$guard->wrap([$training,'progress']));
+    $feeRegisters=new \App\Modules\Fees\Http\FeeRegisterController($database);
+    foreach (['heads','structures','structure-items','assessments','demands','refunds','waivers','reversals'] as $kind) {
+        $router->get('/api/v1/fees/'.$kind,$guard->wrap(static fn(Request $r,AuthContext $a): Response=>$feeRegisters->read($r,$a,$kind),'fee.view'));
+    }
     $documents=new \App\Modules\Documents\DocumentController($database);
     $router->post('/api/v1/documents/upload',$guard->wrap([$documents,'upload'],'document.manage'));
     $router->post('/api/v1/documents/archive',$guard->wrap([$documents,'archive'],'document.manage'));
@@ -307,8 +318,9 @@ return static function (Router $router, Database $database): void {
             $requiredTables = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'
                   AND TABLE_NAME IN ('institute','auth_users','fee_payments',
-                                     'fee_cash_closings','exam_cycles','official_results')")->fetchColumn();
-            if ($requiredTables !== 6) {
+                                     'fee_cash_closings','exam_cycles','official_results',
+                                     'private_documents','lesson_plans','training_progress')")->fetchColumn();
+            if ($requiredTables !== 9) {
                 return Response::error('NOT_READY',
                     'Required application tables are unavailable.', 503);
             }

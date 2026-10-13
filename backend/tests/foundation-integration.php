@@ -34,6 +34,9 @@ try {
     SchemaInstaller::install($db);
     $db->exec(file_get_contents(dirname(__DIR__).'/database/seeders/rbac_seed.sql'));
     $db->exec(file_get_contents(__DIR__.'/fixtures/foundation.sql'));
+    // The full-lifecycle variant uses an explicitly fictional short course
+    // already ended on this fixed test date; no government duration is asserted.
+    if (defined('FULL_LIFECYCLE_SCENARIO')) $db->exec("UPDATE batches SET ends_on='2026-09-03' WHERE id=9101");
     // Exercise SQL identity scopes against an actual populated, relationally
     // valid attendance session without permitting unverified attendance writes.
     preg_match('/host=([^;]+)/', $dsn, $attendanceHost);
@@ -342,6 +345,16 @@ try {
     $db->exec("INSERT INTO exam_rule_versions (id,institute_id,global_exam_rule_id,cycle_type) VALUES (9101,9101,9101,'mains')");
     $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9101,9101,'LOCAL','mains',9101,9101,'2026-09-01','2026-09-20','{}','eligibility_open')");
     $exam=new EligibilityService($db);
+    if (defined('FULL_LIFECYCLE_SCENARIO')) {
+        $db->exec("INSERT INTO subject_batch_assignments(institute_id,mapping_id,batch_year_id,assigned_minutes_per_week,principal_reference) VALUES (9101,9101,9101,60,'LOCAL FULL JOURNEY')");
+        $training=new App\Modules\Training\TrainingService($db);
+        $trainingTeacher=new AuthContext(9202,9101,1,'local-instructor',false,['instructor'],['training.record.assigned'],9101,null);
+        $trainingPrincipal=new AuthContext(9215,9101,2,'local-principal',false,['principal'],['training.plan.manage','enrollment.manage'],9115,null);
+        $trainingPlan=$training->plan($trainingTeacher,['batch_year_id'=>9101,'learning_outcome_id'=>9102,'instructor_id'=>9101,'session_date'=>'2026-09-01','component'=>'trade_theory','activity_type'=>'lesson','title'=>'LOCAL full journey','instructions'=>'LOCAL fictional instructional record','start_minute'=>540,'planned_minutes'=>30]);
+        $training->approve($trainingPrincipal,$trainingPlan,'LOCAL REVIEW');
+        $trainingRecord=$training->progress($trainingTeacher,['plan_id'=>$trainingPlan,'enrollment_id'=>9101,'progress_status'=>'completed','attended_minutes'=>30,'recorded_on'=>'2026-09-01','evidence_reference'=>'LOCAL JOURNEY','notes'=>'Internal practice completed; not a government result']);
+        foundationCheck($trainingRecord>0,'Full journey must include reviewed instructional progress.');
+    }
     $db->exec("UPDATE batch_years SET ends_on='2026-09-01' WHERE id=9101");
     foundationReject(fn()=>$exam->freeze($actor,9101,9101,9101,9101,'LOCAL'),'ATTENDANCE_NOT_RECONCILED');
     $db->exec('UPDATE attendance_sessions SET locked_on=UTC_TIMESTAMP() WHERE id=9101');
@@ -410,8 +423,21 @@ try {
         foundationCheck((int)$e->errorInfo[1]===1205,'Expected institute lock timeout.');
         foundationCheck(!$other->inTransaction(),'Failed concurrent operation must roll back.');
     } finally { $db->rollBack(); }
-    $admissions->cancel($actor,9101,9101,'LOCAL TEST');
-    foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===0,'Cancellation must reconcile occupancy.');
+    if (defined('FULL_LIFECYCLE_SCENARIO')) {
+        $lifecycle=new App\Modules\Students\Application\StudentLifecycleService($db);
+        $foreignPrincipal=new AuthContext(9204,9102,3,'other-principal',false,['principal'],['enrollment.manage'],9102,null);
+        foundationReject(fn()=>$lifecycle->transition($foreignPrincipal,9102,9101,'completed','2026-09-30',0,'LOCAL','Other institute'),'NOT_FOUND');
+        foundationReject(fn()=>$lifecycle->transition($actor,9101,9101,'completed','2026-09-30',0,'LOCAL','Not principal'),'PRINCIPAL_REQUIRED');
+        $lifecycle->transition($trainingPrincipal,9101,9101,'completed','2026-09-30',0,'LOCAL COMPLETION ORDER','Internal training completion');
+        foundationCheck($db->query('SELECT status FROM enrollments WHERE id=9101')->fetchColumn()==='completed','Full journey must finish with Principal-approved course completion.');
+        foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Completion must retain historical intake consumption.');
+        foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='student.enrollment.completed'")->fetchColumn()===1,'Completion must be auditable.');
+        foundationCheck($db->query("SELECT eligibility_status FROM exam_eligibility WHERE id=$eligibility")->fetchColumn()==='eligible','Completion must preserve original frozen eligibility.');
+        echo "Complete multi-institute lifecycle passed: admission, batch, training, attendance, formative, fees, eligibility and completion.\n";
+    } else {
+        $admissions->cancel($actor,9101,9101,'LOCAL TEST');
+        foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===0,'Cancellation must reconcile occupancy.');
+    }
     echo "Foundation integrity passed ($checks checks; admission, financial transactions, exam freeze, record guards and lock serialization).\n";
 } finally {
     if ($db->inTransaction()) $db->rollBack();

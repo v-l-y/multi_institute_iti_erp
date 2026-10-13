@@ -1,0 +1,10 @@
+.git/
+.env
+**/.env
+**/.env.*
+.staging.env
+.demo-private/
+backups/
+**/vendor/
+**/*.log
+frontend/

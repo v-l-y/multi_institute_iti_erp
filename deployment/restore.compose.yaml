@@ -4,7 +4,7 @@ services:
     image: mariadb:10.11
     environment:
       MARIADB_ROOT_PASSWORD: ${RESTORE_DRILL_ROOT_PASSWORD:?Set a unique temporary drill password}
-      MARIADB_DATABASE: multi_institute_iti_erp
+      MARIADB_DATABASE: iti_restore_drill
     volumes:
       - restore_data:/var/lib/mysql
     healthcheck:
@@ -13,5 +13,22 @@ services:
       timeout: 5s
       retries: 20
       start_period: 50s
+  restore-worker:
+    profiles: ["backup"]
+    build:
+      context: ..
+      dockerfile: deployment/backup.Dockerfile
+    environment:
+      DB_HOST: restore-db
+      DB_DATABASE: iti_restore_drill
+      DB_USERNAME: root
+      DB_PASSWORD: ${RESTORE_DRILL_ROOT_PASSWORD:?Set a unique temporary drill password}
+      RESTORE_DRILL_ONLY: "1"
+    tmpfs:
+      - /tmp:size=1g,mode=0700
+    volumes:
+      - restore_private:/var/lib/iti-private
+      - ../backups:/backup/output:ro
 volumes:
   restore_data:
+  restore_private:

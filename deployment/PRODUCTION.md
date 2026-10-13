@@ -49,6 +49,22 @@ fail closed. Health/normal API reads continue using only the runtime identity.
 
 ## Encrypted backup (manual, no scheduler enabled)
 
+The complete paired workflow is `ops/backup-restore-local.ps1`. For an explicitly
+authorized production maintenance window, use `-Environment production
+-SourceProject YOUR_ACTUAL_COMPOSE_PROJECT` with configured production settings.
+It pauses that backend, encrypts SQL plus its `production_private` volume in one
+bundle, resumes it in finally, and independently verifies restoration. All other
+writers must be quiesced. Demo/staging execution is verified; production execution
+requires the actual hosting configuration and owner authorization.
+
+Archive keys stay in ignored `.demo-private/backup-production.key`; protect and
+store them separately from the encrypted `backups/` archives. The helper image
+provides GnuPG and MariaDB clients; host GPG installation is not required. See
+[paired recovery instructions](INSTITUTE-WORKFLOWS.md#paired-recovery).
+
+The older script below is **database-only** and does not provide complete
+document recovery. Use it only as a supplemental SQL backup.
+
 Requires Linux/WSL Bash, Docker Compose, GnuPG and sha256sum.
 Run from project root after configuring a valid GPG encryption recipient:
 
@@ -90,10 +106,11 @@ The results are not a complete schema diff or permission audit.
 Review `backend/database/migrations/README.md`,
 `backend/database/schema/FEE_MANAGEMENT.md` and
 `backend/database/schema/FOUNDATION_UPGRADE.md`.
-**Numbered migrations 001–008 upgrade the previous canonical 97-table baseline.**
+**Numbered migrations 001–014 upgrade the previous canonical 97-table baseline.**
 They are not a complete upgrade chain for older legacy databases. Fresh installations
-already contain those objects and require a reviewed ledger baseline before future
-numbered upgrades. Earlier one-time fee and foundation exporters remain
+already contain those objects; use the explicit DDL-verified `--baseline-current`
+workflow before future numbered upgrades. The older 99-table canonical install can
+use `--baseline-through=008` before applying 009–014. Earlier one-time fee and foundation exporters remain
 version-specific tools, not a substitute for reviewed migration history.
 Never re-import the create-only canonical schema into populated data, retry
 partially committed DDL blindly, or delete live Docker volumes. Review each

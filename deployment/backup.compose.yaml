@@ -1,0 +1,17 @@
+# Overlay for local staging/demo paired backups; application must be quiesced.
+services:
+  backup-worker:
+    profiles: ["backup"]
+    build:
+      context: .
+      dockerfile: deployment/backup.Dockerfile
+    environment:
+      DB_HOST: database
+      DB_DATABASE: iti_erp_staging
+      DB_USERNAME: root
+      DB_PASSWORD: ${STAGING_ROOT_PASSWORD:?Use staging/demo private settings}
+    tmpfs:
+      - /tmp:size=1g,mode=0700
+    volumes:
+      - staging_private:/var/lib/iti-private:ro
+      - ./backups:/backup/output

@@ -91,8 +91,8 @@ after(() => {
   for (const name of [...created].reverse()) dropDatabase(name);
 });
 
-test('fresh SQL imports into a disposable database with 99 tables and integrity triggers', { skip }, () => {
-  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE';")), 99);
+test('fresh SQL imports into a disposable database with 101 tables and integrity triggers', { skip }, () => {
+  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE';")), 101);
   assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE();")), (guards.match(/CREATE TRIGGER /g) || []).length);
 });
 

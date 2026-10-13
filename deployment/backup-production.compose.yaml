@@ -1,0 +1,17 @@
+# Explicit production maintenance overlay; use with root + production compose.
+services:
+  backup-worker:
+    profiles: ["backup"]
+    build:
+      context: .
+      dockerfile: deployment/backup.Dockerfile
+    environment:
+      DB_HOST: database
+      DB_DATABASE: multi_institute_iti_erp
+      DB_USERNAME: root
+      DB_PASSWORD: ${DOCKER_DB_ROOT_PASSWORD:?Use protected production settings}
+    tmpfs:
+      - /tmp:size=1g,mode=0700
+    volumes:
+      - production_private:/var/lib/iti-private:ro
+      - ./backups:/backup/output

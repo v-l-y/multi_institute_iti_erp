@@ -287,3 +287,19 @@ INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
  SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN ('document.manage','document.view') WHERE r.code IN ('principal','administrator');
 INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
  SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code='document.view.own' WHERE r.code='student';
+
+-- Internal instructional training permissions. Draft grants require production policy review.
+INSERT IGNORE INTO auth_permissions(code,description,module) VALUES
+ ('training.plan.manage','Manage and review institute lesson plans','training'),
+ ('training.record.assigned','Plan and record assigned instructional training','training'),
+ ('training.view','Read institute training registers','training'),
+ ('training.view.own','Read own trainee training records','training'),
+ ('training.correct','Approve append-only trainee progress corrections','training');
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN ('training.plan.manage','training.view') WHERE r.code IN ('principal','administrator');
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code='training.correct' WHERE r.code='principal';
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code='training.record.assigned' WHERE r.code='instructor';
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code='training.view.own' WHERE r.code='student';

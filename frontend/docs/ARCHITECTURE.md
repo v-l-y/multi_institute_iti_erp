@@ -1,0 +1,121 @@
+# Frontend Architecture — V1 Foundation
+
+## Scope and source of truth
+
+- **Target:** Bihar state, private ITI institutes, multi-institute CTS management only.
+- **Five foundations:** ITI Institute, Regulatory Body, Trades, Syllabus, Academic Calendar.
+- The application may *record, reference, and display* official decisions. It cannot create DGT affiliations, ITICAT allotments, official exam results, certificates or government-portal updates.
+- Backend PHP API and authorized source documents determine valid data and business behavior. UI labels, mock constants, client-side calculations and navigation do **not** create regulatory rules.
+- No independent institute Trade or institute Shift master is introduced by frontend code. Current ITSU API uses the backend's actual contract.
+
+## Dependency-free application layout
+
+    frontend/
+      index.html
+      styles.css                     CSS import entrypoint
+      package.json                   Node >=20, dev/start only
+      dev-server.mjs                 loopback static + same-origin API proxy
+      README.md
+      docs/
+        ARCHITECTURE.md
+      src/
+        main.js                      minimal entrypoint
+        app/
+          controller.js              session/route/view lifecycle composition
+          routes.js                  combines module routes; denies unknown routes
+        core/
+          auth/
+            session.js               in-memory bearer token (no browser storage)
+          http/
+            client.js                JSON envelopes, API failures, 401 handling
+        shared/
+          layouts/
+            app-shell.js             responsive shell, navigation, tenant banner
+          ui/
+            index.js                 component barrel
+            dom.js                   safe DOM node creation and formatting
+            headers.js               register page heading
+            status.js                semantic status labels
+            fields.js                reusable labeled fields
+            feedback.js              empty/loading/error states
+            table.js                 reusable tabular view
+            toast.js                 transient notices
+        modules/
+          auth/
+            views.js                 sign in and forced password change
+          dashboard/
+            routes.js
+            view.js
+          institutes/
+            routes.js
+            profile.js
+          regulatory/
+            routes.js
+          trades/
+            routes.js
+          syllabus/
+            README.md                no GET contract; UI must not fake syllabus
+          calendar/
+            routes.js
+          admissions/
+            routes.js
+          students/
+            routes.js
+            create-config.js
+          staff/
+            routes.js
+            create-config.js
+          registry/
+            register-view.js         cursor paging, scoped view lifecycle
+            create-config.js         delegates to module-owned forms
+            create-dialog.js         generic dialog, form submission
+        styles/
+          tokens.css
+          primitives.css
+          auth.css
+          shell.css
+          components.css
+          responsive.css
+
+No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party runtime is installed or required by this foundation. The chosen architecture can be migrated deliberately later, without implying a framework selection now.
+
+## Runtime boundaries
+
+1. **Entrypoint:** src/main.js imports app/controller.js. index.html loads only that module.
+2. **Login:** auth/views.js gathers credentials. The app controller calls POST /api/v1/auth/login and GET /api/v1/auth/me. Token is stored only in core/auth/session.js memory.
+3. **Access:** app/routes.js evaluates the permission list from /auth/me for UI visibility. It does not infer a grant from role name. Server-side PHP authorization and institute tenancy remain mandatory.
+4. **Shell:** shared/layouts/app-shell.js handles sidebar, topbar, current route, mobile navigation, logout and persistent structure.
+5. **View:** each route descriptor contains the exact backend endpoint and columns; views call core/http/client.js. Dashboard shows *available modules*, not fake numeric KPIs.
+6. **Register:** modules/registry/register-view.js owns cursor, search, request abort and active dialog; it is disposed when the route or session changes. Table search covers **only the currently loaded page**.
+7. **Mutation:** module-owned staff and student field configs feed the shared create dialog; POST requests go to existing guarded PHP endpoints.
+8. **Styling:** styles.css imports the six small stylesheets in cascade order. All UI uses shared tokens and components.
+9. **Local server:** dev-server.mjs serves an explicit root entry and restricted /src/*.js and /src/*.css file paths. It proxies /api/v1/* to the configured backend. It is loopback-only and not a production server.
+
+## Foundation mapping
+
+| Foundation | Current frontend owner | Source or constraint |
+| --- | --- | --- |
+| Institute | modules/institutes | Backend institute profile; institute identity comes from authenticated PHP context |
+| Regulatory body | modules/regulatory | Backend regulatory document register; govt authority remains external |
+| Trades | modules/trades | Global Trades (platform) and ITSU register (institute); no duplicate local trade/shift masters |
+| Syllabus | modules/syllabus | **Structure reserved; read API/source-backed display not yet implemented** |
+| Academic calendar | modules/calendar | Existing training calendar/intake and batches read APIs; dates sourced from backend |
+
+Admission, Staff, Students and reusable Registry are application workflows subordinate to those foundations. Their existence does not create a sixth official source.
+
+## Development rules
+
+- Add a route only with an existing backend GET/POST endpoint and its exact permission. Use a source-backed owner module, not an invented UI-only rules engine.
+- Keep module-specific field names and forms in their owner modules. Keep generic table, field, dialog, feedback and navigation code under shared/.
+- API client is the only browser-to-API transport. Use response envelope {success, data, error}. Do not bypass permissions with query institute_id.
+- Any source-derived status must be presented as the backend value, never silently promoted to verified/published by UI.
+- Do not put credentials in localStorage, sessionStorage, URL, HTML or committed configuration.
+- Client-side hiding is convenience only; every API mutation must still check backend authorization.
+- Use no fake institute, seat capacity, teacher, attendance, marks, source reference, certificate or official approval data.
+- Do not automatically run CI, tests, Docker builds or production deployments. Verification requires an explicit user request.
+
+## Current status / non-goals
+
+This is the structure and shared foundation, **not** a finished ERP frontend or audited production deployment. Future work includes real syllabus GET and revision evidence support, complete fees/admission/attendance/OJT/assessment/document workflows, all-role UX, validated mutation forms, browser accessibility validation, responsive UAT, secure production hosting and integration acceptance.
+
+No automated tests were run for this restructuring. Source files and route contracts were reviewed; execution against the user's local Docker or XAMPP backend remains unverified.

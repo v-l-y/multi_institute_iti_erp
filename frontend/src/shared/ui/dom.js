@@ -19,8 +19,7 @@ export function el(tag, props = {}, ...children) {
 
 export function formatValue(value) {
   if (value === null || value === undefined || value === "") return "—";
-  if (value === true || value === 1 && typeof value === "boolean") return "Yes";
-  if (value === false) return "No";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }

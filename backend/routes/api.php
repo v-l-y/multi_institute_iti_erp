@@ -26,6 +26,7 @@ use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Academic\Http\AcademicCalendarController;
 use App\Modules\Academic\Http\BatchSetupController;
+use App\Modules\Academic\Http\CalendarPlanningController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -132,6 +133,11 @@ return static function (Router $router, Database $database): void {
     $admissionRegistry = new AdmissionRegistryController($database);
     $router->get('/api/v1/enrollments', $guard->wrap([$admissionRegistry, 'enrollments'], 'enrollment.view'));
     $router->get('/api/v1/seat-matrix/entries', $guard->wrap([$admissionRegistry, 'seatMatrixEntries'], 'seatmatrix.view'));
+    $calendarPlanning=new CalendarPlanningController($database);
+    $router->post('/api/v1/academic/calendar-entries', $guard->wrap(
+        [$calendarPlanning,'entry'], 'calendar.manage'));
+    $router->post('/api/v1/academic/calendars/review', $guard->wrap(
+        [$calendarPlanning,'review'], 'calendar.manage'));
     $batchSetup=new BatchSetupController($database);
     $router->post('/api/v1/academic/curriculum-links', $guard->wrap(
         [$batchSetup,'linkCurriculum'], 'curriculum.manage'));

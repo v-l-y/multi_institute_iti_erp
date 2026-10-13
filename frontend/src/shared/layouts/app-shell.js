@@ -1,18 +1,13 @@
 import { el } from "../ui/dom.js";
 
-/* The shell is presentation only; it cannot authorize backend requests. */
+/** Presentation-only layout. PHP remains authoritative for every permission. */
 export function createAppShell(root, user, onLogout, pages, canAccess) {
-  let shell = null;
-  let sideNav = null;
-  let main = null;
-  let heading = null;
-  let subtitle = null;
+  const mobile = window.matchMedia("(max-width: 780px)");
+  const permitted = pages.filter(page => canAccess(page, user));
   let currentId = "";
-  const permittedPages = () => pages.filter(page => canAccess(page, user));
+  let open = false;
 
-function mountShell() {
   const nav = el("nav", { className: "side-nav", "aria-label": "Main navigation" });
-  sideNav = nav;
   const sidebar = el("aside", { className: "sidebar", id: "sidebar" },
     el("div", { className: "sidebar-head" },
       el("a", { href: "#/dashboard", className: "brand" },
@@ -21,80 +16,144 @@ function mountShell() {
       el("span", { className: "brand-caption" }, "INSTITUTE MANAGEMENT")),
     nav,
     el("div", { className: "sidebar-foot" },
-      el("span", { className: "tiny-dot" }, "●"),
+      el("span", { className: "tiny-dot", "aria-hidden": "true" }, "●"),
       "Bihar · Private ITIs"));
 
-  heading = el("h1", {}, "Overview");
-  subtitle = el("p", { className: "muted" }, "Institute management workspace");
-  main = el("main", { className: "page-content", id: "main-content", tabindex: "-1" });
+  const heading = el("h1", {}, "Overview");
+  const subtitle = el("p", { className: "muted" }, "Institute management workspace");
+  const main = el("main", { className: "page-content", id: "main-content", tabindex: "-1" });
   const crumb = el("span", { className: "breadcrumb" }, "Overview");
   const menuButton = el("button", {
-    className: "icon-button mobile-menu", type: "button", "aria-label": "Open navigation",
+    className: "icon-button mobile-menu", type: "button",
+    "aria-label": "Open navigation",
     "aria-expanded": "false", "aria-controls": "sidebar"
   }, "☰");
-  const backdrop = el("button", { className: "sidebar-backdrop", type: "button", "aria-label": "Close navigation" });
-  const closeNav = () => {
-    shell.classList.remove("sidebar-open");
-    menuButton.setAttribute("aria-expanded", "false");
-  };
-  menuButton.addEventListener("click", () => {
-    const open = shell.classList.toggle("sidebar-open");
-    menuButton.setAttribute("aria-expanded", String(open));
+  const backdrop = el("button", {
+    className: "sidebar-backdrop", type: "button",
+    "aria-label": "Close navigation", tabindex: "-1"
   });
-  backdrop.addEventListener("click", closeNav);
-  nav.addEventListener("click", event => { if (event.target.closest("a")) closeNav(); });
-
   const scope = user.institute_id === null ? "Platform account" : "Institute #" + user.institute_id;
   const initials = user.username.slice(0, 2).toUpperCase();
   const topbar = el("header", { className: "topbar" },
     el("div", { className: "topbar-left" }, menuButton,
-      el("div", { className: "crumb-wrap" }, el("span", { className: "crumb-parent" }, "WORKSPACE /"), crumb)),
+      el("div", { className: "crumb-wrap" },
+        el("span", { className: "crumb-parent" }, "WORKSPACE /"), crumb)),
     el("div", { className: "topbar-right" },
       el("span", { className: "account-scope" }, scope),
-      el("span", { className: "avatar", title: user.username, "aria-label": "Signed in as " + user.username }, initials),
-      el("button", { type: "button", className: "button button-ghost signout", onClick: onLogout }, "Sign out")));
-  shell = el("div", { className: "app-shell" }, sidebar,
-    el("div", { className: "workspace" }, topbar,
-      el("div", { className: "page-head" },
-        el("div", {}, el("p", { className: "eyebrow" }, "MANAGEMENT PORTAL"), heading, subtitle)),
-      main,
-      el("footer", { className: "app-footer" }, "Institute records are not official government approvals or certifications.")),
-    backdrop, el("div", { id: "toast-root", className: "toast-root", "aria-live": "polite" }));
+      el("span", {
+        className: "avatar", title: user.username,
+        "aria-label": "Signed in as " + user.username
+      }, initials),
+      el("button", {
+        type: "button", className: "button button-ghost signout",
+        onClick: onLogout
+      }, "Sign out")));
+  const workspace = el("div", { className: "workspace" },
+    topbar,
+    el("div", { className: "page-head" },
+      el("div", {},
+        el("p", { className: "eyebrow" }, "MANAGEMENT PORTAL"),
+        heading, subtitle)),
+    main,
+    el("footer", { className: "app-footer" },
+      "Institute records are not official government approvals or certifications."));
+  const shell = el("div", { className: "app-shell" },
+    sidebar, workspace, backdrop,
+    el("div", { id: "toast-root", className: "toast-root", "aria-live": "polite" }));
+
+  function syncResponsive() {
+    if (!mobile.matches) open = false;
+    shell.classList.toggle("sidebar-open", open);
+    sidebar.inert = mobile.matches && !open;
+    workspace.inert = mobile.matches && open;
+    menuButton.setAttribute("aria-expanded", String(open));
+    menuButton.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+    backdrop.tabIndex = open ? 0 : -1;
+  }
+
+  function closeNav(restoreFocus = false) {
+    if (!open) return;
+    open = false;
+    syncResponsive();
+    if (restoreFocus) menuButton.focus();
+  }
+
+  menuButton.addEventListener("click", () => {
+    open = !open;
+    syncResponsive();
+    if (open) (nav.querySelector("a") || backdrop).focus();
+  });
+  backdrop.addEventListener("click", () => closeNav(true));
+  nav.addEventListener("click", event => {
+    if (event.target.closest("a")) {
+      closeNav();
+      if (location.hash === event.target.closest("a").hash) main.focus({ preventScroll: true });
+    }
+  });
+
+  function onKeydown(event) {
+    if (!open) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeNav(true);
+    }
+    if (event.key !== "Tab") return;
+    const focusables = [...sidebar.querySelectorAll("a:not([tabindex='-1'])"), backdrop];
+    const first = focusables[0], last = focusables.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function renderNavigation() {
+    const groups = [...new Set(permitted.map(page => page.group))];
+    nav.replaceChildren(...groups.map(group => el("div", { className: "nav-group" },
+      el("p", { className: "nav-group-title" }, group),
+      ...permitted.filter(page => page.group === group).map(page => el("a", {
+        href: "#/" + page.id,
+        className: "nav-link" + (page.id === currentId ? " is-active" : ""),
+        ...(page.id === currentId ? { "aria-current": "page" } : {})
+      }, el("span", { className: "nav-icon", "aria-hidden": "true" }, page.icon),
+        el("span", {}, page.label))))));
+  }
+
+  document.addEventListener("keydown", onKeydown);
+  mobile.addEventListener("change", syncResponsive);
   root.replaceChildren(shell);
-  function updateBreadcrumb(value) { crumb.textContent = value; }
-  shell.updateBreadcrumb = updateBreadcrumb;
   renderNavigation();
-}
+  syncResponsive();
 
-function renderNavigation() {
-  const permitted = permittedPages();
-  const groups = [...new Set(permitted.map(page => page.group))];
-  sideNav.replaceChildren(...groups.map(group => el("div", { className: "nav-group" },
-    el("p", { className: "nav-group-title" }, group),
-    ...permitted.filter(page => page.group === group).map(page => el("a", {
-      href: "#/" + page.id, className: "nav-link" + (page.id === currentId ? " is-active" : ""),
-      ...(page.id === currentId ? { "aria-current": "page" } : {})
-    }, el("span", { className: "nav-icon", "aria-hidden": "true" }, page.icon),
-      el("span", {}, page.label))))));
-}
-
-  mountShell();
   return {
-    get main() { return main; },
+    main,
     setPage(page) {
       currentId = page.id;
       heading.textContent = page.label;
       subtitle.textContent = user.institute_id === null
         ? "Platform workspace" : "Institute #" + user.institute_id;
-      shell.updateBreadcrumb(page.label);
+      crumb.textContent = page.label;
       renderNavigation();
+      closeNav();
     },
     showRestricted() {
       currentId = "";
       heading.textContent = "Restricted page";
       subtitle.textContent = "This route is not available to your account.";
-      shell.updateBreadcrumb("Restricted");
+      crumb.textContent = "Restricted";
       renderNavigation();
+      closeNav();
+    },
+    focusContent() {
+      main.focus({ preventScroll: true });
+    },
+    dispose() {
+      document.removeEventListener("keydown", onKeydown);
+      mobile.removeEventListener("change", syncResponsive);
+      open = false;
+      workspace.inert = false;
     }
   };
 }

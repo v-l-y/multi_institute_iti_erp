@@ -7,10 +7,12 @@
 .erp-form-section > p { font-size: .85rem; margin: 0 0 18px; }
 .erp-form-section.is-compact { padding: 12px; }
 .erp-form-grid {
-  --form-cols: 2; display: grid;
-  grid-template-columns: repeat(var(--form-cols), minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px 20px; align-items: start;
 }
+.erp-form-grid-cols-1 { grid-template-columns: minmax(0, 1fr); }
+.erp-form-grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.erp-form-grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .erp-lookup { display: grid; gap: 6px; min-width: 0; }
 .erp-lookup-toolbar { display: flex; align-items: center; gap: 8px; }
 .erp-lookup-toolbar input {
@@ -97,7 +99,7 @@
 .erp-drawer-header h2 { margin-bottom: 5px; }
 .erp-drawer-body { padding: 22px; overflow: auto; max-height: calc(100dvh - 110px); }
 @media (max-width: 780px) {
-  .erp-form-grid { grid-template-columns: 1fr; }
+  .erp-form-grid, .erp-form-grid-cols-2, .erp-form-grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
   .erp-column-options { inset-inline-end: auto; inset-inline-start: 0; }
   .register-tools { flex-wrap: wrap; }
   .erp-document-item { flex-direction: column; align-items: stretch; }

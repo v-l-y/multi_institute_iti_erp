@@ -2,11 +2,15 @@ import { el } from "./dom.js";
 
 /** Local-only filtering/sorting for the currently loaded page, not whole DB. */
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-export function filterRows(rows, { search = "", column = "", direction = "asc", filters = {} } = {}) {
+export function filterRows(rows, { search = "", column = "", direction = "asc", filters = {}, searchKeys = [] } = {}) {
   const q = String(search).trim().toLocaleLowerCase();
   let result = rows.filter(row => {
-    if (q && !Object.values(row || {}).some(value =>
-      value !== null && value !== undefined && String(value).toLocaleLowerCase().includes(q))) return false;
+    // Only explicitly searchable fields, never every field of a full API row.
+    if (q && !searchKeys.some(key => {
+      const value = row?.[key];
+      return value !== null && value !== undefined &&
+        String(value).toLocaleLowerCase().includes(q);
+    })) return false;
     return Object.entries(filters).every(([key, value]) =>
       value === "" || String(row?.[key] ?? "") === String(value));
   });

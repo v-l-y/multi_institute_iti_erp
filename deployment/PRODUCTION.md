@@ -101,3 +101,7 @@ CI, database reset, server deployment, or backup schedule is introduced.
 ## Opt-in proxy security regression
 
 The new `backend/tests/proxy-security.php` checks untrusted client spoofing, trusted hop selection, malformed headers and IPv4/IPv6 ranges. Run it manually only if testing is requested: `php backend/tests/proxy-security.php`. Production release additionally requires real proxy traffic checks, TLS validation and incident alerting.
+
+## Outstanding release evidence (updated)
+
+The new fee setup/waiver/demand/cash and exam/official local-import paths are code changes, not release certificates. Before enabling real money or candidate records, manually execute fresh full Docker integration tests, audit DB trigger compatibility, check schema upgrade on a **populated restored copy**, run a real encrypted backup plus restore, verify officer approval/correction workflows, monitor requests across proxy replicas, and measure concurrency/recovery behavior. New official imports remain disabled by default. This repository does not have official exports, a configured TLS hostname/certificate, off-machine storage or a trusted production deployment. The new read-only `schema-preflight.php` also lists missing columns and counts live FKs/check constraints; it cannot automatically prove or perform schema upgrades. No numbered forward migrations have been certified.

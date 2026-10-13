@@ -955,3 +955,32 @@ source. The existing practical_marks table has no independent acceptance flag
 or source_id column, so portal upload and official acceptance are **not**
 implied; independent response evidence must be maintained separately.
 
+
+## External practical portal response register
+
+These endpoints **never make a live portal upload** and do not independently
+verify the authenticity of a government server response. The Principal records
+a manually checked, source-backed external receipt in the existing
+`portal_submissions` table; `government_verified` is deliberately false.
+
+- `POST /api/v1/exams/practicals/portal-receipts` requires Principal with
+  `exam.portal.submit`, `practical_session_id`, `attempt_no`,
+  `regulatory_source_id` for published institute-linked SIDH/NCVT-MIS portal
+  evidence, `submitted_at` (Asia/Kolkata `YYYY-MM-DD HH:MM:SS`),
+  `expected_records`, `submitted_records`, `portal_reference`,
+  64-hex `payload_sha256`, and `response_evidence_reference`.
+  Each eligible frozen trainee in the practical session must have a local marks
+  record, and submitted counts must reconcile. A subsequent attempt is
+  recorded only after the preceding externally attested response was rejected.
+  No SMS/email/network upload is triggered by this API.
+- `POST /api/v1/exams/practicals/portal-receipts/response` requires Principal
+  with `exam.portal.submit`, `portal_submission_id`, `response_status`
+  (`accepted` or `rejected`), `regulatory_source_id`,
+  `response_evidence_reference` and `review_reference`. An accepted response
+  requires actual `accepted_at` on/after submission, and full count match.
+  Only a submitted entry can receive its first response; follow-up review
+  changes must not silently overwrite accepted/rejected history.
+
+These are **operator-attested external records**. Successful local HTTP responses
+are not evidence that the official portal has accepted or published anything.
+

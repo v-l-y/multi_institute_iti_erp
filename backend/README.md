@@ -65,6 +65,36 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## CTS admission intake and final seat matrix
+
+`POST /api/v1/admission/intakes` requires `batch.manage`.
+Supply `calendar_id`, `admission_year`, `intake_code`, and
+`session_part` (primary or six_month_second). The CTS calendar
+and referenced official source must already be published; year must
+match the source calendar.
+
+`POST /api/v1/seat-matrix/versions` requires `seatmatrix.draft`.
+Supply `intake_id`, `regulatory_source_id`, `version_code`,
+`portal_reference`, optional `supersedes_id` (only a current final
+matrix for the **same** institute/intake). Creates draft only.
+
+`POST /api/v1/seat-matrix/entries` requires `seatmatrix.draft`.
+Supply `matrix_version_id`, `itsu_revision_id`, `seat_capacity`,
+`admission_allowed` (JSON boolean), `portal_itsu_reference`.
+Capacity cannot exceed sanctioned ITSU capacity; the calendar's
+physical-to-portal shift mapping is derived from official registry,
+never guessed. Admission-allowed rows require an active NIMS-verified
+staff mapping for that exact ITSU.
+
+`POST /api/v1/seat-matrix/versions/finalize` requires both
+`seatmatrix.publish` and the Principal role. Supply
+`matrix_version_id` and `review_reference`. The linked published
+DGT document must identify a **final seat matrix**, have a SHA-256
+digest, and the matrix must include entries. Finalization freezes
+entries under SQL triggers. Revised final versions retain a pointer
+to the superseded version. This is a local recording of reviewed
+official evidence; it does not authenticate the government document.
+
 ## Source-backed institute Trade Unit / ITSU register
 
 `POST /api/v1/institute/regulatory/sources` attaches a previously

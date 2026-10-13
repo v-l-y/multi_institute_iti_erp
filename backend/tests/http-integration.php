@@ -684,6 +684,86 @@ try {
     verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
         WHERE action_code IN ('itsu.trade_unit.create','itsu.shift.revision','regulatory.source.attach')")->fetchColumn()===4,
         'New institute academic setup operations require auditable records.');
+    // Official academic data is simulated only in the isolated disposable
+    // test database; no fabricated evidence belongs to an ERP installation.
+    $db->prepare("INSERT INTO cts_training_calendars
+        (admission_year,session_code,revision_code,source_document_id,
+         training_starts_on,training_ends_on,status)
+        VALUES (2026,'LOCAL-CTS','LOCAL-V1',?,'2026-10-05','2027-05-30','published')")
+        ->execute([$docId]);
+    $calendarId=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO cts_portal_shift_mappings
+        (calendar_id,session_part,physical_shift_no,portal_shift_no,document_section_reference)
+        VALUES (?,'primary',1,1,'LOCAL SHIFT MAPPING')")
+        ->execute([$calendarId]);
+    $instructorStaff=(int)$db->query("SELECT staff_id FROM auth_staff_links
+        WHERE user_id={$users['instructor']['id']} AND institute_id=1")->fetchColumn();
+    $db->exec("INSERT INTO instructor_identities(iprn) VALUES ('LOCAL-NOT-NIMS-IPRN')");
+    $iprnIdentity=(int)$db->lastInsertId();
+    $db->prepare("UPDATE staff SET identity_id=?,nims_verification='verified',
+        verification_reference='LOCAL-NOT-NIMS',verified_on='2026-10-01'
+        WHERE id=? AND institute_id=1")->execute([$iprnIdentity,$instructorStaff]);
+    $db->prepare("INSERT INTO instructor_mappings
+        (institute_id,staff_id,mapping_type,identity_id,trade_unit_shift_id,valid_from,
+         qualification_source_id,qualification_check_json,qualification_checked_by,nims_reference)
+        VALUES (1,?,'trade',?,?,'2026-10-01',?,'{}','LOCAL TEST','LOCAL NOT NIMS')")
+        ->execute([$instructorStaff,$iprnIdentity,$itsuTwoId,$regSourceId]);
+    $finalDoc=['authority'=>'DGT','document_type'=>'final_cts_seat_matrix',
+        'title'=>'LOCAL FINAL MATRIX FIXTURE - NOT OFFICIAL',
+        'reference_no'=>'LOCAL-FINAL-SEAT-MATRIX-2026','issued_on'=>'2026-09-01',
+        'evidence_reference'=>'LOCAL-NOT-GOVERNMENT','sha256'=>str_repeat('b',64)];
+    $finalDraft=http('POST',$regBase.'/draft',$finalDoc,$tokens['developer']);
+    expectStatus($finalDraft,201);
+    $finalDocId=(int)$finalDraft['body']['data']['document_id'];
+    expectStatus(http('POST',$regBase.'/publish',[
+        'document_id'=>$finalDocId,'review_reference'=>'LOCAL TEST RECORD'
+    ],$tokens['developer']),200);
+    $finalSource=http('POST',$sourceUrl,[
+        'global_document_id'=>$finalDocId,'local_evidence_reference'=>'LOCAL TEST ONLY'
+    ],$tokens['principal']);
+    expectStatus($finalSource,201);
+    $finalSourceId=(int)$finalSource['body']['data']['regulatory_source_id'];
+    $intakeUrl='/api/v1/admission/intakes';
+    $intakeInput=['calendar_id'=>$calendarId,'admission_year'=>2026,
+        'intake_code'=>'LOCAL-OCTOBER','session_part'=>'primary'];
+    expectStatus(http('POST',$intakeUrl,[...$intakeInput,'admission_year'=>'2026'],$tokens['administrator']),422);
+    $newIntake=http('POST',$intakeUrl,$intakeInput,$tokens['administrator']);
+    expectStatus($newIntake,201);
+    $intakeId=(int)$newIntake['body']['data']['intake_id'];
+    expectStatus(http('POST',$intakeUrl,$intakeInput,$tokens['administrator']),409);
+    $matrixUrl='/api/v1/seat-matrix/versions';
+    $matrixData=['intake_id'=>$intakeId,'regulatory_source_id'=>$finalSourceId,
+        'version_code'=>'LOCAL-FINAL-V1','portal_reference'=>'LOCAL NOT PORTAL'];
+    $draftMatrix=http('POST',$matrixUrl,$matrixData,$tokens['administrator']);
+    expectStatus($draftMatrix,201);
+    $matrixVersion=(int)$draftMatrix['body']['data']['matrix_version_id'];
+    $entryUrl='/api/v1/seat-matrix/entries';
+    $entryData=['matrix_version_id'=>$matrixVersion,'itsu_revision_id'=>$itsuTwoId,
+        'seat_capacity'=>24,'admission_allowed'=>true,
+        'portal_itsu_reference'=>'LOCAL NOT NIMS ITSU'];
+    expectStatus(http('POST',$entryUrl,[...$entryData,'seat_capacity'=>25],$tokens['administrator']),409);
+    expectStatus(http('POST',$entryUrl,[...$entryData,'admission_allowed'=>1],$tokens['administrator']),422);
+    $newEntry=http('POST',$entryUrl,$entryData,$tokens['administrator']);
+    expectStatus($newEntry,201);
+    $matrixEntryId=(int)$newEntry['body']['data']['matrix_entry_id'];
+    expectStatus(http('POST',$entryUrl,$entryData,$tokens['administrator']),409);
+    $finalizeUrl='/api/v1/seat-matrix/versions/finalize';
+    expectStatus(http('POST',$finalizeUrl,[
+        'matrix_version_id'=>$matrixVersion,'review_reference'=>'LOCAL REVIEW'
+    ],$tokens['administrator']),403);
+    expectStatus(http('POST',$finalizeUrl,[
+        'matrix_version_id'=>$matrixVersion,'review_reference'=>'LOCAL REVIEW'
+    ],$tokens['principal']),200);
+    verify($db->query("SELECT status FROM seat_matrix_versions
+        WHERE id=$matrixVersion")->fetchColumn()==='final',
+        'Principal review must leave actual local matrix finalized.');
+    expectStatus(http('POST',$finalizeUrl,[
+        'matrix_version_id'=>$matrixVersion,'review_reference'=>'LOCAL REVIEW'
+    ],$tokens['principal']),409);
+    expectStatus(http('POST',$entryUrl,$entryData,$tokens['administrator']),409);
+    verify((int)$db->query("SELECT instructor_mapping_satisfied FROM seat_matrix_entries
+        WHERE id=$matrixEntryId")->fetchColumn()===1,
+        'Final matrix eligible entry must be bound to NIMS fixture mapping.');
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

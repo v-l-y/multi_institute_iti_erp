@@ -434,6 +434,27 @@ $checks[]=$kernel->handle(static fn()=>$itsuController->createShiftRevision(
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
         'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter))->status===422;
+$matrixController=new App\Modules\Admissions\Http\SeatMatrixSetupController(new App\Core\Database([]));
+$matrixActor=new AuthContext(1,3,1,'admin',false,['administrator'],[
+    'batch.manage','seatmatrix.draft'],1,null);
+$matrixPrincipal=new AuthContext(2,3,1,'principal',false,['principal'],[
+    'seatmatrix.publish'],2,null);
+$checks[]=$kernel->handle(static fn()=>$matrixController->intake(
+    new Request(['calendar_id'=>'1','admission_year'=>2026,
+        'intake_code'=>'X','session_part'=>'primary']),$matrixActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$matrixController->intake(
+    new Request(['calendar_id'=>1,'admission_year'=>2026,
+        'intake_code'=>'X','session_part'=>'invalid']),$matrixActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$matrixController->matrixDraft(
+    new Request(['intake_id'=>1,'regulatory_source_id'=>1,
+        'version_code'=>'V1','portal_reference'=>'X','supersedes_id'=>'1']),$matrixActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$matrixController->matrixEntry(
+    new Request(['matrix_version_id'=>1,'itsu_revision_id'=>1,'seat_capacity'=>20,
+        'admission_allowed'=>1,'portal_itsu_reference'=>'X']),$matrixActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
+    new Request(['matrix_version_id'=>1,'review_reference'=>'TEST']),$matrixActor))->status===403;
+$checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
+    new Request(['matrix_version_id'=>'1','review_reference'=>'TEST']),$matrixPrincipal))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

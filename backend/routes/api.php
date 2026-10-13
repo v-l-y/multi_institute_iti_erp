@@ -15,6 +15,7 @@ use App\Modules\Regulatory\TradeMasterController;
 use App\Modules\Reports\ReportingController;
 use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
+use App\Modules\Institutes\AffiliationHistoryController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
 use App\Modules\Students\Http\StudentController;
@@ -79,6 +80,8 @@ return static function (Router $router, Database $database): void {
     ));
     $router->post('/api/v1/institute/contact', $guard->wrap(
         [new InstituteContactController($database),'update'], 'institute.profile.update'));
+    $router->post('/api/v1/institute/affiliation-history', $guard->wrap(
+        [new AffiliationHistoryController($database),'record'], 'institute.affiliation.manage'));
     $staff = new StaffController($database);
     $router->get('/api/v1/staff', $guard->wrap([$staff, 'index'], 'staff.view'));
     $router->post('/api/v1/staff', $guard->wrap([$staff, 'create'], 'staff.manage'));

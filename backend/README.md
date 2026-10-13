@@ -65,6 +65,31 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Source-backed institute Trade Unit / ITSU register
+
+`POST /api/v1/institute/regulatory/sources` attaches a previously
+registered and published global official document to the **current
+institute**, with `global_document_id` and optional
+`local_evidence_reference`. Requires `institute.affiliation.manage`.
+This is an institute mapping, not an independent authority declaration.
+
+`POST /api/v1/itsu/trade-units` creates a numbered institute Trade
+Unit via `global_trade_id` and `unit_no`. It requires
+`tradeunit.manage` and a currently effective active Global Trade
+revision backed by a published source. There is no Institute Trade
+master or locally invented trade code.
+
+`POST /api/v1/itsu/shift-revisions` takes `trade_unit_id`,
+`global_shift_id`, `regulatory_source_id`, `sanctioned_capacity`,
+`approval_reference`, `valid_from`, `affiliation_status`,
+`training_mode` (CTS/DST). Uses the Global Shift identity and
+a reviewed DGT document linked to the caller's institute. Revisions
+close prior effective rows and preserve history. The capacity and
+approval reference are source-declared inputs, not inferred values.
+Local source attachments do not constitute independent governmental
+confirmation; check actual affiliation evidence before relying on
+these records for admissions.
+
 ## Global DGT Trade master
 
 Only the existing platform Developer with `platform.regulatory.manage`

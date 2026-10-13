@@ -420,6 +420,20 @@ $checks[]=$kernel->handle(static fn()=>$tradeController->activate(
     new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
 $checks[]=$kernel->handle(static fn()=>$tradeController->index(
     new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+$itsuController=new App\Modules\Catalog\ItsuSetupController(new App\Core\Database([]));
+$itsuWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
+    ['tradeunit.manage','institute.affiliation.manage'],7,null);
+$checks[]=$kernel->handle(static fn()=>$itsuController->attachSource(
+    new Request(['global_document_id'=>'1']),$itsuWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$itsuController->createTradeUnit(
+    new Request(['global_trade_id'=>1,'unit_no'=>0]),$itsuWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$itsuController->createTradeUnit(
+    new Request(['global_trade_id'=>1,'unit_no'=>1]),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$itsuController->createShiftRevision(
+    new Request(['trade_unit_id'=>1,'global_shift_id'=>1,
+        'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
+        'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
+        'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

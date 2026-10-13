@@ -619,7 +619,7 @@ try {
         'review_reference'=>'LOCAL REVIEW ONLY'],$tokens['developer']),409);
     $tradeNext=['trade_id'=>$tradeId,'source_document_id'=>$docId,
         'version_code'=>'LOCAL-2027','official_name'=>'LOCAL TEST REVISED TRADE',
-        'trade_type'=>'engineering','effective_from'=>'2027-01-01'];
+        'trade_type'=>'engineering','effective_from'=>'2026-10-01'];
     $revisionDraft=http('POST',$tradeBase.'/revisions',$tradeNext,$tokens['developer']);
     expectStatus($revisionDraft,201);
     $tradeV2=(int)$revisionDraft['body']['data']['revision_id'];
@@ -627,7 +627,7 @@ try {
         'review_reference'=>'LOCAL REVISION ONLY'],$tokens['developer']),200);
     verify($db->query("SELECT status FROM trade_master_revisions WHERE id=$tradeV1")->fetchColumn()==='superseded',
         'Old Global Trade revision must retain superseded history.');
-    verify($db->query("SELECT effective_to FROM trade_master_revisions WHERE id=$tradeV1")->fetchColumn()==='2026-12-31',
+    verify($db->query("SELECT effective_to FROM trade_master_revisions WHERE id=$tradeV1")->fetchColumn()==='2026-09-30',
         'Old Global Trade effective period must end at new version boundary.');
     verify($db->query("SELECT status FROM trade_master_revisions WHERE id=$tradeV2")->fetchColumn()==='active',
         'Reviewed Global Trade revision must be active.');
@@ -637,6 +637,53 @@ try {
         $tradeList['body']['data']['trades'],'id')),true),
         'Global Trade register must expose the stable Trade ID.');
     expectStatus(http('GET',$tradeBase,token:$tokens['administrator']),403);
+    $sourceUrl='/api/v1/institute/regulatory/sources';
+    expectStatus(http('POST',$sourceUrl,['global_document_id'=>$docId],$tokens['administrator']),403);
+    expectStatus(http('POST',$sourceUrl,['global_document_id'=>'1'],$tokens['principal']),422);
+    $sourceLinked=http('POST',$sourceUrl,[
+        'global_document_id'=>$docId,'local_evidence_reference'=>'LOCAL-ITSU-EVIDENCE'
+    ],$tokens['principal']);
+    expectStatus($sourceLinked,201);
+    $regSourceId=(int)$sourceLinked['body']['data']['regulatory_source_id'];
+    expectStatus(http('POST',$sourceUrl,['global_document_id'=>$docId],$tokens['principal']),409);
+    $tradeUnitUrl='/api/v1/itsu/trade-units';
+    $unitData=['global_trade_id'=>$tradeId,'unit_no'=>1];
+    expectStatus(http('POST',$tradeUnitUrl,$unitData,$tokens['student']),403);
+    $unitCreated=http('POST',$tradeUnitUrl,$unitData,$tokens['administrator']);
+    expectStatus($unitCreated,201);
+    $tradeUnitId=(int)$unitCreated['body']['data']['trade_unit_id'];
+    expectStatus(http('POST',$tradeUnitUrl,$unitData,$tokens['administrator']),409);
+    // Isolated local fixture of the reviewed Global Shift master; production
+    // data must originate from published documents and formal master workflow.
+    $db->prepare("INSERT INTO global_shifts (shift_no,shift_code,display_name,
+        revision_code,source_document_id,status,effective_from)
+        VALUES (1,'LOCAL-SHIFT','Local Shift','LOCAL-V1',?,'active','2026-05-09')")
+        ->execute([$docId]);
+    $globalShiftId=(int)$db->lastInsertId();
+    $itsuRevUrl='/api/v1/itsu/shift-revisions';
+    $itsuRev=['trade_unit_id'=>$tradeUnitId,'global_shift_id'=>$globalShiftId,
+        'regulatory_source_id'=>$regSourceId,
+        'sanctioned_capacity'=>20,'approval_reference'=>'LOCAL-APPROVAL-ONLY',
+        'valid_from'=>'2026-10-01','affiliation_status'=>'approved','training_mode'=>'CTS'];
+    expectStatus(http('POST',$itsuRevUrl,[...$itsuRev,
+        'sanctioned_capacity'=>'20'],$tokens['administrator']),422);
+    expectStatus(http('POST',$itsuRevUrl,$itsuRev,$tokens['other-admin']),404);
+    $itsuOne=http('POST',$itsuRevUrl,$itsuRev,$tokens['administrator']);
+    expectStatus($itsuOne,201);
+    $itsuOneId=(int)$itsuOne['body']['data']['itsu_revision_id'];
+    expectStatus(http('POST',$itsuRevUrl,$itsuRev,$tokens['administrator']),409);
+    $itsuTwo=http('POST',$itsuRevUrl,[...$itsuRev,
+        'valid_from'=>'2026-10-02','sanctioned_capacity'=>24,
+        'approval_reference'=>'LOCAL REVISION ONLY'],$tokens['administrator']);
+    expectStatus($itsuTwo,201);
+    $itsuTwoId=(int)$itsuTwo['body']['data']['itsu_revision_id'];
+    verify($db->query("SELECT valid_to FROM trade_unit_shifts WHERE id=$itsuOneId")->fetchColumn()==='2026-10-01',
+        'Historic ITSU revision must be closed before newer effective date.');
+    verify($db->query("SELECT valid_to FROM trade_unit_shifts WHERE id=$itsuTwoId")->fetchColumn()===null,
+        'Current ITSU revision must retain open-ended effective validity.');
+    verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code IN ('itsu.trade_unit.create','itsu.shift.revision','regulatory.source.attach')")->fetchColumn()===4,
+        'New institute academic setup operations require auditable records.');
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

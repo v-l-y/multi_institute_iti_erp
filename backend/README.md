@@ -65,6 +65,26 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Source-backed formative learning-outcome marks
+
+`POST /api/v1/formative/records/assigned` is only for authenticated,
+NIMS-verified assigned **Trade instructors** with
+`formative.record.assigned`. Required input:
+`enrollment_id`, `batch_year_id`, `learning_outcome_id`,
+`assessed_on`, decimal-string `max_marks`, `obtained_marks` and
+`evidence_reference`. Checks active enrollment, assigned
+instructor/ITSU, official LO on matching course year, the source-
+linked published formative scheme and admissible numerical bounds.
+Only the explicitly configured `points_ratio` method is supported;
+a `template_weighted` scheme without a reviewed official template
+is not silently reinterpreted as a points ratio.
+
+`POST /api/v1/formative/records/lock` requires Principal role plus
+`formative.template.manage` with `formative_assessment_id` and
+`review_reference`. Creates a transactional institute audit entry
+and sets the immutable SQL lock. Locked marks must be corrected via
+a separate authorized, evidence-backed revision path, not overwritten.
+
 ## Scoped institute reporting and audit search
 
 `GET /api/v1/reports/summary` requires `audit.view` and returns

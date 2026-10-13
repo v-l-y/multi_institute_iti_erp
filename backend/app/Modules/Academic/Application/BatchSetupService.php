@@ -67,8 +67,28 @@ final readonly class BatchSetupService
                 VALUES (?,?,?,?,?)');
             $q->execute([$institute,$localCurriculum,$r['global_curriculum_id'],$globalYear,$r['year_no']]);
             $id=(int)$this->db->lastInsertId();
+            // A course-year link must carry the exact official global LOs.
+            // Otherwise the formative completeness gate has no local LO rows.
+            $globalOutcomes=$this->db->prepare('SELECT id,lo_code
+                FROM global_learning_outcomes WHERE global_curriculum_year_id=?
+                ORDER BY id FOR UPDATE');
+            $globalOutcomes->execute([$globalYear]);
+            $outcomes=$globalOutcomes->fetchAll(PDO::FETCH_ASSOC);
+            if (!$outcomes) {
+                throw new HttpException('CURRICULUM_OUTCOMES_MISSING',
+                    'Published CTS course year must contain official learning outcomes.',409);
+            }
+            $localOutcome=$this->db->prepare('INSERT INTO learning_outcomes
+                (institute_id,curriculum_year_id,global_curriculum_year_id,
+                 global_learning_outcome_id,lo_code)
+                VALUES (?,?,?,?,?)');
+            foreach ($outcomes as $outcome) {
+                $localOutcome->execute([$institute,$id,$globalYear,
+                    $outcome['id'],$outcome['lo_code']]);
+            }
             $tx->audit($actor,$institute,'curriculum.year.link','curriculum_years',$id,
-                ['global_curriculum_year_id'=>$globalYear]);
+                ['global_curriculum_year_id'=>$globalYear,
+                 'learning_outcomes_linked'=>count($outcomes)]);
             return $id;
         });
     }

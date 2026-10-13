@@ -1,7 +1,8 @@
 import { api, ApiError } from "../../core/http/client.js";
 import {
   el, button, dataTable, emptyState, skeleton, errorPanel,
-  cursorPagination, tableFilters, filterRows, permissionButton
+  cursorPagination, tableFilters, filterRows, permissionButton,
+  columnChooser, openRecordDetails
 } from "../../shared/ui/index.js";
 import { pageHeader } from "../../shared/ui/headers.js";
 import { creationConfig } from "./create-config.js";
@@ -24,6 +25,8 @@ export function createRegistryView(page, main, user) {
     columns: page.columns,
     onChange: () => renderRows()
   });
+  const columns = columnChooser(page.columns, { onChange: () => renderRows() });
+  let detailsDialog = null;
   const pager = cursorPagination({
     onPrevious: () => {
       if (cursorIndex === 0 || inFlight || disposed) return;
@@ -66,7 +69,7 @@ export function createRegistryView(page, main, user) {
   main.replaceChildren(
     pageHeader(page.label, "Records returned by the authenticated ERP API.", actions),
     el("section", { className: "surface register-surface", "aria-label": page.label + " register" },
-      el("div", { className: "register-tools" }, filters.node, pageHint),
+      el("div", { className: "register-tools" }, filters.node, columns.node, pageHint),
       dataArea, footer)
   );
 
@@ -80,7 +83,24 @@ export function createRegistryView(page, main, user) {
     const filtered = filterRows(rows, filters.read());
     count.textContent = filtered.length + " of " + rows.length + " records on this page";
     dataArea.replaceChildren(filtered.length
-      ? dataTable(filtered, page.columns, { caption: page.label + " (current page)" })
+      ? dataTable(filtered, columns.getColumns(), {
+          caption: page.label + " (current page)",
+          rowActions: record => [{
+            label: "View",
+            onClick: () => {
+              if (disposed) return;
+              if (detailsDialog?.open) detailsDialog.close();
+              const dialog = openRecordDetails(record, page.columns, {
+                title: page.label + " record",
+                description: "Fields returned by the authorized register API."
+              });
+              detailsDialog = dialog;
+              dialog.addEventListener("close", () => {
+                if (detailsDialog === dialog) detailsDialog = null;
+              }, { once: true });
+            }
+          }]
+        })
       : emptyState(rows.length ? "No matching records" : "No records on this page",
         rows.length ? "Filters apply only to the loaded page." :
           "No data has been registered for this view."));
@@ -137,6 +157,8 @@ export function createRegistryView(page, main, user) {
       inFlight = null;
       if (activeDialog?.open) activeDialog.close();
       activeDialog = null;
+      if (detailsDialog?.open) detailsDialog.close();
+      detailsDialog = null;
     }
   };
 }

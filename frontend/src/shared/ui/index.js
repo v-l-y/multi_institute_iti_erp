@@ -1,6 +1,21 @@
+/* Stable public UI API. Module consumers import from this entrypoint only. */
 export { el, formatValue } from "./dom.js";
 export { status } from "./status.js";
 export { notice, emptyState, loadingState } from "./feedback.js";
 export { dataTable } from "./table.js";
 export { field } from "./fields.js";
 export { toast } from "./toast.js";
+export { pageHeader } from "./headers.js";
+export { button, actionMenu } from "./buttons.js";
+export { hasPermission, permissionButton } from "./permissions.js";
+export { cursorPagination } from "./pagination.js";
+export { filterRows, tableFilters } from "./filters.js";
+export { validateForm, formErrorSummary } from "./validation.js";
+export { selectField, multiSelectField } from "./select.js";
+export { dateField, dateRange } from "./dates.js";
+export { fileUpload } from "./file-upload.js";
+export { openDialog, confirmDialog } from "./dialog.js";
+export { tabs } from "./tabs.js";
+export { accordion } from "./accordion.js";
+export { skeleton } from "./skeleton.js";
+export { errorPanel, renderSafely } from "./errors.js";

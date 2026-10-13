@@ -49,10 +49,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Isolated restore database failed to start.' }
     $restoreResult=$inputJson | & docker @restoreArgs run -T --rm --build restore-worker --restore
     if ($LASTEXITCODE -ne 0) { throw 'Independent paired restore verification failed.' }
-    Write-Host 'ENCRYPTED DATABASE + PRIVATE FILE RESTORE PASSED'
+    # Verify app-readable private files with Apache's unprivileged UID/GID.
+    $readResult=& docker @restoreArgs run -T --rm --no-deps --user '33:33' --entrypoint php restore-worker bin/verify-restored-documents.php
+    if ($LASTEXITCODE -ne 0) { throw 'Application-user restored document download verification failed.' }
+    Write-Host 'ENCRYPTED DATABASE + PRIVATE FILE RESTORE AND APPLICATION-USER READ PASSED'
     Write-Host ('Encrypted archive retained: backups/'+$archive)
     Write-Host 'Recovery key stays in ignored .demo-private. Copy archive and key to separate protected locations.'
     Write-Host ($restoreResult -join "`n")
+    Write-Host ($readResult -join "`n")
 } finally {
     # Exact unique project created by this script, never source application volumes.
     & docker @restoreArgs down -v --remove-orphans

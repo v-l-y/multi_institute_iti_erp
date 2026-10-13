@@ -7,5 +7,6 @@ COPY backend/bootstrap bootstrap
 COPY backend/config config
 COPY backend/app app
 COPY backend/bin/paired-backup.php bin/paired-backup.php
+COPY backend/bin/verify-restored-documents.php bin/verify-restored-documents.php
 ENV GNUPGHOME=/tmp/gnupg
 ENTRYPOINT ["php", "bin/paired-backup.php"]

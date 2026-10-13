@@ -32,6 +32,21 @@ function fileHashes(string $root): array
     }
     ksort($files); return $files;
 }
+function restorePrivateOwnership(string $root): void
+{
+    // Official php:8.5-{apache,cli} images use Debian www-data (uid/gid 33).
+    // Preserve restricted private-file semantics after --no-same-owner extraction.
+    if (!is_dir($root) || is_link($root)) throw new RuntimeException('Unsafe restored private storage root.');
+    $paths=[$root];
+    $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::SELF_FIRST);
+    foreach($iterator as $entry) $paths[]=$entry->getPathname();
+    foreach($paths as $path) {
+        if (is_link($path) || (!is_file($path) && !is_dir($path))) throw new RuntimeException('Unsupported restored private storage entry.');
+        if (!chown($path,33) || !chgrp($path,33) || !chmod($path,is_dir($path)?0700:0600)) {
+            throw new RuntimeException('Could not make restored private data accessible to the application user.');
+        }
+    }
+}
 if (PHP_SAPI!=='cli') exit(1);
 umask(0077);
 try {
@@ -73,6 +88,11 @@ try {
         if (($manifest['version']??null)!==1 || !hash_equals($manifest['sql_sha256'],hash_file('sha256','/tmp/paired/database.sql')) || $manifest['private_hashes']!==fileHashes('/tmp/paired/private')) throw new RuntimeException('Backup payload integrity mismatch.');
         command(['mariadb',...$connection,(string)getenv('DB_DATABASE')],inputFile:'/tmp/paired/database.sql');
         command(['cp','-a','/tmp/paired/private/.','/var/lib/iti-private/']);
+        foreach (['documents','outbox'] as $folder) {
+            $dir='/var/lib/iti-private/'.$folder;
+            if (!is_dir($dir) && !mkdir($dir,0700,true)) throw new RuntimeException('Cannot restore private storage directory.');
+        }
+        restorePrivateOwnership('/var/lib/iti-private');
         if ($manifest['database_counts']!==counts($db) || $manifest['private_hashes']!==fileHashes('/var/lib/iti-private') || $manifest['trigger_count']!==(int)$db->query('SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()')->fetchColumn()) throw new RuntimeException('Restored data/count/hash verification failed.');
         foreach($db->query('SELECT storage_key,byte_size,sha256 FROM private_documents') as $document) {
             if (!preg_match('/^[a-f0-9]{32}$/D',$document['storage_key'])) throw new RuntimeException('Invalid restored storage key.');

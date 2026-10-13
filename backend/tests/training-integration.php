@@ -47,6 +47,9 @@ try {
     $reject(fn()=>$service->plan($student,$plan),'FORBIDDEN');
     $reject(fn()=>$service->plan($foreign,$plan),'NOT_FOUND');
     $service->plan($teacher,[...$plan,'title'=>'Revised LOCAL lesson'],$id);
+    $service->plan($principal,[...$plan,'title'=>'Principal-edited LOCAL lesson'],$id);
+    $reject(fn()=>$service->approve($principal,$id,'Self-review after editing'),'INDEPENDENT_REVIEW');
+    $service->plan($teacher,[...$plan,'title'=>'Re-reviewed LOCAL lesson'],$id);
     $reject(fn()=>$service->plan($teacher,[...$plan,'planned_minutes'=>61]),'PLAN_CAPACITY');
     $reject(fn()=>$service->plan($teacher,[...$plan,'start_minute'=>550]),'TIMETABLE_CONFLICT');
     $reject(fn()=>$service->approve($foreign,$id,'ORDER'),'PRINCIPAL_REQUIRED');
@@ -66,6 +69,15 @@ try {
     $correction=$service->progress($principal,[...$progress,'attended_minutes'=>25,'supersedes_id'=>$record,'correction_reason'=>'Reviewed local duration correction','evidence_reference'=>'LOCAL-CORRECTION']);
     $check($correction>$record,'Correction must append history.');
     $reject(fn()=>$service->progress($principal,[...$progress,'supersedes_id'=>$record,'correction_reason'=>'stale','evidence_reference'=>'STALE']),'STALE_CORRECTION');
+    $reject(fn()=>$service->voidProgress($teacher,$correction,'LOCAL-VOID','Correction'),'FORBIDDEN');
+    $reject(fn()=>$service->voidProgress($principal,$record,'LOCAL-VOID','Correction'),'STALE_CORRECTION');
+    $service->voidProgress($principal,$correction,'LOCAL-VOID-EVIDENCE','Incorrect training credit, reverse fully');
+    $check((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='training.progress.void' AND entity_id=$correction")===1,
+        'Principal void must preserve independently reviewed immutable evidence.');
+    $reject(fn()=>$service->voidProgress($principal,$correction,'DUPLICATE','Again'),'PROGRESS_VOIDED');
+    $reject(fn()=>$service->progress($principal,[...$progress,'supersedes_id'=>$correction,'correction_reason'=>'Invalid recredit','evidence_reference'=>'STALE-VOID']),'PROGRESS_VOIDED');
+    $check((int)$db->query("SELECT attended_minutes FROM training_progress WHERE id=$correction")->fetchColumn()===25,
+        'Voided progress history must remain unchanged.');
     try { $db->exec("DELETE FROM training_progress WHERE id=$correction"); throw new LogicException('Mutable progress.'); } catch(PDOException $e) { $check((int)$e->errorInfo[1]===1644,'Progress deletion must be rejected.'); }
     $practical=$service->plan($teacher,[...$plan,'session_date'=>'2026-09-02','component'=>'trade_practical','activity_type'=>'practical','title'=>'LOCAL practical']);
     $service->approve($principal,$practical,'LOCAL PRACTICAL');
@@ -76,8 +88,14 @@ try {
     $controller=new App\Modules\Training\TrainingController($database);
     $check(count($controller->plans(new Request(),$student)->body['data']['plans'])===3,'Student should see approved plans in their own batch.');
     $check($controller->plans(new Request(),$foreign)->body['data']['plans']===[],'Foreign institute cannot read plans.');
-    $check(count($controller->progress(new Request(),$student)->body['data']['progress'])===1,'Default register must show only effective progress.');
-    $check(count($controller->progress(new Request(query:['include_history'=>'1']),$student)->body['data']['progress'])===2,'Authorized history must retain both records.');
+    $check($controller->progress(new Request(),$student)->body['data']['progress']===[],
+        'Voided latest progress must contribute zero effective credit in the default register.');
+    $history=$controller->progress(new Request(query:['include_history'=>'1']),$student)->body['data']['progress'];
+    $check(count($history)===2 && (int)$history[1]['is_voided']===1,
+        'Authorized history must retain the corrected and voided progress with its void marker.');
+    $reject(fn()=>$controller->void(new Request([
+        'progress_id'=>$correction,'evidence_reference'=>'DUPLICATE','correction_reason'=>'Repeated void',
+    ]),$principal),'PROGRESS_VOIDED');
     $fees=new App\Modules\Fees\Http\FeeRegisterController($database);
     foreach(['heads','structures','structure-items','assessments','demands','refunds','waivers','reversals'] as $kind) $check($fees->read(new Request(),$principal,$kind)->status===200,'Fee register SQL failed: '.$kind);
     $reject(fn()=>$fees->read(new Request(query:['student_id'=>'9101']),$foreign,'demands'),'NOT_FOUND');

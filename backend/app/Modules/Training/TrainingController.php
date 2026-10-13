@@ -42,6 +42,15 @@ final readonly class TrainingController
         $id=(new TrainingService($this->database->connection()))->progress($actor,$r->body);
         return new Response(['success'=>true,'data'=>['progress_id'=>$id]],201);
     }
+    public function void(Request $r,AuthContext $actor): Response
+    {
+        $id=self::number($r->body,'progress_id');
+        $reference=$r->body['evidence_reference']??null;
+        $reason=$r->body['correction_reason']??null;
+        if ($id<1 || !is_string($reference) || !is_string($reason)) throw new HttpException('INVALID_INPUT','Progress ID, evidence and reason required.',422);
+        (new TrainingService($this->database->connection()))->voidProgress($actor,$id,$reference,$reason);
+        return new Response(['success'=>true,'data'=>['progress_id'=>$id,'status'=>'voided','effective_minutes'=>0]]);
+    }
     private function read(Request $r,AuthContext $actor,bool $progress): Response
     {
         $institute=$actor->instituteId??throw new HttpException('FORBIDDEN','Institute identity required.',403);
@@ -50,7 +59,11 @@ final readonly class TrainingController
         $after=self::number($r->query,'after_id'); $size=self::number($r->query,'page_size',50,100);
         if ($size<1) throw new HttpException('INVALID_INPUT','Positive page size required.',422);
         $db=$this->database->connection(); $args=[$institute,$after];
-        $sql=$progress?'SELECT p.*,l.title,l.activity_type,l.learning_outcome_id FROM training_progress p JOIN lesson_plans l ON l.id=p.plan_id AND l.institute_id=p.institute_id WHERE p.institute_id=? AND p.id>?':'SELECT p.* FROM lesson_plans p WHERE p.institute_id=? AND p.id>?';
+        $sql=$progress?"SELECT p.*,l.title,l.activity_type,l.learning_outcome_id,
+            EXISTS (SELECT 1 FROM institute_activity_log v WHERE v.institute_id=p.institute_id
+                AND v.action_code='training.progress.void' AND v.entity_table='training_progress' AND v.entity_id=p.id) AS is_voided
+            FROM training_progress p JOIN lesson_plans l ON l.id=p.plan_id AND l.institute_id=p.institute_id
+            WHERE p.institute_id=? AND p.id>?":'SELECT p.* FROM lesson_plans p WHERE p.institute_id=? AND p.id>?';
         $year=self::number($r->query,'batch_year_id');
         if ($year>0) { $sql.=' AND p.batch_year_id=?'; $args[]=$year; }
         if ($scope==='assigned') {
@@ -61,7 +74,7 @@ final readonly class TrainingController
             $sql.=$progress?' AND EXISTS (SELECT 1 FROM enrollments e WHERE e.id=p.enrollment_id AND e.student_id=? AND e.institute_id=p.institute_id)':' AND p.status=\'approved\' AND EXISTS (SELECT 1 FROM enrollments e WHERE e.batch_id=p.batch_id AND e.student_id=? AND e.institute_id=p.institute_id)';
             $args[]=$actor->studentId;
         }
-        if ($progress && self::number($r->query,'include_history',0,1)===0) $sql.=' AND NOT EXISTS (SELECT 1 FROM training_progress c WHERE c.supersedes_id=p.id)';
+        if ($progress && self::number($r->query,'include_history',0,1)===0) $sql.=" AND NOT EXISTS (SELECT 1 FROM training_progress c WHERE c.supersedes_id=p.id) AND NOT EXISTS (SELECT 1 FROM institute_activity_log v WHERE v.institute_id=p.institute_id AND v.action_code='training.progress.void' AND v.entity_table='training_progress' AND v.entity_id=p.id)";
         $sql.=' ORDER BY p.id LIMIT ?'; $args[]=$size;
         $q=$db->prepare($sql); foreach($args as $i=>$v) $q->bindValue($i+1,$v,PDO::PARAM_INT);
         $q->execute(); $rows=$q->fetchAll(PDO::FETCH_ASSOC);

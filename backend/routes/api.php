@@ -53,6 +53,7 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/training/plans/delete',$guard->wrap([$training,'delete']));
     $router->post('/api/v1/training/plans/approve',$guard->wrap([$training,'approve'],'training.plan.manage'));
     $router->post('/api/v1/training/progress',$guard->wrap([$training,'record']));
+    $router->post('/api/v1/training/progress/void',$guard->wrap([$training,'void'],'training.correct'));
     $router->get('/api/v1/training/plans',$guard->wrap([$training,'plans']));
     $router->get('/api/v1/training/progress',$guard->wrap([$training,'progress']));
     $feeRegisters=new \App\Modules\Fees\Http\FeeRegisterController($database);

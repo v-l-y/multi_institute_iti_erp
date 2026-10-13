@@ -65,6 +65,37 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Published-curriculum and CTS batch setup
+
+`POST /api/v1/academic/curriculum-links` accepts
+`global_curriculum_id` (requires `curriculum.manage`) and links a
+previously published global CTS syllabus revision to the institute.
+
+`POST /api/v1/academic/curriculum-year-links` accepts
+`curriculum_id`, `global_curriculum_year_id` and maps the exact
+published course year without duplicate local syllabus definitions.
+
+`POST /api/v1/admission/rule-links` accepts `curriculum_id`,
+`global_admission_rule_id` (requires `batch.manage`). Both the
+published source admission rule and the linked Trade/Curriculum
+identity must match; no local admission rule is invented.
+
+`POST /api/v1/batches` accepts `seat_matrix_entry_id`,
+`curriculum_id`, `admission_rule_id`, `batch_code`,
+`starts_on`, `ends_on`. Batch must use a **final allowed**
+source-linked Seat Matrix entry, published CTS calendar, approved
+ITSU and matching published curriculum and admission rule.
+The batch's capacity is copied exclusively from its matrix
+entry; the caller **cannot** submit arbitrary capacity.
+It begins in `planned` status.
+
+`POST /api/v1/batches/years` accepts `batch_id`,
+`curriculum_year_id`, `starts_on`, `ends_on`,
+`attendance_basis` (minutes/working_days) and
+`attendance_basis_source_id` referencing a published
+institute-linked official document. Academic year stays in draft
+calendar state until a separate explicit review.
+
 ## CTS admission intake and final seat matrix
 
 `POST /api/v1/admission/intakes` requires `batch.manage`.

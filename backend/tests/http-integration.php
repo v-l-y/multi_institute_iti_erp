@@ -764,6 +764,71 @@ try {
     verify((int)$db->query("SELECT instructor_mapping_satisfied FROM seat_matrix_entries
         WHERE id=$matrixEntryId")->fetchColumn()===1,
         'Final matrix eligible entry must be bound to NIMS fixture mapping.');
+    $db->prepare("INSERT INTO global_curriculum_versions
+      (trade_id,source_document_id,version_code,duration_months,nsqf_level,
+       unit_strength,effective_from,status)
+      VALUES (?,?,'LOCAL-CURRICULUM',12,4.0,24,'2026-05-09','published')")
+      ->execute([$tradeId,$docId]);
+    $globalCurriculum=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO global_curriculum_years
+      (global_curriculum_id,year_no,trade_practical_minutes,
+       trade_theory_minutes,employability_minutes,ojt_project_minutes)
+      VALUES (?,1,72000,20000,10000,0)")->execute([$globalCurriculum]);
+    $globalYear=(int)$db->lastInsertId();
+    $db->prepare("INSERT INTO global_admission_rule_versions
+      (trade_id,global_curriculum_id,source_document_id,admission_window_document_id,
+       version_code,minimum_age_years,age_cutoff_date,qualification_routes_json,
+       admission_opens_on,admission_closes_on,status)
+      VALUES (?,?,?,?,'LOCAL-RULE',14,'2026-10-01',?,
+       '2026-01-01','2026-12-31','published')")->execute([
+       $tradeId,$globalCurriculum,$docId,$docId,
+       json_encode(['LOCAL'=>['level_codes'=>['10']]],JSON_THROW_ON_ERROR)]);
+    $globalRule=(int)$db->lastInsertId();
+    $linkCurriculumUrl='/api/v1/academic/curriculum-links';
+    expectStatus(http('POST',$linkCurriculumUrl,[
+        'global_curriculum_id'=>$globalCurriculum],$tokens['student']),403);
+    $linkedCurriculum=http('POST',$linkCurriculumUrl,[
+        'global_curriculum_id'=>$globalCurriculum],$tokens['administrator']);
+    expectStatus($linkedCurriculum,201);
+    $localCurriculum=(int)$linkedCurriculum['body']['data']['curriculum_id'];
+    expectStatus(http('POST',$linkCurriculumUrl,[
+        'global_curriculum_id'=>$globalCurriculum],$tokens['administrator']),409);
+    $localYearResult=http('POST','/api/v1/academic/curriculum-year-links',[
+        'curriculum_id'=>$localCurriculum,'global_curriculum_year_id'=>$globalYear
+    ],$tokens['administrator']);
+    expectStatus($localYearResult,201);
+    $localYear=(int)$localYearResult['body']['data']['curriculum_year_id'];
+    $localRuleResult=http('POST','/api/v1/admission/rule-links',[
+        'curriculum_id'=>$localCurriculum,'global_admission_rule_id'=>$globalRule
+    ],$tokens['administrator']);
+    expectStatus($localRuleResult,201);
+    $localRule=(int)$localRuleResult['body']['data']['admission_rule_id'];
+    $batchUrl='/api/v1/batches';
+    $batchInput=['seat_matrix_entry_id'=>$matrixEntryId,
+        'curriculum_id'=>$localCurriculum,'admission_rule_id'=>$localRule,
+        'batch_code'=>'LOCAL-CTS-BATCH','starts_on'=>'2026-10-05','ends_on'=>'2027-05-30'];
+    expectStatus(http('POST',$batchUrl,[...$batchInput,'ends_on'=>'2026-02-30'],$tokens['administrator']),422);
+    $newBatch=http('POST',$batchUrl,$batchInput,$tokens['administrator']);
+    expectStatus($newBatch,201);
+    $batchId=(int)$newBatch['body']['data']['batch_id'];
+    verify((int)$db->query("SELECT capacity FROM batches WHERE id=$batchId")->fetchColumn()===24,
+        'Batch capacity must be taken from the final matrix, never client input.');
+    verify($db->query("SELECT status FROM batches WHERE id=$batchId")->fetchColumn()==='planned',
+        'Initial source-linked batch must remain planned.');
+    expectStatus(http('POST',$batchUrl,$batchInput,$tokens['administrator']),409);
+    $batchYearUrl='/api/v1/batches/years';
+    $yearInput=['batch_id'=>$batchId,'curriculum_year_id'=>$localYear,
+        'starts_on'=>'2026-10-05','ends_on'=>'2027-05-30',
+        'attendance_basis'=>'minutes','attendance_basis_source_id'=>$regSourceId];
+    expectStatus(http('POST',$batchYearUrl,[...$yearInput,
+        'attendance_basis'=>'unverified'],$tokens['administrator']),422);
+    $createdBatchYear=http('POST',$batchYearUrl,$yearInput,$tokens['administrator']);
+    expectStatus($createdBatchYear,201);
+    $batchYearId=(int)$createdBatchYear['body']['data']['batch_year_id'];
+    verify($batchYearId>0 && $db->query("SELECT calendar_status FROM batch_years
+        WHERE id=$batchYearId")->fetchColumn()==='draft',
+        'New batch year must not auto-certify attendance calendar.');
+    expectStatus(http('POST',$batchYearUrl,$yearInput,$tokens['administrator']),409);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

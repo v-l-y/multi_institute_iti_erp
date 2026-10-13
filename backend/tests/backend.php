@@ -455,6 +455,24 @@ $checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
     new Request(['matrix_version_id'=>1,'review_reference'=>'TEST']),$matrixActor))->status===403;
 $checks[]=$kernel->handle(static fn()=>$matrixController->finalize(
     new Request(['matrix_version_id'=>'1','review_reference'=>'TEST']),$matrixPrincipal))->status===422;
+$batchSetup=new App\Modules\Academic\Http\BatchSetupController(new App\Core\Database([]));
+$batchWriter=new AuthContext(1,3,1,'admin',false,['administrator'],[
+    'batch.manage','curriculum.manage'],1,null);
+$checks[]=$kernel->handle(static fn()=>$batchSetup->linkCurriculum(
+    new Request(['global_curriculum_id'=>'1']),$batchWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$batchSetup->linkCurriculumYear(
+    new Request(['curriculum_id'=>1,'global_curriculum_year_id'=>'1']),$batchWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$batchSetup->linkAdmissionRule(
+    new Request(['curriculum_id'=>1,'global_admission_rule_id'=>0]),$batchWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatch(
+    new Request(['seat_matrix_entry_id'=>1,'curriculum_id'=>1,'admission_rule_id'=>1,
+        'batch_code'=>'X','starts_on'=>'2026-02-30','ends_on'=>'2027-05-30']),$batchWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatchYear(
+    new Request(['batch_id'=>1,'curriculum_year_id'=>1,'starts_on'=>'2026-10-01',
+        'ends_on'=>'2027-05-30','attendance_basis'=>'none','attendance_basis_source_id'=>1]),$batchWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$batchSetup->createBatch(
+    new Request(['seat_matrix_entry_id'=>1,'curriculum_id'=>1,'admission_rule_id'=>1,
+        'batch_code'=>'X','starts_on'=>'2026-10-01','ends_on'=>'2027-05-30']),$accountStudent))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

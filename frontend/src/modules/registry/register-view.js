@@ -56,11 +56,12 @@ export function createRegistryView(page, main, user) {
       onClick: () => {
         if (disposed) return;
         if (activeDialog?.open) activeDialog.close();
-        activeDialog = openCreationDialog(page, user, () => {
+        const dialog = openCreationDialog(page, user, () => {
           if (!disposed) void load();
         });
-        activeDialog?.addEventListener("close", () => {
-          activeDialog = null;
+        activeDialog = dialog;
+        dialog?.addEventListener("close", () => {
+          if (activeDialog === dialog) activeDialog = null;
         }, { once: true });
       }
     }, "+ Add record"));

@@ -34,7 +34,10 @@ try {
     SchemaInstaller::install($db);
     $db->exec("INSERT INTO institute (id,name,mis_code,address) VALUES
         (1,'LOCAL FINANCE','FIN-1','TEST'),(2,'OTHER FINANCE','FIN-2','TEST')");
-    $db->exec("INSERT INTO trades (id,dgt_code) VALUES (1,'TEST-TRADE')");
+    $db->exec("INSERT INTO trades (id,dgt_code)
+        VALUES (1,'TEST-TRADE'),(2,'FOREIGN-INSTITUTE-TRADE')");
+    $db->exec("INSERT INTO trade_units (id,institute_id,trade_id,unit_no)
+        VALUES (1,1,1,1),(2,2,2,1)");
     $db->exec("INSERT INTO auth_users (id,institute_id,username,password_hash) VALUES
         (1,1,'cashier','TEST'),(2,1,'approver','TEST'),(3,2,'other','TEST')");
     $db->exec("INSERT INTO students
@@ -51,6 +54,8 @@ try {
     $head = $setup->createHead($operator,1,'REG','Registration',false);
     $check($head > 0, 'Fee head missing.');
     $reject(fn()=>$setup->createHead($operator,1,'REG','Duplicate',false), 'FEE_IDENTIFIER_EXISTS');
+    $reject(fn()=>$setup->draftStructure($operator,1,2,1,'2026-01-01',null),
+        'INSTITUTE_TRADE_NOT_CONFIGURED');
     $version = $setup->draftStructure($operator,1,1,1,'2026-01-01',null);
     $item = $setup->setItem($operator,1,$version,$head,'1000.00');
     $check($version > 0 && $item > 0, 'Fee draft incomplete.');

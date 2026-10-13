@@ -30,8 +30,19 @@ Only model data needed for (1) Bihar institute administration or (2) the applica
 - **Registration fees:** An institute trainee/student record can exist before an enrollment. `fee_transactions.student_id` is mandatory; `enrollment_id` is optional **only for registration** records. When provided, the enrollment must belong to the same student and institute; registration refunds/reversals refer to the same student. This is not a separate applicant master, fee master or automated payment workflow.
 - **Institute directory:** `district_name`, `management_type`, `contact_phone` and `contact_email` are optional institute-management fields; no invented administrative classification or district code list was imposed.
 - **Issuing authority vs source portal:** `global_regulatory_documents.authority` identifies the issuing authority (DGT, NCVET, Bihar State/SSDEC when applicable). `source_system` records NIMS/SIDH/NCVT-MIS when a record was obtained through an official portal, not as a separate rule-making authority.
-- **Instructor mapping scope remains source-dependent:** The existing uniqueness of active NIMS instructor and staff mappings is unchanged until the applicable current NIMS rule is checked for each scenario. Do not relax or expand it by assumption.
+- **Instructor mapping scope remains source-dependent:** The existing uniqueness of active NIMS instructor and staff mappings is unchanged until the applicable current NIMS rule is checked for each scenario. Active mappings now require a matching Staff IPRN identity; this does not independently establish assignment approval.
 - **Formative assessment representations:** `formative_assessments` stores learning-outcome assessments; `formative_template_items`/`formative_template_scores` support a source-backed weighted template only where applicable. `batch_years.formative_method` and `formative_scheme_source_id` identify the selected method and supporting source. Use neither mode with invented default weights; cross-mode reconciliation is deferred along with DATA-INTEGRITY GUARDS.
+
+## Enforced schema relationships — P1 review follow-up
+
+These changes use only existing tables, composite foreign keys and `CHECK` constraints; **no DATA-INTEGRITY GUARDS, triggers, or independent regulatory rules were added**.
+
+- **Instructor NIMS identity:** `instructor_mappings.status='active'` requires non-NULL `identity_id`. The existing composite foreign key `(staff_id,identity_id,institute_id)` ensures it is the exact instructor identity recorded on that staff member. Historical released/revoked mappings can still have no identity.
+- **Seat Matrix portal-shift mapping:** `seat_matrix_entries` records `calendar_id`, `session_part` and `physical_shift_no`. Composite keys verify that (a) the calendar/session are from the referenced `admission_intakes`, (b) the physical shift is from the referenced `trade_unit_shifts`, and (c) the resulting `portal_shift_no` is an actual `cts_portal_shift_mappings` row for that same calendar/session/shift. Consumers must supply these actual matching values; they are not defaulted or derived from guessed arithmetic.
+- **Reservation quota type:** `enrollments.vertical_quota_type` and `horizontal_quota_type` have fixed technical defaults and matching `CHECK` constraints. Each nullable quota ID uses the corresponding batch and type in a composite FK to `batch_quotas`. The constant type columns are technical FK discriminators, not extra admission policy or seat-category authority.
+- **Payment balances:** `fee_payment_balances.payment_transaction_type` is fixed to `payment` by `CHECK`; the composite FK to `fee_transactions(id,transaction_type,institute_id)` prevents a balance from referencing a `refund` or `reversal`. Refunded amounts and balance reconciliation still require a later transaction-safe workflow.
+
+**Compatibility:** These are updates to the fresh-install schema. Newly required `seat_matrix_entries` identity fields and extra foreign keys need a verified data-preserving migration for already populated databases.
 
 ## Authentication — five application roles
 

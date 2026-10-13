@@ -272,6 +272,32 @@ try {
     $db->exec("INSERT INTO learning_outcomes (id,institute_id,curriculum_year_id,global_curriculum_year_id,global_learning_outcome_id,lo_code) VALUES (9101,9101,9101,9101,9101,'LOCAL')");
     $db->exec("INSERT INTO formative_assessments (institute_id,enrollment_id,batch_id,batch_year_id,curriculum_year_id,learning_outcome_id,assessed_on,max_marks,obtained_marks,evidence_reference,assessor_id,locked_on) VALUES (9101,9101,9101,9101,9101,9101,'2026-09-01',100,80,'LOCAL',9101,UTC_TIMESTAMP())");
     $db->exec("UPDATE batch_years SET calendar_status='reviewed',calendar_reviewed_through='2026-09-01',formative_method='points_ratio',formative_scheme_source_id=9101 WHERE id=9101");
+    $db->exec("INSERT INTO global_learning_outcomes
+        (id,global_curriculum_year_id,lo_code,outcome_text,assessment_criteria)
+        VALUES (9102,9101,'LOCAL-2','LOCAL TEST ONLY','LOCAL TEST ONLY')");
+    $db->exec("INSERT INTO learning_outcomes
+        (id,institute_id,curriculum_year_id,global_curriculum_year_id,global_learning_outcome_id,lo_code)
+        VALUES (9102,9101,9101,9101,9102,'LOCAL-2')");
+    $formativeInstructor=new AuthContext(9202,9101,1,'local-instructor',false,
+        ['instructor'],['formative.record.assigned'],9101,null);
+    $formativePrincipal=new AuthContext(9215,9101,8,'local-principal',false,
+        ['principal'],['formative.template.manage'],9115,null);
+    $formativeService=new App\Modules\Assessment\FormativeService($db);
+    $formativeId=$formativeService->record($formativeInstructor,9101,9101,9101,9102,
+        '2026-09-01','100.00','75.50','LOCAL ASSESSMENT EVIDENCE');
+    foundationCheck($formativeId>0 &&
+        $db->query("SELECT obtained_marks FROM formative_assessments WHERE id=$formativeId")->fetchColumn()==='75.50',
+        'Mapped instructor formative LO marks must persist.');
+    foundationReject(fn()=>$formativeService->record($formativeInstructor,9101,9101,9101,9102,
+        '2026-09-01','100.00','75.50','LOCAL REPLAY'),'ASSESSMENT_EXISTS');
+    $formativeService->lock($formativePrincipal,9101,$formativeId,'LOCAL PRINCIPAL REVIEW');
+    foundationCheck($db->query("SELECT locked_on FROM formative_assessments WHERE id=$formativeId")->fetchColumn()!==null,
+        'Reviewed formative evidence must be frozen.');
+    foundationReject(fn()=>$formativeService->lock($formativePrincipal,9101,
+        $formativeId,'REPLAY'),'ASSESSMENT_LOCKED');
+    foundationSqlReject($db,"UPDATE formative_assessments SET obtained_marks=88
+        WHERE id=$formativeId");
+
     $db->exec("INSERT INTO training_calendar_entries (institute_id,batch_year_id,calendar_id,session_date,component,scheduled_minutes) VALUES (9101,9101,9101,'2026-09-01','trade_theory',60)");
     // The additional locally marked and locked session must also be in the
     // reviewed test calendar before the eligibility reconciliation snapshot.

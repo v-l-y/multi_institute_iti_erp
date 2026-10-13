@@ -17,6 +17,7 @@ use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
 use App\Modules\Students\Http\StudentController;
 use App\Modules\Catalog\CatalogController;
+use App\Modules\Catalog\ItsuSetupController;
 use App\Modules\Fees\Http\FeeController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
@@ -83,6 +84,13 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));
     $router->post('/api/v1/students', $guard->wrap([$students, 'create'], 'student.manage'));
     $router->post('/api/v1/students/qualifications', $guard->wrap([$students, 'createQualification'], 'student.manage'));
+    $itsuSetup=new ItsuSetupController($database);
+    $router->post('/api/v1/institute/regulatory/sources', $guard->wrap(
+        [$itsuSetup,'attachSource'], 'institute.affiliation.manage'));
+    $router->post('/api/v1/itsu/trade-units', $guard->wrap(
+        [$itsuSetup,'createTradeUnit'], 'tradeunit.manage'));
+    $router->post('/api/v1/itsu/shift-revisions', $guard->wrap(
+        [$itsuSetup,'createShiftRevision'], 'tradeunit.manage'));
     $catalog = new CatalogController($database);
     $router->get('/api/v1/itsu', $guard->wrap([$catalog, 'itsu'], 'tradeunit.view'));
     $router->get('/api/v1/batches', $guard->wrap([$catalog, 'batches'], 'batch.view'));

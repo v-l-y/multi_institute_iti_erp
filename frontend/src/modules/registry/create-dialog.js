@@ -38,4 +38,5 @@ export function openCreationDialog(page, user, onCreated) {
   document.body.append(dialog);
   dialog.addEventListener("close", () => dialog.remove(), { once: true });
   dialog.showModal();
+  return dialog;
 }

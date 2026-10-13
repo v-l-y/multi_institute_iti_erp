@@ -16,7 +16,16 @@ final class Kernel
         } catch (HttpException $exception) {
             $response = Response::error($exception->errorCode, $exception->getMessage(), $exception->status);
         } catch (Throwable $exception) {
-            error_log('[iti-erp] request=' . $requestId . ' error=' . $exception::class);
+            // Keep diagnostics useful without leaking exception messages, SQL, tokens or student data.
+            $diagnostic = [
+                'timestamp' => gmdate('c'),
+                'event' => 'unhandled_exception',
+                'request_id' => $requestId,
+                'exception_type' => $exception::class,
+                'file' => basename($exception->getFile()),
+                'line' => $exception->getLine(),
+            ];
+            error_log('[iti-erp] ' . json_encode($diagnostic, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR));
             $response = Response::error('INTERNAL_ERROR', 'Unable to process request.', 500);
         }
         return new Response($response->body, $response->status, [...$response->headers, 'X-Request-ID' => $requestId]);

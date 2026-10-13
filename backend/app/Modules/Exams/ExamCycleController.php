@@ -41,6 +41,9 @@ final readonly class ExamCycleController
     private static function date(Request $request, string $key): string
     {
         $value = self::text($request, $key, 10);
+        if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $value) !== 1) {
+            throw new HttpException('INVALID_INPUT', 'Real ISO date required for ' . $key . '.', 422);
+        }
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $value) !== 1
             || !$date || $date->format('Y-m-d') !== $value) {

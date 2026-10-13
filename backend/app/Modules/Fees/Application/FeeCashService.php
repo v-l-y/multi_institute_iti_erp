@@ -78,7 +78,7 @@ final readonly class FeeCashService
                 // A recorded discrepancy can only be flagged for correction;
                 // it cannot be marked reconciled without a documented adjustment.
                 if ($decision === 'reviewed'
-                    && preg_match('/^-?0+(?:\\.0+)?$/D', (string)$closing['difference_amount']) !== 1) {
+                    && preg_match('/^-?0+(?:\.0+)?$/D', (string)$closing['difference_amount']) !== 1) {
                     throw new HttpException('CASH_DIFFERENCE_UNRESOLVED',
                         'Nonzero cash differences must be flagged for correction, not marked reviewed.', 409);
                 }

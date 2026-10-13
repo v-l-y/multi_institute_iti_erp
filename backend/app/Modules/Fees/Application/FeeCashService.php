@@ -75,6 +75,13 @@ final readonly class FeeCashService
                 if ((int)$closing['closed_by'] === $actor->userId) {
                     throw new HttpException('INDEPENDENT_REVIEW', 'Cash closer cannot review their own closing.', 409);
                 }
+                // A recorded discrepancy can only be flagged for correction;
+                // it cannot be marked reconciled without a documented adjustment.
+                if ($decision === 'reviewed'
+                    && preg_match('/^-?0+(?:\\.0+)?$/D', (string)$closing['difference_amount']) !== 1) {
+                    throw new HttpException('CASH_DIFFERENCE_UNRESOLVED',
+                        'Nonzero cash differences must be flagged for correction, not marked reviewed.', 409);
+                }
                 $q = $this->db->prepare("SELECT id FROM institute_activity_log
                     WHERE institute_id=? AND action_code='fee.cash.close.review'
                       AND entity_table='fee_cash_closings' AND entity_id=? LIMIT 1 FOR UPDATE");

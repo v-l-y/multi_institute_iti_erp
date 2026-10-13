@@ -6,12 +6,14 @@ import { routes as students } from "../modules/students/routes.js";
 import { routes as staff } from "../modules/staff/routes.js";
 import { routes as admissions } from "../modules/admissions/routes.js";
 import { routes as regulatory } from "../modules/regulatory/routes.js";
+import { routes as workspaces } from "../modules/workspace/routes.js";
 
-const all = [...dashboard, ...institutes, ...trades, ...calendar, ...students, ...staff, ...admissions, ...regulatory];
+const all = [...dashboard, ...institutes, ...trades, ...calendar, ...students, ...staff, ...admissions, ...regulatory, ...workspaces];
 const order = [
   "dashboard", "institute", "itsu", "batches", "calendar",
   "students", "staff", "enrollments", "seat-matrix",
-  "platform-institutes", "platform-trades", "platform-sources"
+  "fees", "attendance", "ojt", "formative", "syllabus", "documents",
+  "platform-institutes", "platform-trades", "platform-sources", "platform-syllabus"
 ];
 // Fail safely if module owners introduce a duplicate, unsupported route or
 // a page without an explicit backend permission. These are startup assertions,
@@ -46,7 +48,10 @@ export function canAccess(page, user) {
   if (!user || !page) return false;
   if (page.scope === "platform" && user.institute_id !== null) return false;
   if (page.scope === "institute" && (!Number.isInteger(user.institute_id) || user.institute_id < 1)) return false;
-  return !page.permission || (Array.isArray(user.permissions) && user.permissions.includes(page.permission));
+  if (!Array.isArray(user.permissions)) return false;
+  return Array.isArray(page.anyPermissions)
+    ? page.anyPermissions.some(permission => user.permissions.includes(permission))
+    : !page.permission || user.permissions.includes(page.permission);
 }
 
 export function currentPage() {

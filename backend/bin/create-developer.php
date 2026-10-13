@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 use App\Core\Database;
 use App\Core\Environment;
-use App\Modules\Auth\PasswordHasher;
+use App\Modules\Auth\Infrastructure\PasswordHasher;
 
 require dirname(__DIR__) . '/bootstrap/autoload.php';
 if (PHP_SAPI !== 'cli') {

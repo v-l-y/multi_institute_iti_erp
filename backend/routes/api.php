@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 use App\Http\Router;
 use App\Modules\Health\HealthController;
-use App\Modules\Auth\AuthController;
+use App\Modules\Auth\Http\AuthController;
 use App\Core\Database;
-use App\Modules\Auth\AuthMiddleware;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Http\AuthMiddleware;
+use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\StaffController;

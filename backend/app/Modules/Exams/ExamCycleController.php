@@ -65,6 +65,9 @@ final readonly class ExamCycleController
             throw new HttpException('INVALID_INPUT', 'Exam cannot start before eligibility cutoff.', 422);
         }
         $windows = $request->body['activity_windows'] ?? null;
+        if ($windows instanceof \stdClass) {
+            $windows = (array)$windows;
+        }
         if (!is_array($windows) || $windows === [] || array_is_list($windows)) {
             throw new HttpException('INVALID_INPUT', 'Nonempty official activity-windows object required.', 422);
         }

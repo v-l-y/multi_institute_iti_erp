@@ -8,7 +8,7 @@ export function csvText(rows, columns) {
   const quote = value => {
     const raw = formatValue(value);
     // Spreadsheet formula injection: force dangerous leading characters to text.
-    const escaped = /^[\s]*[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
+    const escaped = typeof value === "string" && /^[\s]*[=+\-@\t\r]/.test(raw) ? "'" + raw : raw;
     return '"' + escaped.replaceAll('"', '""') + '"';
   };
   return "\uFEFF" + [

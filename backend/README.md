@@ -269,7 +269,7 @@ The following features are not implemented or certified by the current tests:
 - Verified official-master data loading without invented regulatory defaults.
 - Refresh token rotation and forgot-password delivery.
 - Instructor assigned-record and student own-record access on business endpoints.
-- Admission, fee and exam HTTP/UI integration and complete approval/correction workflows; internal guarded services now exist.
+- Admission creation/review, fee HTTP operations, official submission, certificate imports, and complete approval/correction workflows. Guarded activation, cancellation, upload preparation and eligibility freeze HTTP endpoints exist, but are not end-to-end official workflows.
 - Broader attendance/formative data-entry workflows and official reconciliation policies beyond the configured freeze service.
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
 - Governed OJT, exam, official-result and certificate imports/revisions.

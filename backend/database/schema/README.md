@@ -28,7 +28,7 @@ Database guards protect published document/rule content, final Seat Matrix entri
 
 Internal admission, fee and exam services perform source applicability and multi-row validations in serialized institute transactions. They enforce matching authenticated actors/permissions and store activity audit records in the business transaction. Admission activation/cancellation reconciles batch/quota counters. Fee operations enforce allocations, reservations, refunds, reversals and waiver limits using exact decimal cents. Exam freezing calculates evidence-backed attendance/formative eligibility and snapshots the applied rule thresholds.
 
-These services currently have no new business HTTP write routes. Direct SQL does not automatically invoke service-level financial sums, admission policies or counter reconciliation. Future routes must call the guarded services; controlled database administration remains necessary.
+Selected guarded admission and exam service transitions are exposed as institute-scoped HTTP endpoints. Fee write services remain internal. Direct SQL does not automatically invoke financial sums, admission policies or counter reconciliation. All future write routes must call the guarded services; controlled database administration remains necessary.
 
 DST MoUs have explicit industry identity, validity, source evidence and same-trade/unit/institute coverage. Local activation checks MoU expiry and third-shift base-unit limits; official portal status changes remain official authority workflows.
 
@@ -37,7 +37,7 @@ DST MoUs have explicit industry identity, validity, source evidence and same-tra
 - Reviewed official-source loading and handling conflicting/later orders.
 - Approval/correction/revision user flows with clear role policies.
 - Admission-route applicability, subject evidence and quota category assessment backed by the applicable Bihar policy.
-- Business API/UI integration using the internal transaction services.
+- Remaining business API/UI integration using the internal transaction services (including fees, approval/correction, attendance and official-result workflows).
 - Official portal duplicate checks and acceptance evidence, including state-authorized upload boundaries.
 - Legacy fee data migration/report cutover; never count both ledgers.
 - Complete official result/certificate correction and import workflows.

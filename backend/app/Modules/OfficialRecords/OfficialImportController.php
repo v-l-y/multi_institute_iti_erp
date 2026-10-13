@@ -83,6 +83,12 @@ final readonly class OfficialImportController
     {
         $value = self::text($r, $key, $datetime ? 19 : 10);
         $format = $datetime ? 'Y-m-d H:i:s' : 'Y-m-d';
+        $pattern = $datetime
+            ? '/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/D'
+            : '/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D';
+        if (preg_match($pattern, $value) !== 1) {
+            throw new HttpException('INVALID_INPUT', 'Real ISO date/time required for ' . $key . '.', 422);
+        }
         $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $value);
         if (!$parsed || $parsed->format($format) !== $value) {
             throw new HttpException('INVALID_INPUT', 'Real ISO date/time required for ' . $key . '.', 422);

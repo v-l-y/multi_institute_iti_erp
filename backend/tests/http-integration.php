@@ -955,6 +955,11 @@ try {
     } finally {
         $db->rollBack();
     }
+    // In this disposable database only, simulate a missing immutable-result
+    // guard while connectivity remains healthy. Readiness must fail closed.
+    $db->exec('DROP TRIGGER official_results_immutable_update');
+    expectStatus(http('GET', '/api/v1/ready'), 503);
+    expectStatus(http('GET', '/api/v1/health'), 200);
     // Restart only the isolated HTTP server with an unreachable database endpoint.
     proc_terminate($server);
     proc_close($server);

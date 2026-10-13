@@ -30,7 +30,7 @@ final readonly class OfficialRecordsController
         return $value;
     }
 
-    private function list(Request $request, AuthContext $actor, string $type, bool $own): Response
+    private function listRecords(Request $request, AuthContext $actor, string $type, bool $own): Response
     {
         $permission = $type === 'results' ? ($own ? 'result.view.own' : 'result.view')
                                            : ($own ? 'certificate.view.own' : 'certificate.view');
@@ -81,21 +81,21 @@ final readonly class OfficialRecordsController
 
     public function results(Request $request, AuthContext $actor): Response
     {
-        return $this->list($request, $actor, 'results', false);
+        return $this->listRecords($request, $actor, 'results', false);
     }
 
     public function ownResults(Request $request, AuthContext $actor): Response
     {
-        return $this->list($request, $actor, 'results', true);
+        return $this->listRecords($request, $actor, 'results', true);
     }
 
     public function certificates(Request $request, AuthContext $actor): Response
     {
-        return $this->list($request, $actor, 'certificates', false);
+        return $this->listRecords($request, $actor, 'certificates', false);
     }
 
     public function ownCertificates(Request $request, AuthContext $actor): Response
     {
-        return $this->list($request, $actor, 'certificates', true);
+        return $this->listRecords($request, $actor, 'certificates', true);
     }
 }

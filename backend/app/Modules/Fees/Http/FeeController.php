@@ -6,11 +6,11 @@ namespace App\Modules\Fees\Http;
 use App\Core\Database;
 use App\Modules\Fees\Application\FeeService;
 use App\Modules\Fees\Domain\Money;
+use App\Modules\Fees\Infrastructure\FeePaymentRepository;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Auth\Domain\AuthContext;
-use PDO;
 
 /**
  * Strict HTTP boundary for the audited FeeService. No regulator-defined
@@ -161,25 +161,8 @@ final readonly class FeeController
         }
         $limit = self::queryInt($request, 'page_size', 50, 100);
         $cursor = self::queryInt($request, 'after_id', 0, PHP_INT_MAX);
-        $sql = 'SELECT id,student_id,payment_no,receipt_no,paid_on,amount,payment_mode
-                FROM fee_payments WHERE institute_id=? AND id>?';
-        if ($own) {
-            $sql .= ' AND student_id=?';
-        }
-        $sql .= ' ORDER BY id ASC LIMIT ?';
-        $statement = $this->database->connection()->prepare($sql);
-        $statement->bindValue(1, $institute, PDO::PARAM_INT);
-        $statement->bindValue(2, $cursor, PDO::PARAM_INT);
-        if ($own) {
-            $statement->bindValue(3, $actor->studentId, PDO::PARAM_INT);
-            $statement->bindValue(4, $limit, PDO::PARAM_INT);
-        } else {
-            $statement->bindValue(3, $limit, PDO::PARAM_INT);
-        }
-        $statement->execute();
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
-        $next = count($rows) === $limit ? (int)$rows[count($rows)-1]['id'] : null;
-        return new Response(['success'=>true,'data'=>['payments'=>$rows,'next_after_id'=>$next]]);
+        $page = (new FeePaymentRepository($this->database->connection()))->page($institute, $cursor, $limit, $own ? $actor->studentId : null);
+        return new Response(['success'=>true,'data'=>$page]);
     }
 
     public function payments(Request $request, AuthContext $actor): Response

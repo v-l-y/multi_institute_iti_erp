@@ -733,3 +733,31 @@ order linked to that institute, `change_type`, `approved_name`,
 and `effective_from`. Each later order closes the prior current period;
 all historical records are kept with an institute audit event.
 This does not issue or verify government approval.
+
+## NIMS instructor identity and assignment review
+
+All four endpoints are institute-scoped; they require the **Principal role**
+plus the stated permission. They create no NIMS portal action or independent
+DGT approval. The caller attests to externally reviewed source evidence.
+
+- `POST /api/v1/staff/qualifications/review` (`staff.manage`):
+  `qualification_id`, `regulatory_source_id`, `review_reference`;
+  records one Principal review of staff qualification evidence.
+- `POST /api/v1/instructors/iprn/review` (`instructor.mapping.manage`):
+  `staff_id`, `regulatory_source_id`, `iprn`, `verification_reference`,
+  `verified_on`; needs published institute-linked NIMS source evidence with
+  SHA-256 and an active teaching employee. Existing verified identity is not
+  silently replaced. A reviewed source record does not authenticate NIMS APIs.
+- `POST /api/v1/instructors/mappings` (`instructor.mapping.manage`):
+  `staff_id`, `qualification_id`, `qualification_source_id`,
+  `mapping_type` (`trade` or `subject`), `valid_from`, `review_reference`,
+  and either `itsu_revision_id` for a Trade or `subject_code` for a subject.
+  Requires a reviewed qualification, matching active NIMS-reviewed instructor,
+  and approved ITSU when applicable. One active staff/IPRN/ITSU assignment is
+  enforced by the existing schema. The source and review are audited.
+- `POST /api/v1/instructors/mappings/release` (`instructor.mapping.manage`):
+  `mapping_id`, `valid_to`, `regulatory_source_id`, `review_reference`;
+  preserves the historical assignment and its reviewed release evidence.
+
+The current supported HTTP workflow records **local review of official
+external evidence**, not a live verification against the NIMS portal.

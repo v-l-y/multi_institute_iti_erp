@@ -781,6 +781,10 @@ $checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocument
 $checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('NTC_Certificate', 'certificate');
 $checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('marksheet', 'certificate');
 $checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('official_result', 'certificate');
+$checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('nonresult', 'result');
+$checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('uncertificated', 'certificate');
+$checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('AITTOfficialResult', 'result');
+$checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('OfficialNTCCertificate', 'certificate');
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

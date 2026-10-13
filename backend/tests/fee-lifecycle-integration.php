@@ -82,9 +82,15 @@ try {
        (institute_id,occurred_at,transfer_type,amount,reference_no,idempotency_key,request_fingerprint,recorded_by)
        VALUES (1,?,'counter_addition',10.00,'LOCAL','BACKDATED-TEST',REPEAT('a',64),1)");
     $insert->execute([$previous.' 12:00:00']);
-    $closing = $cash->close($approver,1,$previous,'50.00','60.00','LOCAL-OPENING');
+    $closing = $cash->close($operator,1,$previous,'50.00','60.00','LOCAL-OPENING');
     $check($closing['expected_amount']==='60.00' && $closing['difference_cents']===0,'Cash reconciliation mismatch.');
-    $reject(fn()=>$cash->close($approver,1,$previous,'50.00','60.00','RETRY'),'CASH_ALREADY_CLOSED');
+    $reject(fn()=>$cash->close($operator,1,$previous,'50.00','60.00','RETRY'),'CASH_ALREADY_CLOSED');
+    $reject(fn()=>$cash->reviewClosing($operator,1,$closing['closing_id'],'reviewed','SELF'),'PRINCIPAL_REQUIRED');
+    $cash->reviewClosing($approver,1,$closing['closing_id'],'reviewed','PRINCIPAL-REVIEW');
+    $check((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code='fee.cash.close.review' AND entity_id=".(int)$closing['closing_id'])->fetchColumn()===1,
+        'Independent closing review audit missing.');
+    $reject(fn()=>$cash->reviewClosing($approver,1,$closing['closing_id'],'reviewed','REPEAT'),'CASH_ALREADY_REVIEWED');
     echo "Finance lifecycle integration passed (".$count." checks).\n";
 } finally {
     $db->exec("DROP DATABASE ".$name);

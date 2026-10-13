@@ -76,8 +76,8 @@ final readonly class ExamCycleService
                     }
                     $q = $this->db->prepare('INSERT INTO exam_cycles
                         (institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,
-                         exam_starts_on,activity_windows_json,status)
-                        VALUES (?,?,?,?,?,?,?,?,"draft")');
+                         exam_starts_on,activity_windows_json)
+                        VALUES (?,?,?,?,?,?,?,?)');
                     $q->execute([$institute, $code, $type, $ruleId, $scheduleSource, $cutoff, $startsOn, $windows]);
                     $id = (int)$this->db->lastInsertId();
                     (new InstituteTransaction($this->db))->audit(

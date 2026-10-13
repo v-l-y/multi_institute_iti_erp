@@ -226,6 +226,31 @@ $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(query: ['p
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(query: ['after_id' => ['5']]), $catalogReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(), $platform))->status === 403;
+$feeSetup = new App\Modules\Fees\Http\FeeSetupController(new App\Core\Database([]));
+$feeCash = new App\Modules\Fees\Http\FeeCashController(new App\Core\Database([]));
+$feeSetupWriter = new AuthContext(7, 3, 1, 'cashier', false, ['administrator'], ['fee.record'], 7, null);
+$checks[] = $kernel->handle(static fn() => $feeSetup->head(
+    new Request(['code'=>'REG','name'=>'Registration','requires_enrollment'=>'no']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->head(
+    new Request(['code'=>'REG','name'=>'Registration','requires_enrollment'=>true]), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structure(
+    new Request(['trade_id'=>1,'version_no'=>1,'effective_from'=>'2026-02-30']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structure(
+    new Request(['trade_id'=>1,'version_no'=>1,'effective_from'=>'2026-01-02','effective_to'=>'2025-12-31']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->structureItem(
+    new Request(['structure_id'=>1,'head_id'=>1,'amount'=>-3]), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->assessment(
+    new Request(['student_id'=>1,'structure_id'=>1,'assessment_no'=>'A','assessed_on'=>'2026-02-30']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeSetup->activateStructure(
+    new Request(['structure_id'=>'1']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->movement(
+    new Request(['transfer_type'=>'arbitrary','amount'=>'10.00','reference_no'=>'C','idempotency_key'=>'K']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->movement(
+    new Request(['transfer_type'=>'counter_addition','amount'=>'-10.00','reference_no'=>'C','idempotency_key'=>'K']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->close(
+    new Request(['closing_date'=>'2026-02-30','opening_amount'=>'0','actual_amount'=>'10','opening_reference'=>'LOCAL']), $feeSetupWriter))->status === 422;
+$checks[] = $kernel->handle(static fn() => $feeCash->close(
+    new Request(['closing_date'=>'2026-01-02','opening_amount'=>'0','actual_amount'=>'10','opening_reference'=>'LOCAL']), $context))->status === 403;
 $fees = new App\Modules\Fees\Http\FeeController(new App\Core\Database([]));
 $feeWriter = new AuthContext(7, 3, 1, 'cashier', false, ['administrator'], ['fee.record','fee.refund','fee.view'], 7, null);
 $feeStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['fee.view.own'], null, 21);

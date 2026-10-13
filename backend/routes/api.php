@@ -30,6 +30,7 @@ use App\Modules\Fees\Http\FeeCashController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
+use App\Modules\OfficialRecords\OfficialImportController;
 use App\Modules\Exams\ExamCycleController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
@@ -165,6 +166,9 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));
     $router->get('/api/v1/attendance/records/me', $guard->wrap([$attendance, 'ownRecords'], 'attendance.view.own'));
     $router->post('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'markAssigned'], 'attendance.mark.assigned'));
+    $officialImports = new OfficialImportController($database);
+    $router->post('/api/v1/exams/results/import', $guard->wrap([$officialImports, 'result'], 'result.import'));
+    $router->post('/api/v1/certificates/import', $guard->wrap([$officialImports, 'certificate'], 'certificate.record'));
     $officialRecords = new OfficialRecordsController($database);
     $router->get('/api/v1/exams/results', $guard->wrap([$officialRecords, 'results'], 'result.view'));
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));

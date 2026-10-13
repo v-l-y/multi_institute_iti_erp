@@ -341,6 +341,20 @@ $checks[]=$kernel->handle(static fn()=>$accountController->index(
     new Request(query:['page_size'=>'101']),$accountPrincipal))->status===422;
 $checks[]=$kernel->handle(static fn()=>$accountController->index(
     new Request(),$accountStudent))->status===403;
+$contact=new App\Modules\Institutes\InstituteContactController(new App\Core\Database([]));
+$contactActor=new AuthContext(5,3,1,'principal',false,['principal'],['institute.profile.update'],5,null);
+$checks[]=$kernel->handle(static fn()=>$contact->update(new Request([]),$contactActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$contact->update(new Request(['contact_email'=>'not-email']),$contactActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$contact->update(new Request(['contact_phone'=>'a']),$contactActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$contact->update(new Request(['contact_phone'=>'+91-1234567890']),$context))->status===403;
+$checks[]=$kernel->handle(static fn()=>$staffController->updateProfile(new Request(['staff_id'=>'1','full_name'=>'Name','designation'=>'D']),$staffWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$staffController->recordQualification(new Request([
+    'staff_id'=>1,'qualification_type'=>'ITI','specialization'=>'Electrician',
+    'certificate_reference'=>'TEST','experience_months'=>'12']),$staffWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$staffController->exitEmployment(new Request([
+    'staff_id'=>1,'left_on'=>'2026-02-30','reference'=>'EXIT']),$staffWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$staffController->exitEmployment(new Request([
+    'staff_id'=>1,'left_on'=>'2026-09-01','reference'=>'EXIT']),$context))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

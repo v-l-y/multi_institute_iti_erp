@@ -211,6 +211,26 @@ without changing their regulatory meaning. Both endpoints use cursor
 pagination (`page_size`, `after_id`; maximum 100). Neither endpoint can
 create or approve trade units, shifts, seat matrices or batches.
 
+## Institute contact and staff lifecycle
+
+`POST /api/v1/institute/contact` takes `contact_phone` and/or
+`contact_email` and requires `institute.profile.update`. Only these
+institute-local contact fields are writable: affiliated name, official
+address, trade approvals and MIS identity remain source-governed.
+
+`POST /api/v1/staff/profile` requires `staff.manage`, `staff_id`,
+`full_name`, `designation` and applies to non-exited staff.
+`POST /api/v1/staff/qualifications` requires `staff_id`,
+`qualification_type`, `specialization`, `certificate_reference`,
+and explicit nonnegative integer `experience_months`; newly recorded
+school evidence has NULL approval/verification columns.
+`POST /api/v1/staff/exit` accepts `staff_id`, `left_on`
+(real non-future YYYY-MM-DD) and `reference`. It blocks unresolved
+active instructor mappings and Principal/Acting Principal assignments,
+requires Principal authority if exiting an Administrator, and disables
+the departing staff member's login and live sessions without deleting
+historical role links. Every mutation is institute-scoped and audited.
+
 ## Local student registry
 
 `GET /api/v1/students` requires `student.view` and returns only institute-owned

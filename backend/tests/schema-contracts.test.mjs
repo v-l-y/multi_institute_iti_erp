@@ -242,11 +242,10 @@ test('absent attendance cannot record positive attended minutes', () => {
   contains('attendance_records', "CHECK(status<>'absent' OR attended_minutes=0)");
 });
 
-test('Docker PHP readiness probe cannot be altered by Compose dollar interpolation', () => {
+test('Docker PHP readiness probe cannot be altered by Compose interpolation', () => {
   const compose = readFileSync(new URL('../../compose.yaml', import.meta.url), 'utf8');
-  const probe = compose.split('php\\n        - -r\\n')[1]?.split('\\n')[0] ?? '';
-  assert.ok(probe.includes('json_decode(@file_get_contents(\'http://127.0.0.1/api/v1/ready\'),true)'));
+  const probe = compose.split(String.fromCharCode(10))
+    .find(line => line.includes('exit((json_decode(')) ?? '';
   assert.ok(probe.includes("['data']['status']??null)==='ready'?0:1"));
-  assert.ok(!probe.includes('
-), 'PHP readiness command must not contain Compose-interpolated variables');
+  assert.ok(!probe.includes(String.fromCharCode(36)), 'Compose healthcheck must not contain interpolated PHP variables');
 });

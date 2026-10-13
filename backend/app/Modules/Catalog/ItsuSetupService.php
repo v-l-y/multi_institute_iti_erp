@@ -59,6 +59,8 @@ final readonly class ItsuSetupService
         ): int {
             $trade=$this->row("SELECT t.id FROM trades t JOIN trade_master_revisions r
                 ON r.trade_id=t.id AND r.status='active'
+                    AND r.effective_from<=UTC_DATE()
+                    AND (r.effective_to IS NULL OR r.effective_to>=UTC_DATE())
                 JOIN global_regulatory_documents d ON d.id=r.source_document_id AND d.status='published'
                 WHERE t.id=? FOR UPDATE",[$tradeId]);
             if ($trade===null) {

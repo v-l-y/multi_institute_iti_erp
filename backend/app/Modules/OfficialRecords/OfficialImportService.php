@@ -189,12 +189,19 @@ final readonly class OfficialImportService
                             'Valid NTC must reference the latest official result revision.', 409);
                     }
                 }
-                // A certificate number is not the learner/document identity:
-                // prevent a second independent revision 1 under a different number.
-                $latest = $this->one('SELECT id,revision_no FROM certificates
-                    WHERE enrollment_id=? AND document_type=? AND institute_id=?
-                    ORDER BY revision_no DESC,id DESC LIMIT 1 FOR UPDATE',
-                    [$data['enrollment_id'], $data['document_type'], $institute]);
+                // NTC series is enrollment-wide. A marksheet belongs to a specific
+                // course year AND exam cycle (including supplementary attempts).
+                // Different issued marksheets must never be treated as revisions
+                // of one another simply because they share the same enrollment.
+                $latest = $this->one('SELECT c.id,c.revision_no FROM certificates c
+                    JOIN official_results prior_result ON prior_result.id=c.official_result_id
+                      AND prior_result.institute_id=c.institute_id
+                    WHERE c.enrollment_id=? AND c.document_type=? AND c.institute_id=?
+                      AND (?='NTC'
+                           OR (prior_result.batch_year_id=? AND prior_result.cycle_id=?))
+                    ORDER BY c.revision_no DESC,c.id DESC LIMIT 1 FOR UPDATE',
+                    [$data['enrollment_id'], $data['document_type'], $institute,
+                     $data['document_type'], $result['batch_year_id'], $result['cycle_id']]);
                 $prior = $data['supersedes_certificate_id'] ?? null;
                 if (($latest===null && ($prior!==null || $data['revision_no']!==1))
                     || ($latest!==null

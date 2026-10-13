@@ -203,6 +203,23 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Official results and certificates (read-only)
+
+| Method | Endpoint | Permission |
+| --- | --- | --- |
+| GET | `/api/v1/exams/results` | `result.view` |
+| GET | `/api/v1/exams/results/me` | `result.view.own` |
+| GET | `/api/v1/certificates` | `certificate.view` |
+| GET | `/api/v1/certificates/me` | `certificate.view.own` |
+
+Results and certificate reads preserve published source references, revisions
+and supersession pointers from previously imported authority records. They use
+institute-scoped queries and, for `/me`, the account's linked student identity.
+An empty result means no imported official record; it must not be presented as
+a pass/fail decision or generated certificate. Both support keyset pagination
+(`page_size` 1–100, `after_id`). Signed imports, evidence verification,
+revocations and corrections require separately audited workflows.
+
 ## Attendance read APIs
 
 | Method | Endpoint | Permission | Record boundary |

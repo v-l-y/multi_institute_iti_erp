@@ -169,6 +169,16 @@ $checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Req
 $checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(), $attendanceStudent))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $attendanceAdmin))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $platform))->status === 403;
+$officialRecords = new App\Modules\OfficialRecords\OfficialRecordsController(new App\Core\Database([]));
+$officialStaff = new AuthContext(7, 3, 1, 'principal', false, ['principal'], ['result.view','certificate.view'], 7, null);
+$officialStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['result.view.own','certificate.view.own'], null, 12);
+$checks[] = $kernel->handle(static fn() => $officialRecords->results(new Request(query:['page_size'=>'101']), $officialStaff))->status === 422;
+$checks[] = $kernel->handle(static fn() => $officialRecords->ownResults(new Request(query:['after_id'=>['1']]), $officialStudent))->status === 422;
+$checks[] = $kernel->handle(static fn() => $officialRecords->certificates(new Request(query:['page_size'=>0]), $officialStaff))->status === 422;
+$checks[] = $kernel->handle(static fn() => $officialRecords->ownCertificates(new Request(query:['after_id'=>'-1']), $officialStudent))->status === 422;
+$checks[] = $kernel->handle(static fn() => $officialRecords->results(new Request(), $officialStudent))->status === 403;
+$checks[] = $kernel->handle(static fn() => $officialRecords->ownCertificates(new Request(), $officialStaff))->status === 403;
+$checks[] = $kernel->handle(static fn() => $officialRecords->ownResults(new Request(), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

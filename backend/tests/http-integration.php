@@ -299,6 +299,25 @@ try {
     expectStatus(http('GET', '/api/v1/attendance/records?after_session_id=1', token:$tokens['administrator']), 422);
     expectStatus(http('GET', '/api/v1/attendance/records/me?after_session_id=1&after_enrollment_id=0', token:$tokens['student']), 422);
     expectStatus(http('GET', '/api/v1/attendance/records/assigned?page_size=101', token:$tokens['instructor']), 422);
+    foreach (['/api/v1/exams/results', '/api/v1/exams/results/me',
+              '/api/v1/certificates', '/api/v1/certificates/me'] as $route) {
+        expectStatus(http('GET', $route), 401);
+    }
+    foreach (['/api/v1/exams/results', '/api/v1/certificates'] as $route) {
+        expectStatus(http('GET', $route, token:$tokens['student']), 403);
+        $adminOfficial = http('GET', $route, token:$tokens['administrator']);
+        expectStatus($adminOfficial, 200);
+        verify(array_key_exists('next_after_id', $adminOfficial['body']['data']), 'Official record pagination missing.');
+        expectStatus(http('GET', $route.'?page_size=101', token:$tokens['administrator']), 422);
+    }
+    foreach (['/api/v1/exams/results/me', '/api/v1/certificates/me'] as $route) {
+        expectStatus(http('GET', $route, token:$tokens['administrator']), 403);
+        $ownOfficial = http('GET', $route, token:$tokens['student']);
+        expectStatus($ownOfficial, 200);
+        $key = str_contains($route,'results') ? 'results' : 'certificates';
+        verify($ownOfficial['body']['data'][$key] === [], 'Nonexistent official record must not be fabricated.');
+        expectStatus(http('GET', $route.'?after_id=0', token:$tokens['student']), 422);
+    }
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

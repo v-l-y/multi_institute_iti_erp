@@ -761,3 +761,30 @@ DGT approval. The caller attests to externally reviewed source evidence.
 
 The current supported HTTP workflow records **local review of official
 external evidence**, not a live verification against the NIMS portal.
+
+## DGT CTS syllabus master loading
+
+Platform Developer with `platform.regulatory.manage` may load the **explicit
+values in a locally reviewed, published DGT syllabus source**:
+
+- `POST /api/v1/platform/curricula`: `global_trade_id`,
+  `source_document_id`, `version_code`, source-declared `duration_months`,
+  decimal-string `nsqf_level`, `unit_strength`, `effective_from`, optional
+  `effective_to` (creates draft only).
+- `POST /api/v1/platform/curricula/years`: `global_curriculum_id`,
+  `year_no`, and explicit integer `trade_practical_minutes`,
+  `trade_theory_minutes`, `employability_minutes`, `ojt_project_minutes`,
+  optional decimal-string `credits`.
+- `POST /api/v1/platform/curricula/outcomes`: `global_curriculum_year_id`,
+  `lo_code`, `outcome_text`, `assessment_criteria`, optional `nos_code`
+  and decimal-string `formative_max_marks`.
+- `POST /api/v1/platform/curricula/publish`: `global_curriculum_id`,
+  `review_reference`. A complete 1- or 2-year schema duration with at least
+  one official learning outcome in each applicable year must be recorded.
+
+No official NSQF, trade strength, teaching duration, credits, or formative
+marks are guessed. Platform publication means reviewed institute ERP evidence,
+**not** independent cryptographic or regulatory authority verification.
+When a published global course year is linked locally, its complete official
+learning outcomes are mapped to `learning_outcomes` in the same transaction;
+manual local copy/paste of LO definitions is unnecessary.

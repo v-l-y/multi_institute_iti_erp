@@ -278,6 +278,36 @@ $checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Req
 $checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(), $attendanceStudent))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $attendanceAdmin))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $platform))->status === 403;
+$examCycleController = new App\Modules\Exams\ExamCycleController(new App\Core\Database([]));
+$officialImportController = new App\Modules\OfficialRecords\OfficialImportController(new App\Core\Database([]));
+$examSetupActor = new AuthContext(7, 3, 1, 'admin', false, ['administrator'], ['exam.eligibility.manage'], 7, null);
+$examPrincipal = new AuthContext(8, 3, 2, 'principal', false, ['principal'], ['exam.eligibility.manage'], 8, null);
+$officialImportActor = new AuthContext(8, 3, 2, 'principal', false, ['principal'], ['result.import', 'certificate.record'], 8, null);
+$checks[] = $kernel->handle(static fn()=>$examCycleController->draft(
+    new Request(['code'=>'CYCLE','cycle_type'=>'invalid']),$examSetupActor))->status===422;
+$checks[] = $kernel->handle(static fn()=>$examCycleController->draft(
+    new Request(['code'=>'CYCLE','cycle_type'=>'mains','rule_id'=>1,'schedule_source_id'=>1,
+        'eligibility_cutoff'=>'2026-01-01','exam_starts_on'=>'2025-12-31','activity_windows'=>['x'=>1]]),$examSetupActor))->status===422;
+$checks[] = $kernel->handle(static fn()=>$examCycleController->open(
+    new Request(['cycle_id'=>1,'review_reference'=>'LOCAL']),$examSetupActor))->status===403;
+$checks[] = $kernel->handle(static fn()=>$examCycleController->open(
+    new Request(['cycle_id'=>'1','review_reference'=>'LOCAL']),$examPrincipal))->status===422;
+$previousOfficialFlag = getenv('ALLOW_OFFICIAL_RECORD_IMPORT');
+putenv('ALLOW_OFFICIAL_RECORD_IMPORT');
+try {
+    $checks[] = $kernel->handle(static fn()=>$officialImportController->result(
+        new Request([]),$officialImportActor))->status===503;
+    $checks[] = $kernel->handle(static fn()=>$officialImportController->certificate(
+        new Request([]),$officialImportActor))->status===503;
+    $checks[] = $kernel->handle(static fn()=>$officialImportController->result(
+        new Request([]),$context))->status===403;
+} finally {
+    if ($previousOfficialFlag === false) {
+        putenv('ALLOW_OFFICIAL_RECORD_IMPORT');
+    } else {
+        putenv('ALLOW_OFFICIAL_RECORD_IMPORT='.$previousOfficialFlag);
+    }
+}
 $officialRecords = new App\Modules\OfficialRecords\OfficialRecordsController(new App\Core\Database([]));
 $officialStaff = new AuthContext(7, 3, 1, 'principal', false, ['principal'], ['result.view','certificate.view'], 7, null);
 $officialStudent = new AuthContext(8, 3, 2, 'student', false, ['student'], ['result.view.own','certificate.view.own'], null, 12);

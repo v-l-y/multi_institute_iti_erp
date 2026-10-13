@@ -131,6 +131,45 @@ final readonly class FeeService
         });
     }
 
+    /** Independently approved, institute-scoped waiver request against an issued assessment. */
+    public function requestWaiver(AuthContext $actor, int $institute, int $assessment, string $number, string $amount, string $reason): int
+    {
+        $cents = Money::cents($amount, true);
+        $tx = new InstituteTransaction($this->db);
+        try {
+            return $tx->run($actor, $institute, 'fee.record', function () use (
+                $actor, $institute, $assessment, $number, $cents, $reason, $tx
+            ): int {
+                $record = $this->row('student_fee_assessments', $assessment, $institute);
+                if ($record['status'] !== 'issued') {
+                    throw new HttpException('ASSESSMENT_STATE', 'Only an issued assessment may receive a waiver request.', 409);
+                }
+                $gross = $this->total('SELECT COALESCE(SUM(amount),0) FROM student_fee_assessment_items
+                    WHERE assessment_id=? AND institute_id=?', [$assessment, $institute]);
+                $reserved = $this->total("SELECT COALESCE(SUM(amount),0) FROM fee_waivers
+                    WHERE assessment_id=? AND institute_id=? AND status IN ('pending','approved')",
+                    [$assessment, $institute]);
+                if ($cents > $gross - $reserved) {
+                    throw new HttpException('WAIVER_LIMIT', 'Requested waiver exceeds unreserved assessment amount.', 409);
+                }
+                $q = $this->db->prepare('INSERT INTO fee_waivers
+                    (institute_id,student_id,assessment_id,waiver_no,amount,reason,requested_by)
+                    VALUES (?,?,?,?,?,?,?)');
+                $q->execute([$institute, $record['student_id'], $assessment, $number,
+                    Money::decimal($cents), $reason, $actor->userId]);
+                $id = (int)$this->db->lastInsertId();
+                $tx->audit($actor, $institute, 'fee.waiver.request', 'fee_waivers', $id,
+                    ['assessment_id' => $assessment, 'amount' => Money::decimal($cents)]);
+                return $id;
+            });
+        } catch (\PDOException $exception) {
+            if ((int)($exception->errorInfo[1] ?? 0) === 1062) {
+                throw new HttpException('WAIVER_EXISTS', 'Waiver identifier already exists.', 409);
+            }
+            throw $exception;
+        }
+    }
+
     public function approveWaiver(AuthContext $actor,int $institute,int $waiver): void
     {
         $tx=new InstituteTransaction($this->db);

@@ -13,6 +13,7 @@ if (!root) throw new Error("ERP application root not found.");
 let user = null;
 let shell = null;
 let activeView = null;
+let authEpoch = 0;
 
 function disposeView() {
   activeView?.dispose();
@@ -20,7 +21,9 @@ function disposeView() {
 }
 
 function resetToLogin(message = "") {
+  authEpoch++;
   disposeView();
+  shell?.dispose();
   clearAccessToken();
   user = null;
   shell = null;
@@ -28,10 +31,13 @@ function resetToLogin(message = "") {
 }
 
 async function login(username, password, instituteId) {
+  const attempt = ++authEpoch;
   try {
     const session = await api.login(username, password, instituteId);
+    if (attempt !== authEpoch) return;
     setAccessToken(session.access_token);
     const profile = await api.me();
+    if (attempt !== authEpoch) return;
     if (!profile || !Array.isArray(profile.permissions) || !Array.isArray(profile.roles) ||
         typeof profile.username !== "string" ||
         !(profile.institute_id === null || (Number.isSafeInteger(profile.institute_id) && profile.institute_id > 0))) {
@@ -45,29 +51,33 @@ async function login(username, password, instituteId) {
       renderRoute();
     }
   } catch (error) {
-    user = null;
-    clearAccessToken();
+    if (attempt === authEpoch) {
+      user = null;
+      clearAccessToken();
+    }
     throw error;
   }
 }
 
 async function changePassword(values) {
+  const attempt = authEpoch;
   await api.post("/api/v1/auth/change-password", values);
-  resetToLogin("Password updated. Sign in again with your new password.");
+  if (attempt === authEpoch)
+    resetToLogin("Password updated. Sign in again with your new password.");
 }
 
 async function logout() {
-  let serverRevocationFailed = false;
-  if (isSignedIn()) {
-    try {
-      await api.post("/api/v1/auth/logout", {});
-    } catch {
-      serverRevocationFailed = true;
-    }
+  // Start the authenticated revocation request before clearing in-memory token.
+  const revocation = isSignedIn() ? api.post("/api/v1/auth/logout", {}) : Promise.resolve();
+  resetToLogin("Signed out locally. Confirming server session revocation…");
+  const attempt = authEpoch;
+  try {
+    await revocation;
+    if (attempt === authEpoch) resetToLogin("You have signed out.");
+  } catch {
+    if (attempt === authEpoch) resetToLogin(
+      "Local session cleared, but server logout could not be confirmed. Contact an administrator if needed.");
   }
-  resetToLogin(serverRevocationFailed
-    ? "Local session cleared, but server logout could not be confirmed. Contact an administrator if needed."
-    : "You have signed out.");
 }
 
 function renderRoute() {
@@ -82,10 +92,12 @@ function renderRoute() {
         "error"),
       el("a", { href: "#/dashboard", className: "button button-secondary" }, "Back to overview")
     );
+    shell.focusContent();
     return;
   }
 
   shell.setPage(page);
+  shell.focusContent();
   if (page.id === "dashboard") {
     renderDashboard(shell.main, user, pages.filter(route => route.id !== "dashboard" && canAccess(route, user)));
     return;

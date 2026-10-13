@@ -96,8 +96,9 @@ are loaded on every authenticated request, with per-user deny overrides winning.
 Platform identities receive only platform permissions; institute identities
 cannot receive platform permissions. Institute-scoped profile, staff/student registries and selected guarded
 business transitions are exposed; other write workflows remain unimplemented.
-User provisioning for staff/students, refresh and forgot-password delivery
-are not implemented in this authentication increment.
+Institute staff/student account provisioning, account disable, role revocation
+and administrator-initiated temporary-password reset are now implemented.
+Public forgot-password delivery and refresh are not implemented.
 MFA/2FA is intentionally outside the current scope per the owner's decision.
 Current login remains username/password with lockout, rate limiting and session
 controls; no OTP or authenticator-app step is required.
@@ -142,9 +143,39 @@ workflow. Do not pass passwords as command arguments or commit them to files.
 The command creates only the first platform account, refuses to run when one
 already exists, and requires password change at first login. New passwords must
 be 12–72 bytes. No account or default credentials are created automatically.
-Permission grants still require your reviewed RBAC policy/seed. Institute users
-must be provisioned with the appropriate same-institute staff/student link and
-role assignment; there is no public registration endpoint.
+Permission grants still require your reviewed RBAC policy/seed. Institute users are provisioned via authenticated account-management routes,
+with same-institute staff/student links and explicit RBAC; there is no public registration endpoint.
+
+### Institute user and role lifecycle
+
+| Method | Endpoint | Guard |
+| --- | --- | --- |
+| GET | `/api/v1/auth/users` | `auth.user.view` (institute only) |
+| POST | `/api/v1/auth/users/staff` | `auth.user.manage_staff_accounts` for instructor, Principal plus `auth.user.grant_administrator` for administrator |
+| POST | `/api/v1/auth/users/student` | `auth.user.manage_student_accounts` |
+| POST | `/api/v1/auth/users/disable` | `auth.user.view` plus authority over target role |
+| POST | `/api/v1/auth/users/revoke-role` | `auth.user.view` plus authority over target role |
+| POST | `/api/v1/auth/users/reset-password` | `auth.password.reset_user` plus authority over target role |
+
+Staff input: `staff_id`, `role` (`instructor` or `administrator`),
+`username`, `temporary_password`. Student input: `student_id`,
+`username`, `temporary_password`. Disable/revoke input: `user_id`.
+Password reset: `user_id`, `temporary_password`. All identity numbers
+must be positive JSON integers. Passwords must be 12–72 bytes, never returned
+or audited in plaintext, and are stored with Argon2id. New accounts and
+operator password resets force first-login password change. Reset, disable,
+and revocation invalidate all existing sessions and outstanding reset tokens.
+
+Only existing institute-linked, currently employed staff and existing student
+identities can receive logins. Instructor roles require teaching staff;
+Administrator grant/revocation is Principal-only and at most one **current**
+Administrator assignment is permitted per institute. A disabled Administrator
+retains their role history; revoke it explicitly before assigning a successor.
+Principal and Developer accounts are **not** provisioned by these endpoints.
+No SMTP, recovery tokens or NIMS approvals are fabricated. Every mutation
+uses an institute-serialized transaction and audit entry. For secure
+credential delivery, the institute must use an authorized channel outside
+this API; do not pass initial passwords via query strings or audit logs.
 
 ### Authentication testing
 

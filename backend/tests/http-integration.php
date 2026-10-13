@@ -165,6 +165,80 @@ try {
         }
     }
     // All operational mutations require an authenticated, scoped actor.
+    // Provisioning is authenticated and bound to existing staff/student IDs.
+    $staffProvision='/api/v1/auth/users/staff';
+    $studentProvision='/api/v1/auth/users/student';
+    $createTeacher=['staff_id'=>$createdId,'role'=>'instructor',
+        'username'=>'local-new-instructor','temporary_password'=>'Local-Initial-Password-123'];
+    $createLearner=['student_id'=>$studentId,
+        'username'=>'local-new-learner','temporary_password'=>'Local-Initial-Password-123'];
+    expectStatus(http('GET','/api/v1/auth/users'),401);
+    expectStatus(http('GET','/api/v1/auth/users',token:$tokens['student']),403);
+    expectStatus(http('GET','/api/v1/auth/users?page_size=101',token:$tokens['principal']),422);
+    expectStatus(http('POST',$staffProvision,[]),401);
+    expectStatus(http('POST',$staffProvision,$createTeacher,$tokens['student']),403);
+    expectStatus(http('POST',$staffProvision,[...$createTeacher,'temporary_password'=>'short'],$tokens['principal']),422);
+    expectStatus(http('POST',$staffProvision,[...$createTeacher,'staff_id'=>999999],$tokens['principal']),404);
+    expectStatus(http('POST',$staffProvision,$createTeacher,$tokens['other-admin']),404);
+    $teacherCreated=http('POST',$staffProvision,$createTeacher,$tokens['administrator']);
+    expectStatus($teacherCreated,201);
+    $teacherUser=(int)$teacherCreated['body']['data']['user_id'];
+    verify($teacherUser>0 && !isset($teacherCreated['body']['data']['temporary_password']),
+        'Created teacher account must not disclose credentials.');
+    expectStatus(http('POST',$staffProvision,$createTeacher,$tokens['administrator']),409);
+    $teacherLogin=http('POST','/api/v1/auth/login',[
+        'username'=>$createTeacher['username'],'password'=>$createTeacher['temporary_password'],
+        'institute_id'=>1
+    ]);
+    expectStatus($teacherLogin,200);
+    verify($teacherLogin['body']['data']['must_change_password']??$teacherLogin['body']['data']['user']['must_change_password']??true,
+        'New account should require first-login password rotation.');
+    expectStatus(http('POST',$staffProvision,[
+        'staff_id'=>$createdId,'role'=>'administrator','username'=>'local-admin-2',
+        'temporary_password'=>'Local-Initial-Password-123'
+    ],$tokens['administrator']),403);
+    expectStatus(http('POST',$staffProvision,[
+        'staff_id'=>$createdId,'role'=>'administrator','username'=>'local-admin-2',
+        'temporary_password'=>'Local-Initial-Password-123'
+    ],$tokens['principal']),409);
+    expectStatus(http('POST',$studentProvision,$createLearner,$tokens['student']),403);
+    expectStatus(http('POST',$studentProvision,[...$createLearner,'student_id'=>999999],$tokens['administrator']),404);
+    $learnerCreated=http('POST',$studentProvision,$createLearner,$tokens['administrator']);
+    expectStatus($learnerCreated,201);
+    $learnerUser=(int)$learnerCreated['body']['data']['user_id'];
+    expectStatus(http('POST',$studentProvision,$createLearner,$tokens['administrator']),409);
+    $userList=http('GET','/api/v1/auth/users?page_size=100',token:$tokens['principal']);
+    expectStatus($userList,200);
+    verify(in_array($teacherUser,array_map('intval',array_column($userList['body']['data']['users'],'id')),true),
+        'Provisioned instructor missing from institute user registry.');
+    $foreignUsers=http('GET','/api/v1/auth/users?page_size=100',token:$tokens['other-admin']);
+    expectStatus($foreignUsers,200);
+    verify(!in_array($teacherUser,array_map('intval',array_column($foreignUsers['body']['data']['users'],'id')),true),
+        'Cross-institute user account leaked.');
+    $teacherReset='/api/v1/auth/users/reset-password';
+    expectStatus(http('POST',$teacherReset,['user_id'=>$teacherUser,'temporary_password'=>'second-local-password-123'],$tokens['student']),403);
+    expectStatus(http('POST',$teacherReset,['user_id'=>$teacherUser,'temporary_password'=>'short'],$tokens['administrator']),422);
+    expectStatus(http('POST',$teacherReset,['user_id'=>$teacherUser,'temporary_password'=>'Second-Local-Password-123'],$tokens['other-admin']),404);
+    expectStatus(http('POST',$teacherReset,['user_id'=>$teacherUser,'temporary_password'=>'Second-Local-Password-123'],$tokens['administrator']),200);
+    expectStatus(http('GET','/api/v1/auth/me',token:$teacherLogin['body']['data']['access_token']),401);
+    expectStatus(http('POST','/api/v1/auth/login',[
+        'username'=>$createTeacher['username'],'password'=>$createTeacher['temporary_password'],'institute_id'=>1
+    ]),401);
+    expectStatus(http('POST','/api/v1/auth/login',[
+        'username'=>$createTeacher['username'],'password'=>'Second-Local-Password-123','institute_id'=>1
+    ]),200);
+    expectStatus(http('POST','/api/v1/auth/users/disable',['user_id'=>$teacherUser],$tokens['other-admin']),404);
+    expectStatus(http('POST','/api/v1/auth/users/disable',['user_id'=>$teacherUser],$tokens['administrator']),200);
+    expectStatus(http('POST','/api/v1/auth/login',[
+        'username'=>$createTeacher['username'],'password'=>'Second-Local-Password-123','institute_id'=>1
+    ]),401);
+    expectStatus(http('POST','/api/v1/auth/users/revoke-role',['user_id'=>$learnerUser],$tokens['administrator']),200);
+    expectStatus(http('POST','/api/v1/auth/login',[
+        'username'=>$createLearner['username'],'password'=>$createLearner['temporary_password'],'institute_id'=>1
+    ]),401);
+    verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code IN ('auth.user.provision','auth.user.disable','auth.user.role.revoke','auth.user.password.reset')")->fetchColumn()>=5,
+        'Provisioning actions must be audited.');
     $operationalRoutes = [
         '/api/v1/enrollments/activate',
         '/api/v1/enrollments/cancel',

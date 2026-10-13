@@ -317,6 +317,30 @@ $checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
     new Request([...$qualificationData,'subject_results'=>(object)['Math'=>-1]]),$studentWriter))->status===422;
 $checks[]=$kernel->handle(static fn()=>$studentController->createQualification(
     new Request($qualificationData),$context))->status===403;
+$accountController=new App\Modules\Auth\Http\InstituteUserController(new App\Core\Database([]));
+$accountPrincipal=new AuthContext(8,3,1,'principal',false,['principal'],[
+    'auth.user.view','auth.user.manage_staff_accounts','auth.user.manage_student_accounts',
+    'auth.user.grant_administrator','auth.password.reset_user',
+],8,null);
+$accountStudent=new AuthContext(9,3,1,'student',false,['student'],[],null,9);
+$checks[]=$kernel->handle(static fn()=>$accountController->createStaff(
+    new Request(['role'=>'developer','staff_id'=>1,'username'=>'validuser','temporary_password'=>'long-temp-password']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->createStaff(
+    new Request(['role'=>'instructor','staff_id'=>1,'username'=>'validuser','temporary_password'=>'short']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->createStudent(
+    new Request(['student_id'=>'2','username'=>'validuser','temporary_password'=>'long-temp-password']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->createStudent(
+    new Request(['student_id'=>2,'username'=>'validuser','temporary_password'=>'long-temp-password']),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$accountController->disable(
+    new Request(['user_id'=>'2']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->revokeRole(
+    new Request(['user_id'=>0]),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->resetPassword(
+    new Request(['user_id'=>1,'temporary_password'=>'x']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->index(
+    new Request(query:['page_size'=>'101']),$accountPrincipal))->status===422;
+$checks[]=$kernel->handle(static fn()=>$accountController->index(
+    new Request(),$accountStudent))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

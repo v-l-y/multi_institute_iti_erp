@@ -4,6 +4,7 @@ declare(strict_types=1);
 use App\Http\Router;
 use App\Modules\Health\HealthController;
 use App\Modules\Auth\Http\AuthController;
+use App\Modules\Auth\Http\InstituteUserController;
 use App\Core\Database;
 use App\Modules\Auth\Http\AuthMiddleware;
 use App\Modules\Auth\Domain\AuthContext;
@@ -30,6 +31,13 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/auth/change-password', $guard->wrap([$auth, 'changePassword'], allowPasswordChange: true));
     $router->get('/api/v1/auth/sessions', $guard->wrap([$auth, 'sessions']));
     $router->post('/api/v1/auth/logout-all', $guard->wrap([$auth, 'logoutAll']));
+    $userManagement = new InstituteUserController($database);
+    $router->get('/api/v1/auth/users', $guard->wrap([$userManagement, 'index'], 'auth.user.view'));
+    $router->post('/api/v1/auth/users/staff', $guard->wrap([$userManagement, 'createStaff']));
+    $router->post('/api/v1/auth/users/student', $guard->wrap([$userManagement, 'createStudent'], 'auth.user.manage_student_accounts'));
+    $router->post('/api/v1/auth/users/disable', $guard->wrap([$userManagement, 'disable'], 'auth.user.view'));
+    $router->post('/api/v1/auth/users/revoke-role', $guard->wrap([$userManagement, 'revokeRole'], 'auth.user.view'));
+    $router->post('/api/v1/auth/users/reset-password', $guard->wrap([$userManagement, 'resetPassword'], 'auth.password.reset_user'));
     $router->get('/api/v1/institute/profile', $guard->wrap(
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',

@@ -631,6 +631,17 @@ try {
         'Old Global Trade effective period must end at new version boundary.');
     verify($db->query("SELECT status FROM trade_master_revisions WHERE id=$tradeV2")->fetchColumn()==='active',
         'Reviewed Global Trade revision must be active.');
+    foreach ([
+        "UPDATE trade_master_revisions SET official_name='TAMPERED' WHERE id=$tradeV1",
+        "UPDATE trade_master_revisions SET effective_to='2026-10-02' WHERE id=$tradeV1",
+        "UPDATE trade_master_revisions SET effective_to='2026-10-02' WHERE id=$tradeV2",
+        "UPDATE trade_master_revisions SET status='superseded',effective_to='2026-09-30' WHERE id=$tradeV2",
+    ] as $tamperSql) {
+        $blocked=false;
+        try { $db->exec($tamperSql); }
+        catch (PDOException $e) { $blocked=(int)($e->errorInfo[1]??0)===1644; }
+        verify($blocked,'Trade revision content and invalid validity changes must remain frozen.');
+    }
     $tradeList=http('GET',$tradeBase.'?page_size=100',token:$tokens['developer']);
     expectStatus($tradeList,200);
     verify(in_array($tradeId,array_map('intval',array_column(

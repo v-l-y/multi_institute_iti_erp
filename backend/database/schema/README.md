@@ -46,6 +46,18 @@ Source links and stored evidence are traceability, not regulatory approval. Succ
 
 ## Fresh installation only
 
+### Existing trade revision guard repair
+
+The trade revision update guard permits closing an active revision's validity
+when it becomes superseded. It still blocks content edits, invalid end dates,
+validity extensions and subsequent edits to historical revisions.
+Fresh installations load this corrected guard automatically. For an existing
+database, rebuilding the backend does not replace installed triggers. Run
+`php bin/export-trade-guard-upgrade.php` from `backend/` to display the narrow
+replacement SQL. Back up, review the output, pause writes and apply it using
+the MySQL/MariaDB client. The exporter does not connect to or change a database;
+the trigger DDL is not transactional. Do not reimport the complete schema.
+
 Import in order:
 
 ```sh

@@ -64,7 +64,7 @@ final readonly class CatalogController
              JOIN trade_units tu ON tu.id=s.trade_unit_id AND tu.institute_id=s.institute_id
              JOIN trades t ON t.id=tu.trade_id
              JOIN global_shifts gs ON gs.id=s.global_shift_id
-             LEFT JOIN trade_master_revisions r ON r.trade_id=t.id AND r.status='active'
+             LEFT JOIN trade_master_revisions r ON r.trade_id=t.id AND r.status='active' AND EXISTS (SELECT 1 FROM global_regulatory_documents d WHERE d.id=r.source_document_id AND d.status='published')
              WHERE s.institute_id=? AND s.id>? ORDER BY s.id ASC LIMIT ?",
             'itsu'
         );

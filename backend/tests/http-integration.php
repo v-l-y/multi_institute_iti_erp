@@ -225,7 +225,7 @@ try {
         expectStatus(http('GET', $route, token: $tokens['student']), 403);
         $listed = http('GET', $route . '?page_size=100', token: $tokens['instructor']);
         expectStatus($listed, 200);
-        verify(isset($listed['body']['data']['next_after_id']), 'Pagination metadata missing.');
+        verify(array_key_exists('next_after_id', $listed['body']['data']), 'Pagination metadata missing.');
         expectStatus(http('GET', $route . '?page_size=0', token: $tokens['instructor']), 422);
     }
     $admin = $users['administrator']['id'];

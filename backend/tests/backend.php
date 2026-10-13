@@ -285,6 +285,34 @@ $checks[] = $kernel->handle(static fn() => $attendance->instituteRecords(new Req
 $checks[] = $kernel->handle(static fn() => $attendance->assignedRecords(new Request(), $attendanceStudent))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $attendanceAdmin))->status === 403;
 $checks[] = $kernel->handle(static fn() => $attendance->ownRecords(new Request(), $platform))->status === 403;
+$portalReceiptController=new App\Modules\Exams\PracticalPortalReceiptController(new App\Core\Database([]));
+$portalPrincipal=new AuthContext(20,3,7,'principal',false,['principal'],
+    ['exam.portal.submit'],20,null);
+$portalAdministrator=new AuthContext(21,3,8,'administrator',false,['administrator'],
+    ['exam.portal.submit'],21,null);
+$portalReceiptInput=['practical_session_id'=>1,'attempt_no'=>1,
+    'regulatory_source_id'=>1,'submitted_at'=>'2026-10-12 10:00:00',
+    'expected_records'=>2,'submitted_records'=>2,
+    'portal_reference'=>'LOCAL','payload_sha256'=>str_repeat('a',64),
+    'response_evidence_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->submitted(
+    new Request([...$portalReceiptInput,'attempt_no'=>0]),$portalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->submitted(
+    new Request([...$portalReceiptInput,'payload_sha256'=>'invalid']),$portalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->submitted(
+    new Request($portalReceiptInput),$portalAdministrator)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->acknowledge(
+    new Request(['portal_submission_id'=>1,'response_status'=>'invented']),$portalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->acknowledge(
+    new Request(['portal_submission_id'=>1,'response_status'=>'rejected',
+        'accepted_at'=>'2026-10-12 11:00:00']),$portalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->acknowledge(
+    new Request(['portal_submission_id'=>1,'response_status'=>'accepted',
+        'accepted_at'=>'2026-02-30 11:00:00']),$portalPrincipal)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$portalReceiptController->acknowledge(
+    new Request(['portal_submission_id'=>1,'response_status'=>'accepted',
+        'accepted_at'=>'2026-10-12 11:00:00','regulatory_source_id'=>1,
+        'response_evidence_reference'=>'LOCAL','review_reference'=>'LOCAL']),$portalAdministrator)),403, __LINE__);
 $practicalExamController=new App\Modules\Exams\PracticalExamController(new App\Core\Database([]));
 $practicalPrincipal=new AuthContext(10,3,4,'principal',false,['principal'],
     ['exam.practical.manage'],10,null);

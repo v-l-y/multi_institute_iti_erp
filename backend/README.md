@@ -815,6 +815,8 @@ year workflows. Draft source annexures are never treated as government-approved.
 
 ## CTS OJT and group-project backend lifecycle
 
+`GET /api/v1/ojt/projects` requires `ojt.view` and lists only the logged-in institute's projects; `GET /api/v1/ojt/projects/me` requires `ojt.view.own` plus an authenticated student link and lists only the learner's own projects. Both use `after_id`/`page_size` cursor pagination.
+
 These institute-scoped routes use existing `ojt_projects`, `ojt_logbook`, and
 `ojt_evaluations` records, not new tables. They record **local evidence**; no
 SIDH submission, industry signature verification, or grade issuance is implied.

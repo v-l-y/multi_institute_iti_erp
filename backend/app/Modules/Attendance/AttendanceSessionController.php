@@ -30,6 +30,44 @@ final readonly class AttendanceSessionController
         return $value;
     }
 
+    /** Scoped session register for institute management and mapped instructors. */
+    public function index(Request $request,AuthContext $actor): Response
+    {
+        $institute=$actor->instituteId
+            ?? throw new HttpException('FORBIDDEN','Institute identity required.',403);
+        $canAll=in_array('attendance.view',$actor->permissions,true);
+        $canAssigned=in_array('attendance.view.assigned',$actor->permissions,true)
+            && $actor->staffId!==null;
+        if (!$canAll && !$canAssigned) {
+            throw new HttpException('FORBIDDEN','Attendance register permission required.',403);
+        }
+        $after=0;$size=50;
+        foreach (['after_id'=>PHP_INT_MAX,'page_size'=>100] as $key=>$max) {
+            if(!array_key_exists($key,$request->query))continue;
+            $raw=$request->query[$key];
+            $min=$key==='page_size'?1:0;
+            $n=(is_int($raw)||is_string($raw))
+                ?filter_var($raw,FILTER_VALIDATE_INT,['options'=>['min_range'=>$min,'max_range'=>$max]])
+                :false;
+            if($n===false)throw new HttpException('INVALID_INPUT','Invalid '.$key.'.',422);
+            if($key==='after_id')$after=(int)$n;else $size=(int)$n;
+        }
+        $sql='SELECT id,batch_id,batch_year_id,session_date,component,
+                instructor_id,scheduled_minutes,locked_on
+              FROM attendance_sessions WHERE institute_id=? AND id>?';
+        $args=[$institute,$after];
+        if(!$canAll){$sql.=' AND instructor_id=?';$args[]=$actor->staffId;}
+        $sql.=' ORDER BY id ASC LIMIT ?';
+        $args[]=$size;
+        $q=$this->database->connection()->prepare($sql);
+        foreach($args as $i=>$value)$q->bindValue($i+1,$value,\PDO::PARAM_INT);
+        $q->execute();$rows=$q->fetchAll(\PDO::FETCH_ASSOC);
+        return new Response(['success'=>true,'data'=>[
+            'sessions'=>$rows,
+            'next_after_id'=>count($rows)===$size?(int)$rows[count($rows)-1]['id']:null
+        ]]);
+    }
+
     public function create(Request $request,AuthContext $actor): Response
     {
         $institute=self::institute($actor,'calendar.manage');

@@ -812,3 +812,41 @@ content, replace government uploads, or assign default official dates/shifts.
 
 Published calendar IDs are referenced by institute admission intake and batch
 year workflows. Draft source annexures are never treated as government-approved.
+
+## CTS OJT and group-project backend lifecycle
+
+These institute-scoped routes use existing `ojt_projects`, `ojt_logbook`, and
+`ojt_evaluations` records, not new tables. They record **local evidence**; no
+SIDH submission, industry signature verification, or grade issuance is implied.
+
+- `POST /api/v1/ojt/projects`: Principal with `calendar.manage` plans one
+  project per enrolled trainee and course year. Supply `enrollment_id`,
+  `batch_year_id`, `mode` (`ojt`/`group_project`), `title`,
+  `coordinator_id`, `starts_on`, `ends_on`, `required_minutes`, and
+  `safety_reference`. Industry OJT also requires `industry_name` and
+  `industry_mentor`. Optional source-declared fields are
+  `industry_registration_reference`, `workplace_address`, and
+  `female_safety_reference`. Planned required minutes must equal the applicable
+  published CTS syllabus year OJT/project minutes; no defaults are inserted.
+- `POST /api/v1/ojt/projects/start`: Principal with `calendar.manage`
+  supplies `project_id` and `review_reference`. A verified currently assigned
+  Trade instructor must coordinate an active trainee/project.
+- `POST /api/v1/ojt/logbook/me`: linked trainee with `ojt.log.own` supplies
+  `project_id`, `entry_date`, `attended_minutes`, `activity`, and
+  `mentor_confirmation` (optional `monitoring_safety_reference`). Only own
+  active project's actual dated entries can be added; accumulated minutes
+  cannot exceed the official source-backed requirement.
+- `POST /api/v1/ojt/evaluations/assigned`: assigned Trade instructor with
+  `ojt.evaluate.assigned` records published-source `evaluation_source_id`,
+  source-declared `primary_evaluator_role`, names, decimal-string primary and
+  external marks/maxima, `final_grade`, `evaluated_on`, and
+  `signed_evidence_reference`. Optional `sidh_submission_reference` and
+  `completion_certificate_reference` apply; an industry OJT requires
+  completion-certificate evidence. Complete logbook minutes and a current
+  institute-linked published official evaluation source are mandatory. One
+  evaluation per project is recorded; re-evaluation requires reviewed
+  correction rather than silently overwriting the result.
+
+Do not treat the recorded `final_grade` as independently recalculated or
+portal-verified; the backend validates ranges and traceable evidence but does
+not reconstruct external grading rules without official source profiles.

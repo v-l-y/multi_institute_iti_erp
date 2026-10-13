@@ -46,7 +46,7 @@ function proxy(req, res, path) {
   }
   const limit = path.startsWith("/api/v1/documents/upload") ? 8 * 1024 * 1024 : 16 * 1024;
   const length = req.headers["content-length"];
-  if (length !== undefined && (!/^\\d+$/.test(length) || Number(length) > limit)) {
+  if (length !== undefined && (!/^\d+$/.test(length) || Number(length) > limit)) {
     reply(res, 413, "Request body too large");
     return;
   }

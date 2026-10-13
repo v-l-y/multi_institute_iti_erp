@@ -49,6 +49,50 @@ final readonly class ExamCycleController
         return $value;
     }
 
+    /** Review counts only: never equate snapshot count with official eligibility approval. */
+    public function status(Request $request, AuthContext $actor): Response
+    {
+        $institute = self::institute($actor);
+        $raw = $request->query['cycle_id'] ?? null;
+        $cycleId = is_string($raw) || is_int($raw)
+            ? filter_var($raw, FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1, 'max_range' => PHP_INT_MAX]])
+            : false;
+        if ($cycleId === false) {
+            throw new HttpException('INVALID_INPUT', 'Positive cycle_id query parameter required.', 422);
+        }
+        $db = $this->database->connection();
+        $q = $db->prepare('SELECT id,code,cycle_type,status,rule_id,schedule_source_id,
+                          eligibility_cutoff,exam_starts_on
+                          FROM exam_cycles WHERE id=? AND institute_id=?');
+        $q->execute([$cycleId, $institute]);
+        $cycle = $q->fetch(\PDO::FETCH_ASSOC);
+        if (!$cycle) {
+            throw new HttpException('NOT_FOUND', 'Institute exam cycle not found.', 404);
+        }
+        $q = $db->prepare("SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(eligibility_status='eligible'),0) AS eligible,
+            COALESCE(SUM(eligibility_status='ineligible'),0) AS ineligible,
+            COALESCE(SUM(eligibility_status='withheld'),0) AS withheld
+            FROM exam_eligibility WHERE cycle_id=? AND institute_id=?");
+        $q->execute([$cycleId, $institute]);
+        $counts = $q->fetch(\PDO::FETCH_ASSOC);
+        $q = $db->prepare('SELECT COUNT(*) FROM official_results WHERE cycle_id=? AND institute_id=?');
+        $q->execute([$cycleId, $institute]);
+        return new Response(['success' => true, 'data' => [
+            'cycle' => $cycle,
+            'eligibility_snapshots' => [
+                'total' => (int)$counts['total'],
+                'eligible' => (int)$counts['eligible'],
+                'ineligible' => (int)$counts['ineligible'],
+                'withheld' => (int)$counts['withheld'],
+            ],
+            'imported_result_revisions' => (int)$q->fetchColumn(),
+            'review_status' => 'manual_completeness_and_official_source_review_required',
+        ]]);
+    }
+
     public function draft(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor);

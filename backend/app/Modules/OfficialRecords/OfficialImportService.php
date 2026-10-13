@@ -158,13 +158,30 @@ final readonly class OfficialImportService
         return $this->run($actor, $institute, 'certificate.record',
             function () use ($actor, $institute, $data): int {
                 $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system'], 'certificate');
-                $result = $this->one('SELECT id,enrollment_id,result_status FROM official_results
+                $result = $this->one('SELECT id,enrollment_id,batch_year_id,cycle_id,revision_no,result_status
+                    FROM official_results
                     WHERE id=? AND institute_id=? FOR UPDATE', [$data['official_result_id'], $institute]);
                 if (!$result || (int)$result['enrollment_id'] !== $data['enrollment_id']) {
                     throw new HttpException('OFFICIAL_IDENTITY', 'Certificate must belong to the same official result enrollment.', 409);
                 }
                 if ($data['document_type'] === 'NTC' && $result['result_status'] !== 'pass') {
                     throw new HttpException('CERTIFICATE_ELIGIBILITY', 'NTC import requires an officially recorded pass result.', 409);
+                }
+                if ($data['document_type'] === 'NTC' && $data['status'] === 'valid') {
+                    // A previously passed result can be superseded by a later
+                    // official failure/withheld correction. Never attach a new
+                    // valid NTC to that outdated result version.
+                    $newer = $this->one('SELECT id FROM official_results
+                        WHERE enrollment_id=? AND batch_year_id=? AND cycle_id=?
+                          AND institute_id=? AND revision_no>?
+                        ORDER BY revision_no DESC LIMIT 1 FOR UPDATE', [
+                            $data['enrollment_id'], $result['batch_year_id'],
+                            $result['cycle_id'], $institute, $result['revision_no'],
+                        ]);
+                    if ($newer) {
+                        throw new HttpException('OFFICIAL_RESULT_SUPERSEDED',
+                            'Valid NTC must reference the latest official result revision.', 409);
+                    }
                 }
                 // A certificate number is not the learner/document identity:
                 // prevent a second independent revision 1 under a different number.

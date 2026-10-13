@@ -265,10 +265,25 @@ return static function (Router $router, Database $database): void {
         [$reporting,'platformAudit'], 'platform.audit.view'));
     $router->get('/api/v1/ready', static function () use ($database): Response {
         try {
-            $database->connection()->query('SELECT 1');
+            $db = $database->connection();
+            $db->query('SELECT 1');
+            // A live socket alone is insufficient: this API requires the
+            // canonical base tables and immutable financial/result guards.
+            $requiredTables = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'
+                  AND TABLE_NAME IN ('institute','auth_users','fee_payments',
+                                     'exam_cycles','official_results')")->fetchColumn();
+            $requiredGuards = (int)$db->query("SELECT COUNT(*) FROM information_schema.TRIGGERS
+                WHERE TRIGGER_SCHEMA=DATABASE()
+                  AND TRIGGER_NAME IN ('fee_cash_closings_immutable_update',
+                                       'official_results_immutable_update')")->fetchColumn();
+            if ($requiredTables !== 5 || $requiredGuards !== 2) {
+                return Response::error('NOT_READY',
+                    'Required database schema or integrity guards are unavailable.', 503);
+            }
             return new Response(['success' => true, 'data' => ['status' => 'ready']]);
         } catch (\Throwable) {
-            return Response::error('NOT_READY', 'Database unavailable.', 503);
+            return Response::error('NOT_READY', 'Database or schema unavailable.', 503);
         }
     });
 };

@@ -18,6 +18,7 @@ use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Institutes\AffiliationHistoryController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
+use App\Modules\Staff\Http\InstructorMappingController;
 use App\Modules\Students\Http\StudentController;
 use App\Modules\Catalog\CatalogController;
 use App\Modules\Catalog\ItsuSetupController;
@@ -88,6 +89,15 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/staff/profile', $guard->wrap([$staff, 'updateProfile'], 'staff.manage'));
     $router->post('/api/v1/staff/qualifications', $guard->wrap([$staff, 'recordQualification'], 'staff.manage'));
     $router->post('/api/v1/staff/exit', $guard->wrap([$staff, 'exitEmployment'], 'staff.manage'));
+    $instructorReview=new InstructorMappingController($database);
+    $router->post('/api/v1/staff/qualifications/review', $guard->wrap(
+        [$instructorReview,'verifyQualification'], 'staff.manage'));
+    $router->post('/api/v1/instructors/iprn/review', $guard->wrap(
+        [$instructorReview,'verifyIpRn'], 'instructor.mapping.manage'));
+    $router->post('/api/v1/instructors/mappings', $guard->wrap(
+        [$instructorReview,'assign'], 'instructor.mapping.manage'));
+    $router->post('/api/v1/instructors/mappings/release', $guard->wrap(
+        [$instructorReview,'release'], 'instructor.mapping.manage'));
     $students = new StudentController($database);
     $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));

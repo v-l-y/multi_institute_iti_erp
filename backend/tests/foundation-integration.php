@@ -34,6 +34,37 @@ try {
     SchemaInstaller::install($db);
     $db->exec(file_get_contents(dirname(__DIR__).'/database/seeders/rbac_seed.sql'));
     $db->exec(file_get_contents(__DIR__.'/fixtures/foundation.sql'));
+    // Exercise SQL identity scopes against an actual populated, relationally
+    // valid attendance session without permitting unverified attendance writes.
+    preg_match('/host=([^;]+)/', $dsn, $attendanceHost);
+    preg_match('/port=([^;]+)/', $dsn, $attendancePort);
+    $attendanceDatabase = new App\Core\Database([
+        'host'=>$attendanceHost[1] ?? '127.0.0.1',
+        'port'=>$attendancePort[1] ?? '3306',
+        'database'=>$name,
+        'username'=>getenv('TEST_DB_USERNAME') ?: 'root',
+        'password'=>getenv('TEST_DB_PASSWORD') ?: '',
+    ]);
+    $attendanceController = new App\Modules\Attendance\AttendanceController($attendanceDatabase);
+    $attendanceOwner = new AuthContext(9203,9101,2,'local-student',false,['student'],['attendance.view.own'],null,9101);
+    $attendanceTeacher = new AuthContext(9202,9101,1,'local-instructor',false,['instructor'],['attendance.view.assigned'],9101,null);
+    $attendanceWrongStudent = new AuthContext(9203,9101,2,'other-student',false,['student'],['attendance.view.own'],null,9102);
+    $attendanceWrongTeacher = new AuthContext(9202,9101,1,'other-staff',false,['instructor'],['attendance.view.assigned'],9102,null);
+    $attendanceOtherInstitute = new AuthContext(9204,9102,3,'other-institute',false,['principal'],['attendance.view'],9102,null);
+    $firstPage = $attendanceController->ownRecords(new App\Http\Request(query:['page_size'=>'1']), $attendanceOwner)->body['data'];
+    foundationCheck(count($firstPage['records'])===1 && (int)$firstPage['records'][0]['enrollment_id']===9101, 'Student own attendance must resolve its enrolled record.');
+    foundationCheck($firstPage['next_cursor']!==null, 'Full attendance page needs composite cursor.');
+    $next = $attendanceController->ownRecords(new App\Http\Request(query:[
+        'page_size'=>'1',
+        'after_session_id'=>(string)$firstPage['next_cursor']['after_session_id'],
+        'after_enrollment_id'=>(string)$firstPage['next_cursor']['after_enrollment_id'],
+    ]), $attendanceOwner)->body['data'];
+    foundationCheck($next['records']===[], 'Composite attendance cursor repeated a record.');
+    $assigned = $attendanceController->assignedRecords(new App\Http\Request(), $attendanceTeacher)->body['data']['records'];
+    foundationCheck(count($assigned)===1 && (int)$assigned[0]['session_id']===9101, 'Assigned instructor must see only its session.');
+    foundationCheck($attendanceController->ownRecords(new App\Http\Request(), $attendanceWrongStudent)->body['data']['records']===[], 'Student own read exposed a different linked student.');
+    foundationCheck($attendanceController->assignedRecords(new App\Http\Request(), $attendanceWrongTeacher)->body['data']['records']===[], 'Assigned instructor read exposed a different staff session.');
+    foundationCheck($attendanceController->instituteRecords(new App\Http\Request(), $attendanceOtherInstitute)->body['data']['records']===[], 'Attendance tenant isolation failed.');
     $permissions=['enrollment.manage','fee.record','fee.refund','exam.eligibility.manage'];
     $actor=new AuthContext(9202,9101,1,'local-instructor',false,['administrator'],$permissions,9101,null);
     $approver=new AuthContext(9203,9101,2,'local-student',false,['administrator'],$permissions,null,9101);

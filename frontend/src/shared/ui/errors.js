@@ -22,3 +22,26 @@ export function renderSafely(container, render, { onRetry } = {}) {
     return false;
   }
 }
+
+
+/** Async section recovery; callers must pass AbortSignal for route/session disposal. */
+export async function renderAsyncSafely(container, producer, {
+  signal, loading, onRetry
+} = {}) {
+  if (signal?.aborted) return false;
+  try {
+    if (loading instanceof Node) container.replaceChildren(loading);
+    const result = await producer();
+    if (signal?.aborted) return false;
+    if (!(result instanceof Node)) throw new TypeError("Async view must return a DOM Node");
+    container.replaceChildren(result);
+    return true;
+  } catch (error) {
+    if (signal?.aborted || error?.name === "AbortError") return false;
+    container.replaceChildren(errorPanel("This section could not be displayed.", {
+      title: "Display error",
+      onRetry: onRetry || (() => void renderAsyncSafely(container, producer, { signal, loading }))
+    }));
+    return false;
+  }
+}

@@ -755,6 +755,14 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evalu
     new Request([...$ojtEvaluation,'final_grade'=>'X']),$ojtInstructor)),422, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evaluateAssigned(
     new Request($ojtEvaluation),$ojtStudent)),403, __LINE__);
+// A published DGT syllabus or calendar is not valid evidence for importing
+// a government result or certificate merely because authority/status match.
+$checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('AITT_Official_Result', 'result');
+$checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('CTS_Syllabus', 'result');
+$checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('CTS_Training_Calendar', 'certificate');
+$checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('NTC_Certificate', 'certificate');
+$checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('marksheet', 'certificate');
+$checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('official_result', 'certificate');
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

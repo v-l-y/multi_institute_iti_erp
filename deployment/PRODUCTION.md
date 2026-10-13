@@ -91,9 +91,7 @@ Require written evidence for HTTPS validation, secrets and DB grants,
 off-machine backup retention, independent restore, versioned DB upgrade,
 selected module approval/correction E2E paths, representative concurrent
 admissions/fees loads, deadlock handling, outage alerting and restart
-recovery. Fee setup/cash closing and official exam result/certificate
-imports are still incomplete and must stay out of a production-enabled
-release until implemented and verified.
+recovery. Fee setup, cash-closing review, exam-cycle and local official-record import APIs have been added, but have not passed fresh end-to-end certification. Official imports remain disabled by default; these modules must stay out of a production-enabled release until independent evidence review and UAT verification.
 
 GitHub Actions tests remain **manual workflow_dispatch only**. No automatic
 CI, database reset, server deployment, or backup schedule is introduced.

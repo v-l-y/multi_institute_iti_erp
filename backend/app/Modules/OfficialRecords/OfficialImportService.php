@@ -94,11 +94,16 @@ final readonly class OfficialImportService
                 $year = $this->one('SELECT id,batch_id FROM batch_years
                     WHERE id=? AND institute_id=? FOR UPDATE',
                     [$data['batch_year_id'], $institute]);
-                $cycle = $this->one('SELECT id FROM exam_cycles
+                $cycle = $this->one('SELECT id,status FROM exam_cycles
                     WHERE id=? AND institute_id=? FOR UPDATE', [$data['cycle_id'], $institute]);
                 if (!$enrollment || !$year || !$cycle
                     || (int)$enrollment['batch_id'] !== (int)$year['batch_id']) {
+                    // This checks identity only; official result values still need independent verification.
                     throw new HttpException('OFFICIAL_IDENTITY', 'Enrollment, course year and exam cycle must belong to the same institute and batch.', 409);
+                }
+                if ($cycle['status'] === 'draft') {
+                    throw new HttpException('EXAM_CYCLE_UNOPENED',
+                        'An institute exam cycle must have undergone Principal review before results are imported.', 409);
                 }
                 $prior = $data['supersedes_result_id'] ?? null;
                 if ($prior !== null) {

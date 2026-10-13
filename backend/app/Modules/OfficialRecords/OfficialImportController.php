@@ -29,6 +29,10 @@ final readonly class OfficialImportController
     private static function institute(AuthContext $actor, string $permission): int
     {
         $actor->requirePermission($permission);
+        if (!in_array('principal', $actor->roles, true)) {
+            throw new HttpException('PRINCIPAL_REQUIRED',
+                'Principal account required for official result/certificate imports.', 403);
+        }
         return $actor->instituteId ?? throw new HttpException('FORBIDDEN', 'Institute scope required.', 403);
     }
 

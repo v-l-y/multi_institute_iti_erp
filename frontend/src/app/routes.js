@@ -30,7 +30,7 @@ for (const page of all) {
         typeof page.path !== "string" || !page.path.startsWith("/api/v1/")) {
       throw new Error("Permission or API contract missing for frontend route: " + page.id);
     }
-    if (page.type !== "profile" && (
+    if (page.type !== "profile" && page.type !== "workspace" && (
       typeof page.key !== "string" || !Array.isArray(page.columns)
     )) throw new Error("Register columns missing for route: " + page.id);
   }

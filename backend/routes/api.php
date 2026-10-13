@@ -33,6 +33,7 @@ use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\OfficialRecords\OfficialImportController;
 use App\Modules\Exams\ExamCycleController;
+use App\Modules\Exams\PracticalExamController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Admissions\Http\IntakeRevisionController;
@@ -218,6 +219,11 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
     $examSetup = new ExamCycleController($database);
+    $practicalExams=new PracticalExamController($database);
+    $router->post('/api/v1/exams/practicals/sessions', $guard->wrap(
+        [$practicalExams,'session'], 'exam.practical.manage'));
+    $router->post('/api/v1/exams/practicals/marks/assigned', $guard->wrap(
+        [$practicalExams,'assignedMarks'], 'exam.practical.record.assigned'));
     $router->get('/api/v1/exams/cycles/status', $guard->wrap([$examSetup, 'status'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/cycles', $guard->wrap([$examSetup, 'draft'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/cycles/open', $guard->wrap([$examSetup, 'open'], 'exam.eligibility.manage'));

@@ -34,6 +34,7 @@ use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\OfficialRecords\OfficialImportController;
 use App\Modules\Exams\ExamCycleController;
 use App\Modules\Exams\PracticalExamController;
+use App\Modules\Exams\PracticalPortalReceiptController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Admissions\Http\IntakeRevisionController;
@@ -220,6 +221,11 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));
     $examSetup = new ExamCycleController($database);
     $practicalExams=new PracticalExamController($database);
+    $practicalReceipts=new PracticalPortalReceiptController($database);
+    $router->post('/api/v1/exams/practicals/portal-receipts', $guard->wrap(
+        [$practicalReceipts,'submitted'], 'exam.portal.submit'));
+    $router->post('/api/v1/exams/practicals/portal-receipts/response', $guard->wrap(
+        [$practicalReceipts,'acknowledge'], 'exam.portal.submit'));
     $router->post('/api/v1/exams/practicals/sessions', $guard->wrap(
         [$practicalExams,'session'], 'exam.practical.manage'));
     $router->post('/api/v1/exams/practicals/marks/assigned', $guard->wrap(

@@ -2,3 +2,5 @@
 /backend/.env
 /.env
 /backups/
+
+/deployment/certs/

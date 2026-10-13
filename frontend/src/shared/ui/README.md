@@ -38,7 +38,7 @@ An institute register calls an **actual** backend API and provides its **actual*
 
 ### Forms
 
-\`validateForm(form, { matches: [["confirm", "new_password", "Passwords differ"]], rules: [...] })\` resets previous custom validity, verifies native constraints, reports errors and focuses the first invalid element. Optional \`rules\` use functions supplied by the owning module. **Do not invent government rules in shared validation.**
+\`validateForm(form, { matches: [["confirm", "new_password", "Passwords differ"]], rules: [...] })\` rechecks registered control validators without erasing unrelated errors, verifies native constraints, reports errors and focuses the first invalid element. Optional \`rules\` use functions supplied by the owning module. **Do not invent government rules in shared validation.**
 
 \`multiSelectField(name, label, options, { required: true })\` uses native checkbox controls; \`FormData(form).getAll(name)\` returns selected values. \`selectField\` uses native select; \`dateRange\` uses native date inputs, not a third-party calendar. The caller is responsible for providing backend-compatible field names and handling submission.
 
@@ -121,3 +121,24 @@ These patterns deliberately operate on caller-provided values. They do not creat
 ### Verification still required
 
 No CI/automatic test, local Node startup, real Docker/backend, browser UAT, WCAG audit, export authorization review or accessibility certification has been executed for this extension. Code review and repository file verification alone do not prove those behaviors work in a browser. Do not mark the full ERP as production-ready on this basis.
+
+
+## Shared UI hardening — October 2026
+
+The source-review P1/P2 findings were addressed in the implementation, but are **not yet runtime certified**:
+
+| Finding | Source-level remediation |
+| --- | --- |
+| Form validation interoperability | \`registerValidator(control, callback)\` is the shared control-validation hook. \`validateForm()\` combines registered checks with explicit caller rules and does not globally clear unrelated custom validity. |
+| Multiple attendance records per person/day | \`attendanceMatrix\` visibly flags ambiguity rather than guessing which revision is effective; regulatory correction precedence remains backend-owned. |
+| Master lookup pending requests | \`masterLookup\` keeps its native select enabled for FormData while setting invalid state during pending/unverified selection; stale requests are aborted, resolved IDs are preserved. |
+| Unnamed editable rows | \`editableGrid(columns, initialRows, {namePrefix:"entries"})\` names controls \`entries[0][code]\`, reindexes after removal and exposes \`read()\`. \`readForm(form,{grids:{entries:grid}})\` normalizes those fields to an array instead of silently losing them. |
+| Duplicate controls | Date/select/file controls use unique IDs for repeated forms, with labels and descriptions linked to those IDs. |
+| Inline-CSS CSP failure | \`formGrid\` and \`formSection\` use class variants and CSS rules; printable view uses \`src/styles/print.css\` and DOM text nodes instead of interpolating data into HTML/CSS. |
+| Search through hidden API values | \`filterRows\` searches only caller-supplied \`searchKeys\`; registers derive these keys from currently visible, authorized columns. |
+| Duplicate View button accessible names | Table actions support \`ariaLabel\`; registered record View actions include a returned identifier when available. |
+| CSV type accuracy | Numeric negative values are preserved; formula-protection applies to spreadsheet-risky string values. |
+
+**Integration note:** Domain forms should use \`validateForm\` on submission. Any caller-supplied custom constraint must use \`registerValidator\` or the \`rules\`/\`matches\` options, and a component's \`dispose()\` should run on unmount. If a repeatable grid uses field names \`entries[i][key]\`, its backend must explicitly accept those names or use \`readForm(...,{grids:{entries:grid}})\` before JSON POST. No schema or government rule is implied by those names.
+
+**Outstanding acceptance checks:** compile/import and local browser startup, keyboard and screen reader navigation, WCAG contrast at all breakpoints, form submission across dynamic component states, authorised-backend responses, privacy permissions, print browser compatibility and UI UAT. CI, browser tests and local Docker were not executed automatically. These checks must pass before any claimed 10/10 or production approval.

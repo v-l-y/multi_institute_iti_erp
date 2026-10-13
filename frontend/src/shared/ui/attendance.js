@@ -15,7 +15,7 @@ export function attendanceMatrix({
     "Choose a record set with actual trainees and dates.");
   const index = new Map();
   for (const record of records) {
-    const key = JSON.stringify([record[recordPersonId], record[recordDate]]);
+    const key = JSON.stringify([String(record[recordPersonId]), String(record[recordDate])]);
     const group = index.get(key) || [];
     group.push(record);
     index.set(key, group);
@@ -31,7 +31,7 @@ export function attendanceMatrix({
         ...people.map(person => el("tr", {},
           el("th", { scope: "row" }, formatValue(person[personLabel])),
           ...dates.map(date => {
-            const matches = index.get(JSON.stringify([person[personId], date])) || [];
+            const matches = index.get(JSON.stringify([String(person[personId]), String(date)])) || [];
             if (matches.length > 1) {
               return el("td", {}, el("span", { className: "status status-warn",
                 title: matches.length + " attendance entries require source reconciliation"

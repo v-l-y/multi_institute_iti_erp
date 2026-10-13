@@ -5,3 +5,7 @@
 
 /deployment/certs/
 /.staging.env
+/.demo.env
+/.demo-accounts.json
+/.demo-private/*
+!/.demo-private/.htaccess

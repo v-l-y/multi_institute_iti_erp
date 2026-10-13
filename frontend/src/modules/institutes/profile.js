@@ -19,7 +19,7 @@ export async function renderInstituteProfile(page, main, controller, isCurrent) 
           el("h2", {}, formatValue(data.name))),
         el("dl", { className: "detail-grid" },
           ...fields.map(([key, label]) => el("div", { className: "detail-item" },
-            el("dt", {}, label), el("dd", {}, formatValue(data[key]))))));
+            el("dt", {}, label), el("dd", {}, formatValue(data[key])))))));
   } catch (err) {
     if (err.name === "AbortError" || !isCurrent(controller)) return;
     main.replaceChildren(pageHeader("Institute identity", "The profile could not be loaded."),

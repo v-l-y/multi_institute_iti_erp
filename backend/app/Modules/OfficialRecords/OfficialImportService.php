@@ -42,6 +42,8 @@ final readonly class OfficialImportService
         // Token boundaries matter: "nonresult" and "uncertificated" must not
         // become valid authority document types through substring matching.
         $separated = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', trim($documentType));
+        // Split acronym-to-word boundaries too: "NTCCertificate" -> "NTC_Certificate".
+        $separated = preg_replace('/([A-Z]+)([A-Z][a-z])/', '$1_$2', $separated ?? '');
         $tokens = preg_split('/[^a-z0-9]+/i', strtolower($separated ?? ''),
             -1, PREG_SPLIT_NO_EMPTY);
         $allowed = match ($recordKind) {

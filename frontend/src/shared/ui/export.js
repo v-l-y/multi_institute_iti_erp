@@ -36,29 +36,64 @@ export function downloadCurrentPageCsv(rows, columns, {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Printable view: only caller-authorized, explicitly selected current-page fields. */
+/**
+ * Print caller-authorized rows through textContent-only DOM nodes and an
+ * external CSS stylesheet. No inline CSS, HTML strings or credential copying.
+ */
 export function printCurrentPage(rows, columns, {
   title = "Register", authorize
 } = {}) {
   if (typeof authorize !== "function" || authorize() !== true) {
     throw new Error("Print requires explicit authorization from the owning module.");
   }
+  if (!Array.isArray(rows) || !Array.isArray(columns)) {
+    throw new TypeError("Print requires rows and columns.");
+  }
   const popup = window.open("", "_blank");
   if (!popup) throw new Error("Browser blocked print preview.");
   popup.opener = null;
-  const safe = value => String(formatValue(value)).replace(/[&<>"']/g, char =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-  // The popup receives only escaped current-page values, no tokens or credentials.
-  const table = "<table><thead><tr>" + columns.map(([, label]) =>
-    "<th>" + safe(label) + "</th>").join("") + "</tr></thead><tbody>" +
-    rows.map(row => "<tr>" + columns.map(([key]) =>
-      "<td>" + safe(row?.[key]) + "</td>").join("") + "</tr>").join("") +
-    "</tbody></table>";
-  popup.document.open();
-  popup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' +
-    safe(title) + '</title><style>body{font:14px system-ui;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:8px;text-align:left}</style></head><body><h1>' +
-    safe(title) + "</h1>" + table + "</body></html>");
-  popup.document.close();
-  popup.focus();
-  popup.print();
+  const doc = popup.document;
+  doc.open();
+  doc.write("<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
+  doc.close();
+  doc.title = String(title);
+  const stylesheet = doc.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = new URL("/src/styles/print.css", window.location.origin).href;
+  doc.head.append(stylesheet);
+  const heading = doc.createElement("h1");
+  heading.textContent = String(title);
+  const table = doc.createElement("table");
+  const head = doc.createElement("thead");
+  const headRow = doc.createElement("tr");
+  columns.forEach(([, label]) => {
+    const th = doc.createElement("th");
+    th.scope = "col";
+    th.textContent = String(label);
+    headRow.append(th);
+  });
+  head.append(headRow);
+  const body = doc.createElement("tbody");
+  rows.forEach(row => {
+    const tr = doc.createElement("tr");
+    columns.forEach(([key]) => {
+      const td = doc.createElement("td");
+      td.textContent = formatValue(row?.[key]);
+      tr.append(td);
+    });
+    body.append(tr);
+  });
+  table.append(head, body);
+  doc.body.append(heading, table);
+  let printed = false;
+  const requestPrint = () => {
+    if (!printed && !popup.closed) {
+      printed = true;
+      popup.focus();
+      popup.print();
+    }
+  };
+  stylesheet.addEventListener("load", requestPrint, { once: true });
+  stylesheet.addEventListener("error", requestPrint, { once: true });
+  window.setTimeout(requestPrint, 2000);
 }

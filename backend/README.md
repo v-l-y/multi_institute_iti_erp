@@ -723,3 +723,13 @@ are required. The current published revision of the same intake, if any, must
 be specified as `supersedes_id` when the draft is created. Publication and
 supersession are one audited institute transaction; old records are retained.
 This is institute review of source evidence, not government issuance.
+
+## Institute affiliation history from reviewed DGT orders
+
+`POST /api/v1/institute/affiliation-history` requires Principal with
+`institute.affiliation.manage`, `regulatory_source_id` of a published DGT
+order linked to that institute, `change_type`, `approved_name`,
+`approved_address`, `affiliation_status`, `affiliation_order_reference`,
+and `effective_from`. Each later order closes the prior current period;
+all historical records are kept with an institute audit event.
+This does not issue or verify government approval.

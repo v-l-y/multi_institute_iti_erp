@@ -16,12 +16,15 @@ if (!["http:", "https:"].includes(backend.protocol) ||
 const paths = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/index.html", ["index.html", "text/html; charset=utf-8"]],
-  ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
-  ["/src/api.js", ["src/api.js", "text/javascript; charset=utf-8"]],
-  ["/src/ui.js", ["src/ui.js", "text/javascript; charset=utf-8"]],
-  ["/src/registry.js", ["src/registry.js", "text/javascript; charset=utf-8"]],
-  ["/src/main.js", ["src/main.js", "text/javascript; charset=utf-8"]]
+  ["/styles.css", ["styles.css", "text/css; charset=utf-8"]]
 ]);
+// Only source modules/styles with simple names are served. No path traversal,
+// dotfiles, source maps, configuration files or directory listings.
+function sourceAsset(pathname) {
+  if (!/^\/src\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.(js|css)$/.test(pathname)) return null;
+  return [pathname.slice(1), pathname.endsWith(".css")
+    ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8"];
+}
 const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -79,7 +82,7 @@ createServer(async (req, res) => {
     reply(res, 405, "Method not allowed");
     return;
   }
-  const asset = paths.get(url.pathname);
+  const asset = paths.get(url.pathname) || sourceAsset(url.pathname);
   if (!asset) {
     reply(res, 404, "Not found");
     return;

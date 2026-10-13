@@ -88,6 +88,9 @@ final readonly class FeeController
         $assessment = self::id($request, 'assessment_id');
         $number = self::required($request, 'demand_no', 100);
         $dueOn = self::required($request, 'due_on', 10);
+        if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $dueOn) !== 1) {
+            throw new HttpException('INVALID_DUE_DATE', 'A real ISO demand due date is required.', 422);
+        }
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $dueOn);
         if (!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $dueOn)
             || !$date || $date->format('Y-m-d') !== $dueOn) {

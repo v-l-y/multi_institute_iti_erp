@@ -22,6 +22,14 @@ export function dataTable(rows, columns, {
     ? rows.map(rowId).filter(id => id !== null && id !== undefined) : [];
   const header = el("tr");
   const selectable = Boolean(selection);
+  const rowCheckboxes = [];
+  function syncSelection() {
+    for (const [control, id] of rowCheckboxes) control.checked = selectedIds.has(id);
+    if (selectAll) {
+      selectAll.checked = validIds.length > 0 && validIds.every(id => selectedIds.has(id));
+      selectAll.indeterminate = !selectAll.checked && validIds.some(id => selectedIds.has(id));
+    }
+  }
   const selectAll = selectable ? el("input", {
     type: "checkbox", "aria-label": "Select all rows on this page"
   }) : null;
@@ -34,6 +42,7 @@ export function dataTable(rows, columns, {
         if (selectAll.checked) selectedIds.add(id);
         else selectedIds.delete(id);
       }
+      syncSelection();
       selection.onChange(new Set(selectedIds));
     });
     header.append(el("th", { scope: "col" }, selectAll));
@@ -54,8 +63,10 @@ export function dataTable(rows, columns, {
       checkbox.checked = selectableRow && selectedIds.has(id);
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) selectedIds.add(id); else selectedIds.delete(id);
+        syncSelection();
         selection.onChange(new Set(selectedIds));
       });
+      rowCheckboxes.push([checkbox, id]);
       cells.push(el("td", {}, checkbox));
     }
     cells.push(...columns.map(([key]) => {

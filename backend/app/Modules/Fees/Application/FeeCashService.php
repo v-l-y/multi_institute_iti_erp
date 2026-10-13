@@ -95,17 +95,43 @@ final readonly class FeeCashService
         );
     }
 
+    /**
+     * Map an institute local calendar date to UTC timestamps stored in fee
+     * transaction DATETIME columns. Bounds are [start, end), including DST.
+     */
+    public static function dayBounds(string $date, string $timeZone): array
+    {
+        try {
+            $zone = new \DateTimeZone($timeZone);
+        } catch (\Exception) {
+            throw new HttpException('CASH_TIMEZONE_INVALID', 'Configured cash timezone is invalid.', 503);
+        }
+        $localStart = \DateTimeImmutable::createFromFormat('!Y-m-d', $date, $zone);
+        if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $date) !== 1
+            || !$localStart || $localStart->format('Y-m-d') !== $date) {
+            throw new HttpException('INVALID_INPUT', 'Valid cash closing date required.', 422);
+        }
+        $utc = new \DateTimeZone('UTC');
+        return [
+            $localStart->setTimezone($utc)->format('Y-m-d H:i:s'),
+            $localStart->modify('+1 day')->setTimezone($utc)->format('Y-m-d H:i:s'),
+            (new \DateTimeImmutable('now', $zone))->format('Y-m-d'),
+        ];
+    }
+
     public function close(
         AuthContext $actor, int $institute, string $date,
         string $openingAmount, string $actualAmount, string $openingReference
     ): array {
+        [$from, $to, $today] = self::dayBounds(
+            $date, getenv('APP_TIMEZONE') ?: 'Asia/Kolkata'
+        );
         $openingCents = Money::cents($openingAmount);
         $actualCents = Money::cents($actualAmount);
         return (new InstituteTransaction($this->db))->run($actor, $institute, 'fee.record',
-            function () use ($actor, $institute, $date, $openingCents, $actualCents, $openingReference): array {
-                $today = (string)$this->db->query('SELECT UTC_DATE()')->fetchColumn();
+            function () use ($actor, $institute, $date, $from, $to, $today, $openingCents, $actualCents, $openingReference): array {
                 if ($date >= $today) {
-                    throw new HttpException('CASH_DAY_OPEN', 'Only fully elapsed UTC days can be closed.', 409);
+                    throw new HttpException('CASH_DAY_OPEN', 'Only fully elapsed institute-local days can be closed.', 409);
                 }
                 $q = $this->db->prepare('SELECT id FROM fee_cash_closings WHERE institute_id=? AND closing_date=? FOR UPDATE');
                 $q->execute([$institute, $date]);
@@ -132,9 +158,7 @@ final readonly class FeeCashService
                 if ($q->fetchColumn() !== false) {
                     throw new HttpException('CASH_CHRONOLOGY', 'Cannot insert a closing before an already closed later day.', 409);
                 }
-                $from = $date . ' 00:00:00';
-                $to = (new \DateTimeImmutable($date, new \DateTimeZone('UTC')))
-                    ->modify('+1 day')->format('Y-m-d') . ' 00:00:00';
+                // Transaction timestamps are UTC; closing_date is institute-local.
                 $collected = $this->sum("SELECT COALESCE(SUM(amount),0) FROM fee_payments
                     WHERE institute_id=? AND payment_mode='cash' AND paid_on>=? AND paid_on<?",
                     [$institute, $from, $to]);

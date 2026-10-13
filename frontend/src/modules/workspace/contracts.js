@@ -61,7 +61,17 @@ export const workspace = {
       action("Decide refund","/api/v1/fees/refunds/decide","fee.refund",[id("refund_id","Refund ID"),{name:"action",label:"Decision",options:[["approved","Approved"],["rejected","Rejected"],["cancelled","Cancelled"],["paid","Paid"]]},{...text("reference_no","Reference",190),required:false}]),
       action("Request payment reversal","/api/v1/fees/payments/reversal-request","fee.refund",[id("payment_id","Payment ID"),text("reversal_no","Reversal number",100),text("reason","Reason",500)]),
       action("Approve payment reversal","/api/v1/fees/payments/reverse","fee.refund",[id("payment_id","Payment ID"),id("requested_by","Requester user ID"),text("reversal_no","Reversal number",100),text("reason","Reason",500)],
-        {description:"Independent requester identity and prior request are verified again by the backend."})
+        {description:"Independent requester identity and prior request are verified again by the backend."}),
+      action("Record cash transfer","/api/v1/fees/cash/transfers","fee.record",
+        [{name:"transfer_type",label:"Transfer type",options:[["bank_deposit","Bank deposit"],["cash_withdrawal","Cash withdrawal"],["counter_addition","Counter addition"]]},
+          decimal("amount","Amount"),text("reference_no","Reference",190)],{idempotency:true}),
+      action("Close cash day","/api/v1/fees/cash/close","fee.record",
+        [date("closing_date","Closing date"),decimal("opening_amount","Opening balance"),
+          decimal("actual_amount","Counted cash"),text("opening_reference","Opening evidence",190)]),
+      action("Review cash closing","/api/v1/fees/cash/close/review","fee.refund",
+        [id("closing_id","Closing ID"),{name:"decision",label:"Review decision",
+          options:[["reviewed","Reviewed"],["requires_correction","Requires correction"]]},
+          text("evidence_reference","Review evidence",190)],{role:"principal"})
     ]
   },
   attendance: {
@@ -83,7 +93,20 @@ export const workspace = {
           {name:"attended_minutes",label:"Attended minutes",kind:"integer",min:0,max:65535},
           {name:"status",label:"Attendance status",options:["present","absent","leave","medical_leave","emergency_leave","ojt"].map(x=>[x,x])},
           {...text("leave_evidence_reference","Leave evidence reference",190),required:false}],
-        {identity:"staff_id",role:"instructor"})
+        {identity:"staff_id",role:"instructor"}),
+      action("Create attendance session","/api/v1/attendance/sessions","calendar.manage",
+        [id("batch_year_id","Batch year ID"),id("instructor_id","Assigned instructor staff ID"),
+          date("session_date","Session date"),
+          {name:"component",label:"CTS source component",options:["trade_practical","trade_theory","employability","ojt_project"].map(v=>[v,v])}]),
+      action("Lock attendance session","/api/v1/attendance/sessions/lock","attendance.correct",
+        [id("session_id","Session ID")],{role:"principal"}),
+      action("Record reviewed attendance correction","/api/v1/attendance/corrections","attendance.correct",
+        [id("session_id","Session ID"),id("enrollment_id","Enrollment ID"),
+          {name:"attended_minutes",label:"Effective minutes",kind:"integer",min:0,max:65535},
+          {name:"status",label:"Corrected status",options:["present","absent","leave","medical_leave","emergency_leave","ojt"].map(v=>[v,v])},
+          {name:"source_id",label:"Correction source ID (0 if none)",kind:"integer",min:0},
+          text("reason","Reason",1000),text("authority_reference","Authority reference",190),
+          {name:"expected_correction_id",label:"Last correction ID (0 if none)",kind:"integer",min:0}])
     ]
   },
   ojt: {
@@ -154,7 +177,28 @@ export const workspace = {
         [id("formative_assessment_id","Assessment ID"),text("review_reference","Review evidence",500)],{role:"principal"}),
       action("Lock template score","/api/v1/formative/templates/scores/lock","formative.template.manage",
         [id("enrollment_id","Enrollment ID"),id("batch_year_id","Year ID"),text("item_code","Item",80),
-          text("review_reference","Review evidence",500)],{role:"principal"})
+          text("review_reference","Review evidence",500)],{role:"principal"}),
+      action("Review formative scheme","/api/v1/formative/schemes/configure","formative.template.manage",
+        [id("batch_year_id","Batch year ID"),id("regulatory_source_id","Published source ID"),
+          {name:"formative_method",label:"Reviewed method",options:[["points_ratio","Points ratio"],["template_weighted","Weighted template"]]},
+          text("review_reference","Review reference",500)],{role:"principal"}),
+      action("Define reviewed formative template item","/api/v1/formative/templates/items","formative.template.manage",
+        [id("batch_year_id","Batch year ID"),text("item_code","Item code",80),
+          text("description","Item description",500),text("max_marks","Source maximum",12),
+          text("weight_percent","Source weight percent",12),text("review_reference","Review reference",500)],{role:"principal"}),
+      action("Correct unlocked template score","/api/v1/formative/templates/scores/correct-unlocked","formative.template.manage",
+        [id("enrollment_id","Enrollment ID"),id("batch_year_id","Year ID"),text("item_code","Item code",80),
+          text("obtained_marks","Corrected marks",10),date("assessed_on","Assessed date"),
+          text("evidence_reference","Evidence",500),text("reason","Correction reason",500),
+          text("review_reference","Principal review",500)],{role:"principal"}),
+      action("Record reviewed formative correction","/api/v1/formative/corrections","formative.template.manage",
+        [{...id("assessment_id","Assessment ID (points)"),required:false},
+          {...text("item_code","Item code (template)",80),required:false},
+          id("enrollment_id","Enrollment ID"),id("batch_year_id","Year ID"),
+          text("obtained_marks","Effective marks",12),
+          {name:"source_id",label:"Correction source ID (0 if none)",kind:"integer",min:0},
+          text("reason","Reason",1000),text("authority_reference","Authority reference",190),
+          {name:"expected_correction_id",label:"Last correction ID (0 if none)",kind:"integer",min:0}])
     ]
   },
   syllabus: {

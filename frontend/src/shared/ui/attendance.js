@@ -2,8 +2,9 @@ import { el, formatValue } from "./dom.js";
 import { emptyState } from "./feedback.js";
 
 /**
- * Read-only attendance register. Statuses/dates come from backend records.
- * Does not compute eligibility, attendance percentage or sanctioned hours.
+ * Read-only attendance register. Multiple rows per learner/date are displayed
+ * as ambiguous, never silently promoted to an effective record.
+ * The authorized backend must resolve corrections/revisions.
  */
 export function attendanceMatrix({
   people = [], dates = [], records = [],
@@ -12,8 +13,13 @@ export function attendanceMatrix({
 } = {}) {
   if (!people.length || !dates.length) return emptyState("No attendance data",
     "Choose a record set with actual trainees and dates.");
-  const index = new Map(records.map(record =>
-    [String(record[recordPersonId]) + "|" + record[recordDate], record]));
+  const index = new Map();
+  for (const record of records) {
+    const key = JSON.stringify([record[recordPersonId], record[recordDate]]);
+    const group = index.get(key) || [];
+    group.push(record);
+    index.set(key, group);
+  }
   const header = el("tr", {}, el("th", { scope: "col" }, "Trainee / Staff"),
     ...dates.map(date => el("th", { scope: "col" }, date)));
   return el("div", { className: "table-scroll", role: "region",
@@ -25,7 +31,12 @@ export function attendanceMatrix({
         ...people.map(person => el("tr", {},
           el("th", { scope: "row" }, formatValue(person[personLabel])),
           ...dates.map(date => {
-            const entry = index.get(String(person[personId]) + "|" + date);
-            return el("td", {}, entry ? formatValue(entry[recordStatus]) : "—");
+            const matches = index.get(JSON.stringify([person[personId], date])) || [];
+            if (matches.length > 1) {
+              return el("td", {}, el("span", { className: "status status-warn",
+                title: matches.length + " attendance entries require source reconciliation"
+              }, "Multiple records — review"));
+            }
+            return el("td", {}, matches.length ? formatValue(matches[0][recordStatus]) : "—");
           })))));
 }

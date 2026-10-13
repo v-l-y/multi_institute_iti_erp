@@ -862,3 +862,27 @@ not reconstruct external grading rules without official source profiles.
 A generic published syllabus/calendar reference is not accepted for official imports: the linked source document type must explicitly identify a result for result imports, or a certificate/NTC/marksheet for certificate imports. A type-matched document still does not verify candidate-level values or confirm government authenticity.\n\nA fully certified production exam lifecycle remains gated on an authorized official data export, completeness checks for all eligible enrolments, review of exam statuses, and full manual integration/UAT testing. Do not enable these routes solely because fixtures pass.
 
 `GET /api/v1/exams/cycles/status?cycle_id=...` returns only same-institute cycle metadata, eligibility snapshot counts and official-result revision counts for manual reconciliation. Counts are explicitly **not proof** that all required trainees, attempts or official actions are complete.
+
+## Reviewed formative scheme setup
+
+`POST /api/v1/formative/schemes/configure` requires the **Principal** plus
+`formative.template.manage`. Pass `batch_year_id`, institute-linked
+`regulatory_source_id`, `review_reference`, and explicit published-source
+`formative_method` (`points_ratio` or `template_weighted`). A selected
+method is frozen, not silently replaced. Points-ratio setup requires mapped
+official learning outcomes. The source must have published status and SHA-256.
+
+`POST /api/v1/formative/templates/items` requires the same authority and
+a configured source-backed `template_weighted` batch year. Provide
+`batch_year_id`, `item_code`, `description`, `max_marks` as a positive
+decimal string (up to 3 fractional places), `weight_percent` as a positive
+decimal string (up to 4 places), and `review_reference`. Template entries
+and weights are **explicitly supplied** from the applicable source; no
+regulatory amounts or default weights are invented. Combined template weights
+may not exceed 100%; the existing exam eligibility logic requires the full
+100% and complete locked scores. Once scores exist, template additions are
+blocked rather than changing historical calculation silently.
+
+These setup routes do not implement template score submission or correction
+on their own; those remain separate release gates.
+

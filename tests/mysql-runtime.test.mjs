@@ -34,6 +34,14 @@ function cli(bin, args, input) {
     throw new Error(String(e.stderr || e.stdout || e.message));
   }
 }
+async function queryConcurrent(statement) {
+  const env = { ...process.env };
+  if (process.env.ITI_ERP_TEST_PASSWORD !== undefined) env.MYSQL_PWD = process.env.ITI_ERP_TEST_PASSWORD;
+  const args = ['--protocol=TCP', '--host=' + host, '--port=' + port, '--user=' + user,
+    '--database=' + database, '--batch', '--raw', '--skip-column-names', '--execute=' + statement];
+  const output = await execFileAsync(mysqlBin, args, { env, timeout: 120000, maxBuffer: 1024 * 1024 });
+  return output.stdout.trim();
+}
 function sql(statement, db = database) {
   return cli(mysqlBin, [...(db ? ['--database=' + db] : []), '--batch', '--raw', '--skip-column-names'], statement);
 }

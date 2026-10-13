@@ -154,7 +154,7 @@ try {
     })->status === 503;
     // Multiple processes must share one atomic limit, not each allow two attempts.
     $workers = [];
-    $workerCode = 'require $argv[1]; try { (new App\\Modules\\Auth\\LoginThrottle($argv[2],2,60))->check("127.0.0.3"); echo "200"; } catch (App\\Http\\HttpException $e) { echo $e->status; }';
+    $workerCode = 'require $argv[1]; try { (new App\\Modules\\Auth\\Infrastructure\\LoginThrottle($argv[2],2,60))->check("127.0.0.3"); echo "200"; } catch (App\\Http\\HttpException $e) { echo $e->status; }';
     for ($workerIndex=0; $workerIndex<6; $workerIndex++) {
         $worker = proc_open([PHP_BINARY,'-r',$workerCode,dirname(__DIR__) . '/bootstrap/autoload.php',$throttleDirectory], [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $workerPipes);
         if (!is_resource($worker)) {

@@ -356,7 +356,7 @@ final readonly class FeeService
             if (!$request || (int)$request['actor_user_id']!==$requestedBy || ($details['reversal_no']??null)!==$number || ($details['reason']??null)!==$reason) {
                 throw new HttpException('REVERSAL_REQUEST_REQUIRED','A matching authenticated request from the payment recorder is required.',409);
             }
-            $q=$this->db->prepare('INSERT INTO fee_payment_reversals (institute_id,student_id,payment_id,reversal_no,reason,requested_by,approved_by) VALUES (?,?,?,?,?,?,?)');
+            $q=$this->db->prepare('INSERT INTO fee_payment_reversals (institute_id,student_id,payment_id,reversal_no,reason,requested_by,approved_by,reversed_at) VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP())');
             $q->execute([$institute,$p['student_id'],$payment,$number,$reason,$requestedBy,$actor->userId]);
             $id=(int)$this->db->lastInsertId();
             $tx->audit($actor,$institute,'fee.payment.reverse','fee_payment_reversals',$id,[]);

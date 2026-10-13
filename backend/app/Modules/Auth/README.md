@@ -1,8 +1,3 @@
-# Auth Module
+# Auth module
 
-- `Http/` — controllers and access middleware.
-- `Application/` — authentication, sessions and password-change workflows.
-- `Domain/` — permission and institute-scoped authorization context.
-- `Infrastructure/` — password hashing and worker-local login throttle.
-
-Root-level PHP aliases are temporary compatibility bridges during a namespace migration. They will be removed after dependent modules/tests use the new paths.
+`Http/` contains the API controller and authentication middleware. `Application/` owns login and session workflows. `Domain/` enforces permission and institute access. `Infrastructure/` contains password hashing and the worker-local login throttle. No compatibility aliases or parallel auth master are retained.

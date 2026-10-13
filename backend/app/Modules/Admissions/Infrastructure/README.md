@@ -1,3 +1,3 @@
-# Admissions Infrastructure
+# Admissions infrastructure
 
-This folder is reserved for admission persistence adapters when extracted from existing services. Database operations currently remain in `../Application/` to avoid changing runtime behavior during this file-organization change.
+`AdmissionRegistryRepository.php` runs institute-scoped registry queries. The existing transactional write services are still in `../Application/` and use the shared `App/Core/InstituteTransaction.php`. No new database tables, official-source rules or portal writes were added.

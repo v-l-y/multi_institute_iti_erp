@@ -38,6 +38,66 @@ $checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Domain');
 $checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Admissions/Infrastructure');
 $checks[] = is_dir(dirname(__DIR__) . '/app/Modules/Academic');
 $checks[] = is_dir(dirname(__DIR__) . '/database/migrations');
+// Every requested layer must contain an autoloadable working class, not only a README.
+foreach ([
+    \App\Modules\Admissions\Infrastructure\AdmissionRegistryRepository::class,
+    \App\Modules\Academic\Http\AcademicCalendarController::class,
+    \App\Modules\Academic\Application\AcademicCalendarService::class,
+    \App\Modules\Academic\Domain\CalendarPage::class,
+    \App\Modules\Academic\Infrastructure\AcademicCalendarRepository::class,
+    \App\Modules\Auth\Http\AuthController::class,
+    \App\Modules\Auth\Http\AuthMiddleware::class,
+    \App\Modules\Auth\Application\AuthService::class,
+    \App\Modules\Auth\Domain\AuthContext::class,
+    \App\Modules\Auth\Infrastructure\LoginThrottle::class,
+    \App\Modules\Auth\Infrastructure\PasswordHasher::class,
+    \App\Modules\Staff\Http\StaffController::class,
+    \App\Modules\Staff\Application\StaffService::class,
+    \App\Modules\Staff\Domain\StaffRecord::class,
+    \App\Modules\Staff\Infrastructure\StaffRepository::class,
+    \App\Modules\Students\Http\StudentController::class,
+    \App\Modules\Students\Application\StudentRegistrationService::class,
+    \App\Modules\Students\Application\StudentQualificationService::class,
+    \App\Modules\Students\Domain\StudentIdentity::class,
+    \App\Modules\Students\Infrastructure\StudentRepository::class,
+    \App\Modules\Fees\Http\FeeController::class,
+    \App\Modules\Fees\Application\FeeService::class,
+    \App\Modules\Fees\Domain\Money::class,
+    \App\Modules\Fees\Infrastructure\FeePaymentRepository::class,
+    \App\Core\MigrationRunner::class,
+] as $layerClass) {
+    $checks[] = class_exists($layerClass);
+}
+foreach (['Admissions','Academic','Auth','Staff','Students','Fees'] as $module) {
+    foreach (['Http','Application','Domain','Infrastructure'] as $layer) {
+        $checks[] = is_dir(dirname(__DIR__) . '/app/Modules/' . $module . '/' . $layer);
+    }
+}
+$checks[] = \App\Modules\Staff\Domain\StaffRecord::validCategoryAndJoiningDate('teaching', '2026-08-01');
+$checks[] = !\App\Modules\Staff\Domain\StaffRecord::validCategoryAndJoiningDate('teaching', '2026-02-30');
+$checks[] = \App\Modules\Students\Domain\StudentIdentity::validIdentityModeAndBirthDate('non_aadhaar', '2006-01-18');
+$checks[] = !\App\Modules\Students\Domain\StudentIdentity::validIdentityModeAndBirthDate('aadhaar', '2006-02-30');
+$checks[] = \App\Modules\Fees\Domain\Money::cents('100.01') === 10001;
+$checks[] = \App\Modules\Academic\Domain\CalendarPage::integer(['page_size'=>'3'], 'page_size', 50, 100) === 3;
+$checks[] = \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN value INT;') === 'ALTER TABLE sample ADD COLUMN value INT';
+$checks[] = \App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations') === [];
+$checks[] = is_file(dirname(__DIR__) . '/bin/migrate.php');
+try {
+    \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN a INT; DROP TABLE sample;');
+    $checks[] = false;
+} catch (RuntimeException) {
+    $checks[] = true;
+}
+foreach ([
+    'Auth/AuthContext', 'Auth/AuthController', 'Auth/AuthMiddleware',
+    'Auth/AuthService', 'Auth/LoginThrottle', 'Auth/PasswordHasher',
+    'Staff/StaffController', 'Students/StudentController',
+    'Students/StudentQualificationService', 'Fees/FeeController',
+    'Fees/FeeService', 'Fees/Money',
+] as $obsoleteAlias) {
+    $checks[] = !is_file(dirname(__DIR__) . '/app/Modules/' . $obsoleteAlias . '.php');
+}
+
 $router->post('/test', static fn(Request $request) => new App\Http\Response(['value' => $request->body['value']]));
 $checks[] = $router->dispatch('POST', '/test', new Request(['value' => 17]))->body['value'] === 17;
 $application = require dirname(__DIR__) . '/bootstrap/app.php';

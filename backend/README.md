@@ -5,6 +5,17 @@ Internal admission/fee/exam transaction services and SQL record guards are docum
 No framework or third-party runtime dependencies are required.
 
 ## Structure
+### Layered modules
+
+Each active module `Admissions`, `Staff`, `Students`, `Academic`, `Fees`, and `Auth` now has four working layers:
+
+- `Http/`: controllers, middleware, request/response boundaries.
+- `Application/`: authorized workflows and transactional orchestration.
+- `Domain/`: existing validation, authorization context or monetary value rules.
+- `Infrastructure/`: tenant-scoped database queries and cryptographic or login-throttle adapters.
+
+Shared components remain in `app/Core/` and `app/Http/`. The `Academic` calendar registry keeps its original API route and existing source-backed SQL. No new regulatory requirements were introduced by reorganizing code. Forward-only SQL upgrades use `php bin/migrate.php --status` and explicit `--apply`; see `database/migrations/README.md`.
+
 
 ```text
 app/Core/              Environment and lazy database connection

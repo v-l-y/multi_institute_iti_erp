@@ -19,6 +19,7 @@ use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Institutes\AffiliationHistoryController;
 use App\Modules\Operations\OperationsController;
+use App\Modules\Ojt\OjtController;
 use App\Modules\Staff\Http\StaffController;
 use App\Modules\Staff\Http\InstructorMappingController;
 use App\Modules\Students\Http\StudentController;
@@ -219,6 +220,15 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/exams/cycles', $guard->wrap([$examSetup, 'draft'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/cycles/open', $guard->wrap([$examSetup, 'open'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
+    $ojt=new OjtController($database);
+    $router->post('/api/v1/ojt/projects', $guard->wrap(
+        [$ojt,'plan'], 'calendar.manage'));
+    $router->post('/api/v1/ojt/projects/start', $guard->wrap(
+        [$ojt,'start'], 'calendar.manage'));
+    $router->post('/api/v1/ojt/logbook/me', $guard->wrap(
+        [$ojt,'ownLog'], 'ojt.log.own'));
+    $router->post('/api/v1/ojt/evaluations/assigned', $guard->wrap(
+        [$ojt,'evaluateAssigned'], 'ojt.evaluate.assigned'));
     $formative=new FormativeController($database);
     $router->post('/api/v1/formative/records/assigned', $guard->wrap(
         [$formative,'recordAssigned'], 'formative.record.assigned'));

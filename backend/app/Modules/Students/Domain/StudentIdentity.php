@@ -10,7 +10,7 @@ final class StudentIdentity
     {
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $birth);
         return in_array($mode, ['aadhaar', 'non_aadhaar'], true)
-            && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/D', $birth) === 1
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $birth) === 1
             && $date !== false && $date->format('Y-m-d') === $birth;
     }
 }

@@ -17,6 +17,14 @@ final readonly class OfficialImportService
 {
     public function __construct(private PDO $db) {}
 
+    private static function principal(AuthContext $actor): void
+    {
+        if (!in_array('principal', $actor->roles, true)) {
+            throw new HttpException('PRINCIPAL_REQUIRED',
+                'Principal account required for official result/certificate import.', 403);
+        }
+    }
+
     private function one(string $sql, array $args): ?array
     {
         $q = $this->db->prepare($sql);
@@ -56,6 +64,7 @@ final readonly class OfficialImportService
 
     public function result(AuthContext $actor, int $institute, array $data): int
     {
+        self::principal($actor);
         return $this->run($actor, $institute, 'result.import',
             function () use ($actor, $institute, $data): int {
                 $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system']);
@@ -120,6 +129,7 @@ final readonly class OfficialImportService
 
     public function certificate(AuthContext $actor, int $institute, array $data): int
     {
+        self::principal($actor);
         return $this->run($actor, $institute, 'certificate.record',
             function () use ($actor, $institute, $data): int {
                 $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system']);
@@ -131,7 +141,20 @@ final readonly class OfficialImportService
                 if ($data['document_type'] === 'NTC' && $result['result_status'] !== 'pass') {
                     throw new HttpException('CERTIFICATE_ELIGIBILITY', 'NTC import requires an officially recorded pass result.', 409);
                 }
+                // A certificate number is not the learner/document identity:
+                // prevent a second independent revision 1 under a different number.
+                $latest = $this->one('SELECT id,revision_no FROM certificates
+                    WHERE enrollment_id=? AND document_type=? AND institute_id=?
+                    ORDER BY revision_no DESC,id DESC LIMIT 1 FOR UPDATE',
+                    [$data['enrollment_id'], $data['document_type'], $institute]);
                 $prior = $data['supersedes_certificate_id'] ?? null;
+                if (($latest===null && ($prior!==null || $data['revision_no']!==1))
+                    || ($latest!==null
+                        && ($prior!==(int)$latest['id']
+                            || $data['revision_no']!==(int)$latest['revision_no']+1))) {
+                    throw new HttpException('OFFICIAL_REVISION',
+                        'Certificate revision must immediately follow the latest matching document.',409);
+                }
                 if ($prior !== null) {
                     $previous = $this->one('SELECT revision_no FROM certificates WHERE
                         id=? AND enrollment_id=? AND document_type=? AND institute_id=? FOR UPDATE',

@@ -42,7 +42,7 @@ final class MigrationRunner
     /** Reject batches or procedure delimiters: a failed DDL must be reviewed individually. */
     public static function singleStatement(string $sql): string
     {
-        $withoutLeadingComments = preg_replace('/\A(?:\s|--[^\r\n]*(?:\r?\n|$)|#[^\r\n]*(?:\r?\n|$))* /x', '', $sql);
+        $withoutLeadingComments = preg_replace('/\A(?:\s+|--[^\r\n]*(?:\r?\n|$)|\\#[^\r\n]*(?:\r?\n|$))*/', '', $sql);
         if ($withoutLeadingComments === null) {
             throw new RuntimeException('Invalid migration SQL.');
         }
@@ -50,7 +50,9 @@ final class MigrationRunner
         if ($statement === '' || preg_match('/\bDELIMITER\b/i', $statement) === 1) {
             throw new RuntimeException('Migration must contain one supported SQL statement.');
         }
-        $statement = rtrim($statement, " \t\r\n;");
+        if (str_ends_with($statement, ';')) {
+            $statement = rtrim(substr($statement, 0, -1));
+        }
         if ($statement === '' || str_contains($statement, ';')) {
             throw new RuntimeException('Each migration file must contain exactly one SQL statement.');
         }

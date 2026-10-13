@@ -140,7 +140,8 @@ final readonly class TrainingService
         $tx->run($actor,$institute,'training.correct',function () use ($actor,$institute,$progressId,$reference,$reason,$tx): void {
             $progress=$this->row('SELECT * FROM training_progress WHERE id=? AND institute_id=? FOR UPDATE',[$progressId,$institute]);
             if (!$progress) throw new HttpException('NOT_FOUND','Progress record not found.',404);
-            if ((int)$progress['recorded_by']===$actor->userId) throw new HttpException('INDEPENDENT_REVIEW','Original progress recorder cannot void their own record.',403);
+            // A Principal can also void their own earlier mistaken correction.
+            // The immutable event retains the approving identity and explanation.
             if ($this->row('SELECT id FROM training_progress WHERE supersedes_id=? AND institute_id=? FOR UPDATE',[$progressId,$institute])) {
                 throw new HttpException('STALE_CORRECTION','Only the latest effective progress may be voided.',409);
             }
@@ -179,9 +180,9 @@ final readonly class TrainingService
             } else {
                 $original=$this->row('SELECT * FROM training_progress WHERE id=? AND plan_id=? AND enrollment_id=? AND institute_id=? FOR UPDATE',[$parent,$plan['id'],$data['enrollment_id'],$institute]);
                 if (!$original) throw new HttpException('NOT_FOUND','Original progress not found.',404);
-                if ((int)$original['recorded_by']===$actor->userId) throw new HttpException('INDEPENDENT_REVIEW','Original recorder cannot approve their correction.',403);
                 if ($this->row('SELECT id FROM training_progress WHERE supersedes_id=? FOR UPDATE',[$parent])) throw new HttpException('STALE_CORRECTION','Record already superseded.',409);
                 if ($this->row("SELECT id FROM institute_activity_log WHERE institute_id=? AND action_code='training.progress.void' AND entity_table='training_progress' AND entity_id=? FOR UPDATE",[$institute,$parent])) throw new HttpException('PROGRESS_VOIDED','Cannot correct a voided progress record.',409);
+                if ((int)$original['recorded_by']===$actor->userId) throw new HttpException('INDEPENDENT_REVIEW','Original recorder cannot approve their correction.',403);
             }
             $enrollment=$this->row('SELECT status,admitted_on FROM enrollments WHERE id=? AND batch_id=? AND institute_id=? FOR UPDATE',[$data['enrollment_id'],$plan['batch_id'],$institute]);
             if (!$enrollment || $enrollment['admitted_on']>$date || ($parent===null && $enrollment['status']!=='active')) throw new HttpException('ENROLLMENT_NOT_ACTIVE','Applicable enrollment required.',409);

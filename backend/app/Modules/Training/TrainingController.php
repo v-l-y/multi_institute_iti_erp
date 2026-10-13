@@ -42,7 +42,7 @@ final readonly class TrainingController
         $id=(new TrainingService($this->database->connection()))->progress($actor,$r->body);
         return new Response(['success'=>true,'data'=>['progress_id'=>$id]],201);
     }
-    public function void(Request $r,AuthContext $actor): Response
+    public function voidProgress(Request $r,AuthContext $actor): Response
     {
         $id=self::number($r->body,'progress_id');
         $reference=$r->body['evidence_reference']??null;

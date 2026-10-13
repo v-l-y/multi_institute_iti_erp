@@ -72,7 +72,7 @@ try {
     $reject(fn()=>$service->voidProgress($teacher,$correction,'LOCAL-VOID','Correction'),'FORBIDDEN');
     $reject(fn()=>$service->voidProgress($principal,$record,'LOCAL-VOID','Correction'),'STALE_CORRECTION');
     $service->voidProgress($principal,$correction,'LOCAL-VOID-EVIDENCE','Incorrect training credit, reverse fully');
-    $check((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='training.progress.void' AND entity_id=$correction")===1,
+    $check((int)$db->query("SELECT COUNT(*) FROM institute_activity_log WHERE action_code='training.progress.void' AND entity_id=$correction")->fetchColumn()===1,
         'Principal void must preserve independently reviewed immutable evidence.');
     $reject(fn()=>$service->voidProgress($principal,$correction,'DUPLICATE','Again'),'PROGRESS_VOIDED');
     $reject(fn()=>$service->progress($principal,[...$progress,'supersedes_id'=>$correction,'correction_reason'=>'Invalid recredit','evidence_reference'=>'STALE-VOID']),'PROGRESS_VOIDED');
@@ -93,9 +93,24 @@ try {
     $history=$controller->progress(new Request(query:['include_history'=>'1']),$student)->body['data']['progress'];
     $check(count($history)===2 && (int)$history[1]['is_voided']===1,
         'Authorized history must retain the corrected and voided progress with its void marker.');
-    $reject(fn()=>$controller->void(new Request([
+    $reject(fn()=>$controller->voidProgress(new Request([
         'progress_id'=>$correction,'evidence_reference'=>'DUPLICATE','correction_reason'=>'Repeated void',
     ]),$principal),'PROGRESS_VOIDED');
+    $reentered=$service->progress($teacher,[...$progress,
+        'attended_minutes'=>15,'evidence_reference'=>'LOCAL-REENTERED']);
+    $check(count($controller->progress(new Request(),$student)->body['data']['progress'])===1,
+        'New documented training is possible after voiding a mistaken entry.');
+    $voidResult=$controller->voidProgress(new Request([
+        'progress_id'=>$reentered,'evidence_reference'=>'LOCAL-REENTERED-VOID',
+        'correction_reason'=>'Fictional entry made in error',
+    ]),$principal);
+    $check($voidResult->status===200 && $voidResult->body['data']['effective_minutes']===0,
+        'Principal HTTP void must return zero effective minutes.');
+    $check($controller->progress(new Request(),$student)->body['data']['progress']===[],
+        'HTTP void must remove credit from effective registers.');
+    $historyAfter=$controller->progress(new Request(query:['include_history'=>'1']),$student)->body['data']['progress'];
+    $check(count($historyAfter)===3 && (int)$historyAfter[2]['is_voided']===1,
+        'History must retain the original, correction and voided re-entry.');
     $fees=new App\Modules\Fees\Http\FeeRegisterController($database);
     foreach(['heads','structures','structure-items','assessments','demands','refunds','waivers','reversals'] as $kind) $check($fees->read(new Request(),$principal,$kind)->status===200,'Fee register SQL failed: '.$kind);
     $reject(fn()=>$fees->read(new Request(query:['student_id'=>'9101']),$foreign,'demands'),'NOT_FOUND');

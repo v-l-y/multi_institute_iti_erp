@@ -785,7 +785,7 @@ values in a locally reviewed, published DGT syllabus source**:
 No official NSQF, trade strength, teaching duration, credits, or formative
 marks are guessed. Platform publication means reviewed institute ERP evidence,
 **not** independent cryptographic or regulatory authority verification.
-When a published global course year is linked locally, its complete official
+Where a published Global Learning Outcome declares `formative_max_marks`, the instructor-supplied maximum must match it exactly; a request cannot override an official LO maximum. A null official maximum is not replaced with a guessed number.\n\nWhen a published global course year is linked locally, its complete official
 learning outcomes are mapped to `learning_outcomes` in the same transaction;
 manual local copy/paste of LO definitions is unnecessary.
 

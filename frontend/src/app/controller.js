@@ -1,6 +1,6 @@
 import { api, ApiError, clearAccessToken, isSignedIn, setAccessToken } from "../core/http/client.js";
 import { pages, canAccess, currentPage } from "./routes.js";
-import { el, notice } from "../shared/ui/index.js";
+import { el, notice, renderSafely } from "../shared/ui/index.js";
 import { createAppShell } from "../shared/layouts/app-shell.js";
 import { renderLogin, renderPasswordChange } from "../modules/auth/views.js";
 import { renderDashboard } from "../modules/dashboard/view.js";
@@ -99,7 +99,10 @@ function renderRoute() {
   shell.setPage(page);
   shell.focusContent();
   if (page.id === "dashboard") {
-    renderDashboard(shell.main, user, pages.filter(route => route.id !== "dashboard" && canAccess(route, user)));
+    renderSafely(shell.main,
+      () => renderDashboard(shell.main, user,
+        pages.filter(route => route.id !== "dashboard" && canAccess(route, user))),
+      { onRetry: renderRoute });
     return;
   }
 

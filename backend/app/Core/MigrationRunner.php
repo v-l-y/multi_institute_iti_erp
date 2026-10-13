@@ -36,6 +36,15 @@ final class MigrationRunner
             self::singleStatement($sql);
             $files[$filename] = ['sql' => $sql, 'sha256' => hash('sha256', $sql)];
         }
+        // Numbered forward upgrades must start at 001 with no silent gaps.
+        $expectedNumber = 1;
+        foreach (array_keys($files) as $filename) {
+            if ((int)substr($filename, 0, 3) !== $expectedNumber) {
+                throw new RuntimeException('Non-contiguous migration sequence; expected '
+                    . str_pad((string)$expectedNumber, 3, '0', STR_PAD_LEFT) . ' before ' . $filename);
+            }
+            $expectedNumber++;
+        }
         return $files;
     }
 
@@ -82,6 +91,9 @@ final class MigrationRunner
 
         try {
             $migrations = self::discover($directory);
+            if ($apply && $migrations === []) {
+                throw new RuntimeException('No reviewed numbered migration files are available. Populate and rehearse migrations before --apply.');
+            }
             $ledgerCheck = $db->query("SELECT COUNT(*) FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='iti_erp_schema_migrations'");
             $ledgerExists = (int) $ledgerCheck->fetchColumn() === 1;

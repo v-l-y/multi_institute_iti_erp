@@ -87,6 +87,9 @@ final readonly class FeeCashController
     {
         $institute = self::institute($actor);
         $date = self::text($r, 'closing_date', 10);
+        if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $date) !== 1) {
+            throw new HttpException('INVALID_INPUT', 'Real closing date required.', 422);
+        }
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         if (preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $date) !== 1
             || !$parsed || $parsed->format('Y-m-d') !== $date) {

@@ -203,6 +203,20 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Admissions, Seat Matrix and calendar registries
+
+| Method | Endpoint | Permission | Scope |
+| --- | --- | --- | --- |
+| GET | `/api/v1/enrollments` | `enrollment.view` | Institute-linked admission records, including verification/status fields |
+| GET | `/api/v1/seat-matrix/entries` | `seatmatrix.view` | Institute Seat Matrix entries and their version/source/status |
+| GET | `/api/v1/academic/calendars` | `calendar.view` | CTS training calendars linked through that institute's intakes |
+
+All use keyset pagination (`page_size` 1–100, `after_id`).
+Draft and final versions remain distinct; a read never certifies a source,
+marks an applicant eligible or allocates a seat. No other institute's records
+are returned. Enrollment creation/approval and governed source imports remain
+separate transactional workflows.
+
 ## Official results and certificates (read-only)
 
 | Method | Endpoint | Permission |

@@ -190,6 +190,13 @@ $checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
     new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'unreviewed']), $attendanceMarker))->status === 422;
 $checks[] = $kernel->handle(static fn() => $attendance->markAssigned(
     new Request(['session_id'=>1,'enrollment_id'=>2,'attended_minutes'=>60,'status'=>'present']), $attendanceAdmin))->status === 403;
+$admissionRegistry = new App\Modules\Admissions\AdmissionRegistryController(new App\Core\Database([]));
+$admissionReader = new AuthContext(7,3,1,'administrator',false,['administrator'],['enrollment.view','seatmatrix.view','calendar.view'],7,null);
+$checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(query:['page_size'=>'101']), $admissionReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(query:['after_id'=>['10']]), $admissionReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => $admissionRegistry->academicCalendars(new Request(query:['page_size'=>'0']), $admissionReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(), $catalogReader))->status === 403;
+$checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

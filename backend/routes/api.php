@@ -15,6 +15,7 @@ use App\Modules\Catalog\CatalogController;
 use App\Modules\Fees\FeeController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
+use App\Modules\Admissions\AdmissionRegistryController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -62,6 +63,10 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));
     $router->get('/api/v1/certificates', $guard->wrap([$officialRecords, 'certificates'], 'certificate.view'));
     $router->get('/api/v1/certificates/me', $guard->wrap([$officialRecords, 'ownCertificates'], 'certificate.view.own'));
+    $admissionRegistry = new AdmissionRegistryController($database);
+    $router->get('/api/v1/enrollments', $guard->wrap([$admissionRegistry, 'enrollments'], 'enrollment.view'));
+    $router->get('/api/v1/seat-matrix/entries', $guard->wrap([$admissionRegistry, 'seatMatrixEntries'], 'seatmatrix.view'));
+    $router->get('/api/v1/academic/calendars', $guard->wrap([$admissionRegistry, 'academicCalendars'], 'calendar.view'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));

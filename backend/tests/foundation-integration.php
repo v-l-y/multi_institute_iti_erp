@@ -51,6 +51,22 @@ try {
     $attendanceWrongStudent = new AuthContext(9203,9101,2,'other-student',false,['student'],['attendance.view.own'],null,9102);
     $attendanceWrongTeacher = new AuthContext(9202,9101,1,'other-staff',false,['instructor'],['attendance.view.assigned'],9102,null);
     $attendanceOtherInstitute = new AuthContext(9204,9102,3,'other-institute',false,['principal'],['attendance.view'],9102,null);
+    $admissionRegistry = new App\Modules\Admissions\AdmissionRegistryController($attendanceDatabase);
+    $admissionReader = new AuthContext(9202,9101,1,'local-institute-reader',false,['administrator'],
+        ['enrollment.view','seatmatrix.view','calendar.view'],9101,null);
+    $otherAdmissionReader = new AuthContext(9204,9102,3,'local-other-reader',false,['administrator'],
+        ['enrollment.view','seatmatrix.view','calendar.view'],9102,null);
+    foreach ([
+        ['enrollments','enrollments','status'],
+        ['seatMatrixEntries','entries','version_status'],
+        ['academicCalendars','intakes','calendar_status'],
+    ] as [$method,$key,$statusField]) {
+        $visible = $admissionRegistry->$method(new App\Http\Request(), $admissionReader)->body['data'][$key];
+        foundationCheck(count($visible)===1 && (int)$visible[0]['id']===9101, 'Expected one local '.$key.' record.');
+        foundationCheck($visible[0][$statusField]!==null, 'Source status must be retained for '.$key.'.');
+        $foreign = $admissionRegistry->$method(new App\Http\Request(), $otherAdmissionReader)->body['data'][$key];
+        foundationCheck($foreign===[], 'Cross-tenant '.$key.' registry leaked rows.');
+    }
     $firstPage = $attendanceController->ownRecords(new App\Http\Request(query:['page_size'=>'1']), $attendanceOwner)->body['data'];
     foundationCheck(count($firstPage['records'])===1 && (int)$firstPage['records'][0]['enrollment_id']===9101, 'Student own attendance must resolve its enrolled record.');
     foundationCheck($firstPage['next_cursor']!==null, 'Full attendance page needs composite cursor.');

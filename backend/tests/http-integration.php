@@ -332,6 +332,18 @@ try {
     expectStatus(http('POST', $markRoute, [
         'session_id'=>999999,'enrollment_id'=>999999,'attended_minutes'=>0,'status'=>'absent'
     ], $tokens['instructor']), 404);
+    foreach (['/api/v1/enrollments','/api/v1/seat-matrix/entries',
+              '/api/v1/academic/calendars'] as $route) {
+        expectStatus(http('GET', $route), 401);
+        expectStatus(http('GET', $route, token:$tokens['student']), 403);
+        $instituteView = http('GET', $route.'?page_size=10', token:$tokens['administrator']);
+        expectStatus($instituteView, 200);
+        verify(array_key_exists('next_after_id', $instituteView['body']['data']), 'Admissions registry missing its cursor.');
+        $otherView = http('GET', $route.'?page_size=10', token:$tokens['other-admin']);
+        expectStatus($otherView, 200);
+        expectStatus(http('GET', $route.'?page_size=101', token:$tokens['administrator']), 422);
+        expectStatus(http('GET', $route.'?after_id[]=1', token:$tokens['administrator']), 422);
+    }
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

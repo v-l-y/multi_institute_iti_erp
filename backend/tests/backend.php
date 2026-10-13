@@ -473,6 +473,23 @@ $checks[]=$kernel->handle(static fn()=>$batchSetup->createBatchYear(
 $checks[]=$kernel->handle(static fn()=>$batchSetup->createBatch(
     new Request(['seat_matrix_entry_id'=>1,'curriculum_id'=>1,'admission_rule_id'=>1,
         'batch_code'=>'X','starts_on'=>'2026-10-01','ends_on'=>'2027-05-30']),$accountStudent))->status===403;
+$planning=new App\Modules\Academic\Http\CalendarPlanningController(new App\Core\Database([]));
+$calendarManager=new AuthContext(1,3,1,'administrator',false,['administrator'],['calendar.manage'],1,null);
+$calendarReviewer=new AuthContext(2,3,1,'principal',false,['principal'],['calendar.manage'],2,null);
+$calendarInput=['batch_year_id'=>1,'session_date'=>'2026-10-05',
+    'component'=>'trade_theory','scheduled_minutes'=>60];
+$checks[]=$kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'scheduled_minutes'=>0]),$calendarManager))->status===422;
+$checks[]=$kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'session_date'=>'2026-02-30']),$calendarManager))->status===422;
+$checks[]=$kernel->handle(static fn()=>$planning->entry(
+    new Request([...$calendarInput,'component'=>'invalid']),$calendarManager))->status===422;
+$checks[]=$kernel->handle(static fn()=>$planning->review(
+    new Request(['batch_year_id'=>1,'reviewed_through'=>'2026-10-05',
+        'review_evidence_reference'=>'LOCAL']),$calendarManager))->status===403;
+$checks[]=$kernel->handle(static fn()=>$planning->review(
+    new Request(['batch_year_id'=>'1','reviewed_through'=>'2026-10-05',
+        'review_evidence_reference'=>'LOCAL']),$calendarReviewer))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

@@ -25,6 +25,7 @@ use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Academic\Http\AcademicCalendarController;
+use App\Modules\Academic\Http\BatchSetupController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -131,6 +132,17 @@ return static function (Router $router, Database $database): void {
     $admissionRegistry = new AdmissionRegistryController($database);
     $router->get('/api/v1/enrollments', $guard->wrap([$admissionRegistry, 'enrollments'], 'enrollment.view'));
     $router->get('/api/v1/seat-matrix/entries', $guard->wrap([$admissionRegistry, 'seatMatrixEntries'], 'seatmatrix.view'));
+    $batchSetup=new BatchSetupController($database);
+    $router->post('/api/v1/academic/curriculum-links', $guard->wrap(
+        [$batchSetup,'linkCurriculum'], 'curriculum.manage'));
+    $router->post('/api/v1/academic/curriculum-year-links', $guard->wrap(
+        [$batchSetup,'linkCurriculumYear'], 'curriculum.manage'));
+    $router->post('/api/v1/admission/rule-links', $guard->wrap(
+        [$batchSetup,'linkAdmissionRule'], 'batch.manage'));
+    $router->post('/api/v1/batches', $guard->wrap(
+        [$batchSetup,'createBatch'], 'batch.manage'));
+    $router->post('/api/v1/batches/years', $guard->wrap(
+        [$batchSetup,'createBatchYear'], 'batch.manage'));
     $router->get('/api/v1/academic/calendars', $guard->wrap([new AcademicCalendarController($database), 'index'], 'calendar.view'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/drafts', $guard->wrap([$operations, 'createDraftEnrollment'], 'enrollment.manage'));

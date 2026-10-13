@@ -283,6 +283,12 @@ $officialImportController = new App\Modules\OfficialRecords\OfficialImportContro
 $examSetupActor = new AuthContext(7, 3, 1, 'admin', false, ['administrator'], ['exam.eligibility.manage'], 7, null);
 $examPrincipal = new AuthContext(8, 3, 2, 'principal', false, ['principal'], ['exam.eligibility.manage'], 8, null);
 $officialImportActor = new AuthContext(8, 3, 2, 'principal', false, ['principal'], ['result.import', 'certificate.record'], 8, null);
+$officialNonPrincipal = new AuthContext(9, 3, 3, 'admin', false,
+    ['administrator'], ['result.import', 'certificate.record'], 9, null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$officialImportController->result(
+    new Request([]),$officialNonPrincipal)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$officialImportController->certificate(
+    new Request([]),$officialNonPrincipal)),403, __LINE__);
 $checks[] = $kernel->handle(static fn()=>$examCycleController->draft(
     new Request(['code'=>'CYCLE','cycle_type'=>'invalid']),$examSetupActor))->status===422;
 $checks[] = $kernel->handle(static fn()=>$examCycleController->draft(

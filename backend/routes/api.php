@@ -23,6 +23,7 @@ use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
+use App\Modules\Admissions\Http\SeatMatrixSetupController;
 use App\Modules\Academic\Http\AcademicCalendarController;
 use App\Http\Request;
 use App\Http\Response;
@@ -118,6 +119,15 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));
     $router->get('/api/v1/certificates', $guard->wrap([$officialRecords, 'certificates'], 'certificate.view'));
     $router->get('/api/v1/certificates/me', $guard->wrap([$officialRecords, 'ownCertificates'], 'certificate.view.own'));
+    $admissionSetup=new SeatMatrixSetupController($database);
+    $router->post('/api/v1/admission/intakes', $guard->wrap(
+        [$admissionSetup,'intake'], 'batch.manage'));
+    $router->post('/api/v1/seat-matrix/versions', $guard->wrap(
+        [$admissionSetup,'matrixDraft'], 'seatmatrix.draft'));
+    $router->post('/api/v1/seat-matrix/entries', $guard->wrap(
+        [$admissionSetup,'matrixEntry'], 'seatmatrix.draft'));
+    $router->post('/api/v1/seat-matrix/versions/finalize', $guard->wrap(
+        [$admissionSetup,'finalize'], 'seatmatrix.publish'));
     $admissionRegistry = new AdmissionRegistryController($database);
     $router->get('/api/v1/enrollments', $guard->wrap([$admissionRegistry, 'enrollments'], 'enrollment.view'));
     $router->get('/api/v1/seat-matrix/entries', $guard->wrap([$admissionRegistry, 'seatMatrixEntries'], 'seatmatrix.view'));

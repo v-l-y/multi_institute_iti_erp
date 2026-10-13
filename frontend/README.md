@@ -39,7 +39,7 @@ Do not open index.html with the file:// protocol: browser modules and the same-o
 - The browser uses the backend POST /api/v1/auth/login, bearer token and GET /api/v1/auth/me contracts.
 - Access tokens exist **only in JS memory** (not localStorage, sessionStorage, URL or cookies). A refresh requires signing in again.
 - Initial logins requiring a password update use POST /api/v1/auth/change-password; the backend invalidates sessions and the frontend returns to login.
-- API 401 clears the local session and hides the workspace. Logout requests POST /api/v1/auth/logout before clearing local state; if the backend is unreachable the frontend warns that server revocation was not confirmed.
+- API 401 clears the local session and hides the workspace. Logout starts POST /api/v1/auth/logout and immediately hides the local workspace; it then reports whether backend session revocation was confirmed.
 - Deny by default: navigation and create actions are displayed only for permissions returned by /auth/me. **Backend authorization is always the final enforcement layer.** No role names are treated as blanket grants; developer users cannot browse institute-private data by default.
 
 ## Implemented surfaces
@@ -91,7 +91,7 @@ has not been confirmed.
    always enforced by PHP backend permissions and tenant scope.
 3. Put domain-specific forms in domain modules, generic table/field/dialog
    foundations in `src/shared/` and `src/modules/registry/`.
-4. Prefer stable layouts and abort obsolete reads on route/session change.
+4. Keep register toolbars stable across refreshes, abort obsolete reads, and dispose dialogs when routes or sessions change.
 5. No mock official rules, statuses, registrations or government data.
 6. The local Node server is not a production deployment.
 

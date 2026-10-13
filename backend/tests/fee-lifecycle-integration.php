@@ -91,6 +91,22 @@ try {
         WHERE action_code='fee.cash.close.review' AND entity_id=".(int)$closing['closing_id'])->fetchColumn()===1,
         'Independent closing review audit missing.');
     $reject(fn()=>$cash->reviewClosing($approver,1,$closing['closing_id'],'reviewed','REPEAT'),'CASH_ALREADY_REVIEWED');
+    // A different institute with a counted cash discrepancy must not be
+    // marked "reviewed": retain the original immutable variance and flag it.
+    $db->exec("INSERT INTO auth_users (id,institute_id,username,password_hash)
+               VALUES (4,2,'other-principal','TEST')");
+    $otherCashier = new AuthContext(3,2,3,'other',false,['administrator'],$permissions,null,null);
+    $otherPrincipal = new AuthContext(4,2,4,'other-principal',false,['principal'],$permissions,null,null);
+    $difference = $cash->close($otherCashier,2,$previous,'0.00','1.00','TEST-DIFFERENCE');
+    $check($difference['difference_cents']===100,'Fixture variance must remain 100 cents.');
+    $reject(fn()=>$cash->reviewClosing($otherPrincipal,2,$difference['closing_id'],
+        'reviewed','INVALID-APPROVAL'),'CASH_DIFFERENCE_UNRESOLVED');
+    $cash->reviewClosing($otherPrincipal,2,$difference['closing_id'],
+        'requires_correction','INDEPENDENT-REVIEW-REQUIRED');
+    $check((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE institute_id=2 AND action_code='fee.cash.close.review'")->fetchColumn()===1,
+        'Discrepancy review must be audited without changing cash data.');
+
     echo "Finance lifecycle integration passed (".$count." checks).\n";
 } finally {
     $db->exec("DROP DATABASE ".$name);

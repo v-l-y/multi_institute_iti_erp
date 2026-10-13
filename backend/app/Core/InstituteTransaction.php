@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Http\HttpException;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /** Serialize institute operations before reading balances/counters, and audit in the same transaction. */

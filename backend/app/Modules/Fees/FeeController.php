@@ -7,7 +7,7 @@ use App\Core\Database;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /**

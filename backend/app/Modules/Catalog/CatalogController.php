@@ -7,7 +7,7 @@ use App\Core\Database;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /** Scoped read-only ITSU and batch registry; all official decisions remain with authorities. */

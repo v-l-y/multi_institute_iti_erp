@@ -4,7 +4,7 @@ namespace App\Modules\Fees;
 
 use App\Core\InstituteTransaction;
 use App\Http\HttpException;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /** Audited financial write service. HTTP callers must use FeeController; no direct SQL writes. */

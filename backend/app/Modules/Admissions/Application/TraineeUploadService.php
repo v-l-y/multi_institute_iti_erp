@@ -4,7 +4,7 @@ namespace App\Modules\Admissions\Application;
 
 use App\Http\HttpException;
 use App\Modules\Admissions\Domain\TraineeUploadValidator;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /** Produces a validated local payload. Does not authenticate to or submit to a government portal. */

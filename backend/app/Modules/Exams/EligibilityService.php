@@ -4,7 +4,7 @@ namespace App\Modules\Exams;
 
 use App\Core\InstituteTransaction;
 use App\Http\HttpException;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 /** Freeze a locally calculated eligibility snapshot from reviewed source-backed records. */

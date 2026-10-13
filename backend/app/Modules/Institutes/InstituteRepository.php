@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace App\Modules\Institutes;
 
 use App\Http\HttpException;
-use App\Modules\Auth\AuthContext;
+use App\Modules\Auth\Domain\AuthContext;
 use PDO;
 
 final readonly class InstituteRepository

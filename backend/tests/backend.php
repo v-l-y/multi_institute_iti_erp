@@ -445,6 +445,24 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->act
     new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$tradeController->index(
     new Request(query:['page_size'=>'101']),$developerActor)),422, __LINE__);
+$calendarMasterController=new App\Modules\Regulatory\TrainingCalendarMasterController(new App\Core\Database([]));
+$calendarDraft=['admission_year'=>2026,'session_code'=>'LOCAL','revision_code'=>'V1',
+    'source_document_id'=>1,'training_starts_on'=>'2026-08-01',
+    'training_ends_on'=>'2027-05-01'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->draft(
+    new Request([...$calendarDraft,'training_ends_on'=>'2026-01-01']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->draft(
+    new Request($calendarDraft),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->milestone(
+    new Request(['calendar_id'=>1,'milestone_code'=>'CLOSE',
+        'milestone_date'=>'2026-02-30','description'=>'LOCAL',
+        'document_section_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->portalShift(
+    new Request(['calendar_id'=>1,'session_part'=>'unsupported',
+        'physical_shift_no'=>1,'portal_shift_no'=>1,
+        'document_section_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$calendarMasterController->publish(
+    new Request(['calendar_id'=>'1','review_reference'=>'LOCAL']),$developerActor)),422, __LINE__);
 $curriculumMasterController=new App\Modules\Regulatory\CurriculumMasterController(new App\Core\Database([]));
 $curriculumDraft=['global_trade_id'=>1,'source_document_id'=>1,'version_code'=>'LOCAL',
     'duration_months'=>12,'nsqf_level'=>'4.0','unit_strength'=>20,'effective_from'=>'2026-01-01'];

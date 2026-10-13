@@ -457,6 +457,46 @@ try {
     verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
         WHERE action_code IN ('auth.user.provision','auth.user.disable','auth.user.role.revoke','auth.user.password.reset')")->fetchColumn()>=5,
         'Provisioning actions must be audited.');
+    $contactUrl='/api/v1/institute/contact';
+    expectStatus(http('POST',$contactUrl,['contact_phone'=>'abc'],$tokens['principal']),422);
+    expectStatus(http('POST',$contactUrl,['mis_code'=>'NEVER-OVERRIDE'],$tokens['principal']),422);
+    expectStatus(http('POST',$contactUrl,['contact_phone'=>'+91-1234567890',
+        'contact_email'=>'local@example.test'],$tokens['principal']),200);
+    $contactProfile=http('GET','/api/v1/institute/profile',token:$tokens['principal']);
+    expectStatus($contactProfile,200);
+    verify($contactProfile['body']['data']['contact_email']==='local@example.test',
+        'Institute contact edit not visible in profile.');
+    $profileUrl='/api/v1/staff/profile';
+    expectStatus(http('POST',$profileUrl,['staff_id'=>$createdId,
+        'full_name'=>'Updated Instructor','designation'=>'Trade Instructor'],$tokens['student']),403);
+    expectStatus(http('POST',$profileUrl,['staff_id'=>$createdId,
+        'full_name'=>'Updated Instructor','designation'=>'Trade Instructor'],$tokens['other-admin']),404);
+    expectStatus(http('POST',$profileUrl,['staff_id'=>$createdId,
+        'full_name'=>'Updated Instructor','designation'=>'Trade Instructor'],$tokens['administrator']),200);
+    $qualUrl='/api/v1/staff/qualifications';
+    $staffQual=['staff_id'=>$createdId,'qualification_type'=>'ITI',
+        'specialization'=>'Electrician','certificate_reference'=>'LOCAL-STAFF-DOCUMENT',
+        'experience_months'=>12];
+    expectStatus(http('POST',$qualUrl,[...$staffQual,'experience_months'=>'12'],$tokens['administrator']),422);
+    expectStatus(http('POST',$qualUrl,$staffQual,$tokens['other-admin']),404);
+    $createdStaffQual=http('POST',$qualUrl,$staffQual,$tokens['administrator']);
+    expectStatus($createdStaffQual,201);
+    $staffQualificationId=(int)$createdStaffQual['body']['data']['qualification_id'];
+    verify($staffQualificationId>0 &&
+        $db->query("SELECT verified_on FROM staff_qualifications WHERE id=$staffQualificationId")->fetchColumn()===null,
+        'Unreviewed staff evidence must not become verified.');
+    expectStatus(http('POST',$qualUrl,$staffQual,$tokens['administrator']),409);
+    $exitUrl='/api/v1/staff/exit';
+    $staffExit=['staff_id'=>$createdId,'left_on'=>'2026-10-01','reference'=>'LOCAL-EXIT'];
+    expectStatus(http('POST',$exitUrl,[...$staffExit,'left_on'=>'2026-02-30'],$tokens['administrator']),422);
+    expectStatus(http('POST',$exitUrl,$staffExit,$tokens['other-admin']),404);
+    expectStatus(http('POST',$exitUrl,$staffExit,$tokens['administrator']),200);
+    verify($db->query("SELECT left_on FROM staff WHERE id=$createdId")->fetchColumn()==='2026-10-01',
+        'Staff exit date missing.');
+    expectStatus(http('POST',$exitUrl,$staffExit,$tokens['administrator']),409);
+    verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code='staff.employment.exit' AND entity_id=$createdId")->fetchColumn()===1,
+        'One staff exit should create exactly one audit event.');
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

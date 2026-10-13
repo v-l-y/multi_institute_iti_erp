@@ -58,8 +58,10 @@ final readonly class CalendarPlanningService
                 if ($allowance===0 || $minutes>$allowance) {
                     throw new HttpException('SYLLABUS_HOURS_LIMIT','Component exceeds published CTS yearly teaching minutes.',409);
                 }
+                // The InstituteTransaction already holds the institute row lock,
+                // serializing all calendar writers without locking an aggregate.
                 $q=$this->db->prepare('SELECT SUM(scheduled_minutes) FROM training_calendar_entries
-                    WHERE batch_year_id=? AND institute_id=? AND component=? FOR UPDATE');
+                    WHERE batch_year_id=? AND institute_id=? AND component=?');
                 $q->execute([$year,$institute,$component]);
                 $scheduled=(int)$q->fetchColumn();
                 if ($scheduled+$minutes>$allowance) {

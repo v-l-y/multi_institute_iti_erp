@@ -40,6 +40,20 @@
             feedback.js              empty/loading/error states
             table.js                 reusable tabular view
             toast.js                 transient notices
+            buttons.js               native actions and action menus
+            permissions.js           frontend permission visibility
+            pagination.js            cursor-aware pager
+            filters.js               loaded-page search/filter/sort
+            validation.js            generic native form validation
+            select.js                select/multiselect fields
+            dates.js                 native date/date-range controls
+            file-upload.js           file selection and size feedback
+            dialog.js                generic modal and confirmation
+            tabs.js                  keyboard navigable tablist
+            accordion.js             native disclosure controls
+            skeleton.js              loading placeholders
+            errors.js                error panels and recoverable boundaries
+            README.md                shared UI catalog and API contracts
         modules/
           auth/
             views.js                 sign in and forced password change
@@ -75,6 +89,7 @@
           auth.css
           shell.css
           components.css
+          shared-ui.css              reusable UI library styling
           responsive.css
 
 No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party runtime is installed or required by this foundation. The chosen architecture can be migrated deliberately later, without implying a framework selection now.
@@ -88,7 +103,7 @@ No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party run
 5. **View:** each route descriptor contains the exact backend endpoint and columns; views call core/http/client.js. Dashboard shows *available modules*, not fake numeric KPIs.
 6. **Register:** modules/registry/register-view.js owns cursor, search, request abort and active dialog; it is disposed when the route or session changes. Refreshing records preserves the register toolbar and search focus. Table search covers **only the currently loaded page**.
 7. **Mutation:** module-owned staff and student field configs feed the shared create dialog; POST requests go to existing guarded PHP endpoints. The dialog guards duplicate submits, blocks dismissal during a save, and closes/aborts stale UI requests when disposed. Aborting a browser request does not guarantee that an already-sent backend mutation was rolled back.
-8. **Styling:** styles.css imports the six small stylesheets in cascade order. All UI uses shared tokens and components.
+8. **Styling:** styles.css imports seven stylesheets in cascade order, including shared-ui.css. All UI uses shared tokens and reusable components.
 9. **Local server:** dev-server.mjs serves an explicit root entry and restricted /src/*.js and /src/*.css file paths. It proxies /api/v1/* to the configured backend. Local Host and write-Origin checks reduce DNS rebinding/cross-origin write risk; proxy request bodies are size-bounded. It is loopback-only and not a production server.
 
 ## Foundation mapping
@@ -136,6 +151,12 @@ Static inspection identified and addressed these issues in the frontend foundati
 6. Review color contrast with the browser accessibility tools and confirm screen reader landmark/heading order.
 
 No CI, browser automation, Docker or local backend tests have been run for this hardening pass.
+
+## Shared UI completion
+
+The dependency-free shared component catalog, module exports and styling are implemented. Refer to [src/shared/ui/README.md](../src/shared/ui/README.md) for exact APIs and limits. Existing registers and Staff/Student creation dialogs use these shared primitives. Additional controls (tabs, date ranges, file selection, confirmations, accordion) are library-ready, but **not** tied to unfinished module endpoints.
+
+Static verification and full browser/UAT validation are separate from implementation. No automated test or CI command was run for this phase.
 
 ## Current status / non-goals
 

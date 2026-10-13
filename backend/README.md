@@ -65,6 +65,26 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## CTS daily teaching calendar and Principal review
+
+`POST /api/v1/academic/calendar-entries` requires `calendar.manage`,
+`batch_year_id`, `session_date`, `component` and
+`scheduled_minutes`. The component must be one of trade practical,
+trade theory, employability or OJT project, fit within the published
+Global Curriculum Year component-minute allocation, and be
+scheduled on a day inside the local batch course year. Reviewed
+days and duplicate calendar slots cannot be changed through this
+draft-entry API.
+
+`POST /api/v1/academic/calendars/review` requires Principal role
+and `calendar.manage`, with `batch_year_id`,
+`reviewed_through` and `review_evidence_reference`. The service
+requires actual scheduled rows, advances the reviewed-through date
+without presuming unchecked future days were reviewed, and writes
+a transactional institute audit event. The existing
+`/api/v1/attendance/sessions` action then uses this reviewed
+entry as its authoritative duration and checks the NIMS mapping.
+
 ## Published-curriculum and CTS batch setup
 
 `POST /api/v1/academic/curriculum-links` accepts

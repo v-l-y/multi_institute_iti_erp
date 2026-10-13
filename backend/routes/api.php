@@ -26,6 +26,7 @@ use App\Modules\Catalog\CatalogController;
 use App\Modules\Catalog\ItsuSetupController;
 use App\Modules\Fees\Http\FeeController;
 use App\Modules\Fees\Http\FeeSetupController;
+use App\Modules\Fees\Http\FeeCashController;
 use App\Modules\Attendance\AttendanceController;
 use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
@@ -134,6 +135,9 @@ return static function (Router $router, Database $database): void {
     $catalog = new CatalogController($database);
     $router->get('/api/v1/itsu', $guard->wrap([$catalog, 'itsu'], 'tradeunit.view'));
     $router->get('/api/v1/batches', $guard->wrap([$catalog, 'batches'], 'batch.view'));
+    $feeCash = new FeeCashController($database);
+    $router->post('/api/v1/fees/cash/transfers', $guard->wrap([$feeCash, 'movement'], 'fee.record'));
+    $router->post('/api/v1/fees/cash/close', $guard->wrap([$feeCash, 'close'], 'fee.record'));
     $feeSetup = new FeeSetupController($database);
     $router->post('/api/v1/fees/heads', $guard->wrap([$feeSetup, 'head'], 'fee.record'));
     $router->post('/api/v1/fees/structures', $guard->wrap([$feeSetup, 'structure'], 'fee.record'));

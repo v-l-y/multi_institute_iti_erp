@@ -220,6 +220,14 @@ try {
     expectStatus($studentsB, 200);
     verify(!in_array('LOCAL-DRAFT-02', array_column($studentsB['body']['data']['students'], 'local_student_code'), true), 'Cross-institute student data leaked.');
     expectStatus(http('GET', '/api/v1/students?page_size=101', token: $tokens['administrator']), 422);
+    foreach (['/api/v1/itsu','/api/v1/batches'] as $route) {
+        expectStatus(http('GET', $route), 401);
+        expectStatus(http('GET', $route, token: $tokens['student']), 403);
+        $listed = http('GET', $route . '?page_size=100', token: $tokens['instructor']);
+        expectStatus($listed, 200);
+        verify(isset($listed['body']['data']['next_after_id']), 'Pagination metadata missing.');
+        expectStatus(http('GET', $route . '?page_size=0', token: $tokens['instructor']), 422);
+    }
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

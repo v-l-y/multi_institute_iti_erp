@@ -139,6 +139,12 @@ $checks[] = $kernel->handle(static fn() => $studentController->create(new Reques
 $checks[] = $kernel->handle(static fn() => $studentController->create(new Request($draft), $context))->status === 403;
 $checks[] = $kernel->handle(static fn() => $studentController->index(new Request(query: ['after_id'=>['1']]), $studentWriter))->status === 422;
 $checks[] = $kernel->handle(static fn() => $studentController->own(new Request(), $studentWriter))->status === 403;
+$catalog = new App\Modules\Catalog\CatalogController(new App\Core\Database([]));
+$catalogReader = new AuthContext(1, 3, 1, 'test', false, ['instructor'], ['tradeunit.view','batch.view'], 7, null);
+$checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(query: ['page_size' => '101']), $catalogReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(query: ['after_id' => ['5']]), $catalogReader))->status === 422;
+$checks[] = $kernel->handle(static fn() => $catalog->itsu(new Request(), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $catalog->batches(new Request(), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

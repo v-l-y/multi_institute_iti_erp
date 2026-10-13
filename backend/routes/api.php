@@ -11,6 +11,7 @@ use App\Modules\Institutes\InstituteRepository;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\StaffController;
 use App\Modules\Students\StudentController;
+use App\Modules\Catalog\CatalogController;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -35,6 +36,9 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));
     $router->post('/api/v1/students', $guard->wrap([$students, 'create'], 'student.manage'));
+    $catalog = new CatalogController($database);
+    $router->get('/api/v1/itsu', $guard->wrap([$catalog, 'itsu'], 'tradeunit.view'));
+    $router->get('/api/v1/batches', $guard->wrap([$catalog, 'batches'], 'batch.view'));
     $operations = new OperationsController($database);
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));

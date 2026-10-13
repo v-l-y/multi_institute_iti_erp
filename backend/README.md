@@ -155,6 +155,20 @@ transaction commit/rollback/nesting, and readiness during a database outage.
 These checks run against the isolated Docker test stack; unimplemented workflows
 are listed under Future work below and are not counted as passing tests.
 
+## ITSU and batch read APIs
+
+`GET /api/v1/itsu` requires `tradeunit.view`. It joins institute ITSU
+revisions to their global Trade and Shift masters; current official trade
+names may be `NULL` if no active reviewed revision exists. Historical
+affiliation/status records are retained in the output without turning them
+into new admission approvals.
+
+`GET /api/v1/batches` requires `batch.view`. It exposes the existing
+institute-owned intake, calendar, seat matrix, capacity and status pointers
+without changing their regulatory meaning. Both endpoints use cursor
+pagination (`page_size`, `after_id`; maximum 100). Neither endpoint can
+create or approve trade units, shifts, seat matrices or batches.
+
 ## Local student registry
 
 `GET /api/v1/students` requires `student.view` and returns only institute-owned

@@ -148,7 +148,7 @@ test('tenant isolation: qualification from institute B cannot replace enrollment
   rejectsSql('UPDATE enrollments SET qualification_id=9102 WHERE id=9101;', 1452);
 });
 
-test('NIMS mapping: active instructor cannot drop linked verified identity', { skip }, () => {
+test('NIMS mapping: active instructor cannot drop the staff-linked IPRN identity', { skip }, () => {
   rejectsSql('UPDATE instructor_mappings SET identity_id=NULL WHERE id=9101;', '(?:3819|4025)');
 });
 

@@ -79,3 +79,45 @@ File inputs, date range, checkbox group, tabs, accordion, confirmations and asyn
 The reusable component implementation and barrel exports above are committed. This does **not** certify production readiness, WCAG AA conformance, or finished business workflows. Local browser execution, keyboard/assistive technology review, security validation, UAT and backend integration remain necessary before approval.
 
 **No CI, automated tests, Docker checks, or local runtime execution were performed**, in accordance with the user's explicit instruction to run them only on request.
+
+
+## ERP composition patterns (additional components)
+
+These patterns deliberately operate on caller-provided values. They do not create any Bihar ITI policy, admission decision, calendar milestone or government status.
+
+| Pattern | Exports | What it provides |
+| --- | --- | --- |
+| Form layout | formSection, formGrid, formActions, readForm | Accessible section legends, responsive multi-column layouts, save/cancel state, native FormData including multiselect |
+| Staff/trade/batch master selectors | masterLookup | Async server-backed native select with user search, refresh, abort and stale-request protection; caller must provide permitted loader |
+| Record view | recordDetails, openRecordDetails, openDrawer | Explicit-field detail grid, native modal or side panel, focus/close behavior |
+| Metrics | statCards | Real backend metric values only, no fake KPI calculations |
+| Audit/approval history presentation | activityTimeline, auditDiff | Supplied event timeline and before/after field differences, never an approval engine |
+| Academic display | timetableGrid, monthCalendar | Explicit weekday/slot and ISO-date data; no inferred shift, holiday or session rules |
+| Attendance display | attendanceMatrix | Read-only matrix over provided people/dates/statuses, no computed eligibility |
+| Document display | documentList | Supplied metadata and authorized caller-supplied actions; no guessed storage link |
+| Workflow navigation | progressSteps, formWizard | Visual steps and stable multi-step form state; owning module supplies real submit logic |
+| Specialized fields | textareaField, numberField, amountField, toggleField, radioFields, timeField | Native text, amount, flag, radio and time fields; no automatic financial rules |
+| Register columns | columnChooser | User-visible column selection; hides presentation only, not a security filter |
+| Download/print | csvText, downloadCurrentPageCsv, printCurrentPage | Explicit selected-column, loaded-page output requiring a caller-provided authorization predicate; CSV formula injection mitigation |
+| Repeated entries | editableGrid | Add/remove/edit rows for module-owned forms, with native validity; never auto-calculates/saves |
+| Navigation | breadcrumbs, filterChips, bulkActions | Accessible supplied routes, active filter display and callback-controlled selected-row actions |
+
+### Operational boundaries
+
+**Backend verified:** Shared controls accept the actual backend-supplied values and exact field definitions. \`masterLookup\` has no built-in API URL; its \`loadOptions(query, {signal})\` callback must return \`[{value, label}]\` only from an authorized institute/platform endpoint. Always call \`lookup.dispose()\` when leaving the module. Search result labels and IDs are not persisted in browser storage.
+
+**Limited to the current loaded page:** Table search/sort, column selection, record view, CSV and print all operate on the returned rows only. CSV/print are *not automatically available in the ERP screen*. Any module exposing them must check an explicitly granted export permission and any privacy rules server-side as well. A locally downloaded CSV is not certified for SIDH/NIMS/ITICAT government submission.
+
+**Read-only by default:** Timetable, monthly academic calendar, attendance matrix, history, audit diff and document list show records; they cannot certify attendance, mark exam eligibility, publish an academic calendar, issue results or edit source documents.
+
+**No invented workflow:** Wizard step count and visible step labels come from the owning module. \`progressSteps\` never means official approval. A client-side confirm dialog alone is not an authorization/independent approval control.
+
+### Currently integrated screens
+
+- Existing authenticated registers: shared search/sort/pagination/skeleton/errors, column chooser, row **View** dialog, table and permission-aware Add action.
+- Staff and Students: shared labels, buttons, forms and modal validation.
+- Other components are exported and CSS-ready, but not wired to unfinished Fees, Attendance, Admission, Assessments, Document storage, OJT or Exams workflows. That integration requires their verified PHP endpoints, source fields and user permissions.
+
+### Verification still required
+
+No CI/automatic test, local Node startup, real Docker/backend, browser UAT, WCAG audit, export authorization review or accessibility certification has been executed for this extension. Code review and repository file verification alone do not prove those behaviors work in a browser. Do not mark the full ERP as production-ready on this basis.

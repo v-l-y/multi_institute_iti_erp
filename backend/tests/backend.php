@@ -78,6 +78,13 @@ $checks[] = !\App\Modules\Staff\Domain\StaffRecord::validCategoryAndJoiningDate(
 $checks[] = \App\Modules\Students\Domain\StudentIdentity::validIdentityModeAndBirthDate('non_aadhaar', '2006-01-18');
 $checks[] = !\App\Modules\Students\Domain\StudentIdentity::validIdentityModeAndBirthDate('aadhaar', '2006-02-30');
 $checks[] = \App\Modules\Fees\Domain\Money::cents('100.01') === 10001;
+$kolkataCashBounds = \App\Modules\Fees\Application\FeeCashService::dayBounds('2026-10-12', 'Asia/Kolkata');
+$checks[] = $kolkataCashBounds[0] === '2026-10-11 18:30:00';
+$checks[] = $kolkataCashBounds[1] === '2026-10-12 18:30:00';
+$dstCashBounds = \App\Modules\Fees\Application\FeeCashService::dayBounds('2026-03-08', 'America/New_York');
+$checks[] = $dstCashBounds[0] === '2026-03-08 05:00:00';
+$checks[] = $dstCashBounds[1] === '2026-03-09 04:00:00';
+
 $checks[] = \App\Modules\Academic\Domain\CalendarPage::integer(['page_size'=>'3'], 'page_size', 50, 100) === 3;
 $checks[] = \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN value INT;') === 'ALTER TABLE sample ADD COLUMN value INT';
 $checks[] = \App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations') === [];

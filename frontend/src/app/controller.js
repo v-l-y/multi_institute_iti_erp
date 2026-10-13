@@ -6,6 +6,7 @@ import { renderLogin, renderPasswordChange } from "../modules/auth/views.js";
 import { renderDashboard } from "../modules/dashboard/view.js";
 import { renderInstituteProfile } from "../modules/institutes/profile.js";
 import { createRegistryView } from "../modules/registry/register-view.js";
+import { createWorkspaceView } from "../modules/workspace/view.js";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("ERP application root not found.");
@@ -114,7 +115,9 @@ function renderRoute() {
     return;
   }
 
-  activeView = createRegistryView(page, shell.main, user);
+  activeView = page.type === "workspace"
+    ? createWorkspaceView(page, shell.main, user)
+    : createRegistryView(page, shell.main, user);
   void activeView.mount();
 }
 

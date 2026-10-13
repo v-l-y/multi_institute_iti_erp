@@ -141,6 +141,7 @@ return static function (Router $router, Database $database): void {
     $feeCash = new FeeCashController($database);
     $router->post('/api/v1/fees/cash/transfers', $guard->wrap([$feeCash, 'movement'], 'fee.record'));
     $router->post('/api/v1/fees/cash/close', $guard->wrap([$feeCash, 'close'], 'fee.record'));
+    $router->post('/api/v1/fees/cash/close/review', $guard->wrap([$feeCash, 'reviewClosing'], 'fee.refund'));
     $feeSetup = new FeeSetupController($database);
     $router->post('/api/v1/fees/heads', $guard->wrap([$feeSetup, 'head'], 'fee.record'));
     $router->post('/api/v1/fees/structures', $guard->wrap([$feeSetup, 'structure'], 'fee.record'));

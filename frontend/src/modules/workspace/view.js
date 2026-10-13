@@ -6,6 +6,7 @@ import {
 import { workspace } from "./contracts.js";
 import { permittedAction, openActionDialog } from "./action-dialog.js";
 import { openUploadDialog, downloadDocument } from "./documents.js";
+import { feeReceiptTools, feeStatementExport } from "./fee-receipts.js";
 
 const positive = value => Number.isSafeInteger(Number(value)) && Number(value)>0;
 function allowed(user, item) {
@@ -33,6 +34,19 @@ export function createWorkspaceView(page, main, user) {
   const filterSlot=el("div");
   const requiredSlot=el("div");
   const actionsSlot=el("div",{className:"heading-actions"});
+  const receiptSlot=el("div");
+  const exportSlot=el("div");
+  const exportController=new AbortController();
+  if(page.workspace==="fees"){
+    const receipt=feeReceiptTools(user,{signal:exportController.signal});
+    if(receipt)receiptSlot.append(receipt);
+    const exportAction=feeStatementExport(user,{
+      signal:exportController.signal,
+      getStudentId:()=>requiredInput?.value,
+      onError:message=>feedback.replaceChildren(notice("Export unavailable",message,"error"))
+    });
+    if(exportAction)exportSlot.append(exportAction);
+  }
   let actionSelect;
   if(actions.length) {
     actionSelect=el("select",{"aria-label":"Choose institute action",className:"table-filter-select"},
@@ -67,7 +81,7 @@ export function createWorkspaceView(page, main, user) {
     requiredSlot,filterSlot);
   main.replaceChildren(
     pageHeader(config.title,config.description,el("div",{className:"heading-actions"},refresh,actionsSlot)),
-    feedback,
+    receiptSlot,exportSlot,feedback,
     el("section",{className:"surface register-surface"},
       tools,panel,el("div",{className:"register-bottom"},count,pager.node))
   );
@@ -76,6 +90,7 @@ export function createWorkspaceView(page, main, user) {
     rows=[];nextCursor=null;cursorHistory=[{}];pageIndex=0;
     filterSlot.replaceChildren();requiredSlot.replaceChildren();
     requiredInput=null;
+    if(exportSlot.firstElementChild) exportSlot.hidden=!["statement","own-statement"].includes(active?.id);
     if(!active)return;
     filter=tableFilters({columns:active.columns,onChange:()=>render()});
     columns=columnChooser(active.columns,{requiredKeys:["id"],onChange:()=>render()});
@@ -189,7 +204,7 @@ export function createWorkspaceView(page, main, user) {
   return {
     mount(){return load();},
     dispose(){
-      disposed=true;pending?.abort();downloadPending?.abort();
+      disposed=true;pending?.abort();downloadPending?.abort();exportController.abort();
       if(modal?.open)modal.close();
     }
   };

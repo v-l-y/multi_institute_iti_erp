@@ -130,6 +130,9 @@ try {
     $db->exec("INSERT INTO formative_assessments (institute_id,enrollment_id,batch_id,batch_year_id,curriculum_year_id,learning_outcome_id,assessed_on,max_marks,obtained_marks,evidence_reference,assessor_id,locked_on) VALUES (9101,9101,9101,9101,9101,9101,'2026-09-01',100,80,'LOCAL',9101,UTC_TIMESTAMP())");
     $db->exec("UPDATE batch_years SET calendar_status='reviewed',calendar_reviewed_through='2026-09-01',formative_method='points_ratio',formative_scheme_source_id=9101 WHERE id=9101");
     $db->exec("INSERT INTO training_calendar_entries (institute_id,batch_year_id,calendar_id,session_date,component,scheduled_minutes) VALUES (9101,9101,9101,'2026-09-01','trade_theory',60)");
+    // The additional locally marked and locked session must also be in the
+    // reviewed test calendar before the eligibility reconciliation snapshot.
+    $db->exec("INSERT INTO training_calendar_entries (institute_id,batch_year_id,calendar_id,session_date,component,scheduled_minutes) VALUES (9101,9101,9101,'2026-09-02','trade_theory',60)");
     $db->exec("INSERT INTO global_exam_rule_versions (id,source_document_id,code,cycle_type,minimum_attendance,minimum_formative,principal_relaxation_cap,requires_prn,requires_cbt_fee,requires_practical_fee,requires_ojt_for_certificate,practical_upload_hours,effective_from,status) VALUES (9101,9101,'LOCAL','mains',60,60,0,0,0,0,0,24,'2026-01-01','published')");
     $db->exec("INSERT INTO exam_rule_versions (id,institute_id,global_exam_rule_id,cycle_type) VALUES (9101,9101,9101,'mains')");
     $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9101,9101,'LOCAL','mains',9101,9101,'2026-09-01','2026-09-20','{}','eligibility_open')");

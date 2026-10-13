@@ -708,3 +708,18 @@ The following features are not implemented or certified by the current tests:
 - Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
 - Governed OJT, exam, official-result and certificate imports/revisions.
 - Full recovery drills and reconciliation for a populated application database.
+
+## Source-backed admission intake revisions
+
+`POST /api/v1/admission/intake-revisions` requires `admission.intake.manage` and accepts
+`intake_id`, institute-linked `regulatory_source_id`, `revision_code`, real
+`opens_on` / `closes_on` dates, `approval_reference`, and optional
+`supersedes_id`. The source must be a locally reviewed published official
+reference with SHA-256. New records remain `draft`; no windows are guessed.
+
+`POST /api/v1/admission/intake-revisions/publish` requires the Principal role
+and `admission.intake.manage`. `intake_revision_id` and `review_reference`
+are required. The current published revision of the same intake, if any, must
+be specified as `supersedes_id` when the draft is created. Publication and
+supersession are one audited institute transaction; old records are retained.
+This is institute review of source evidence, not government issuance.

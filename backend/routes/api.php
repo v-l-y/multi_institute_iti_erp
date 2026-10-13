@@ -26,6 +26,7 @@ use App\Modules\Attendance\AttendanceSessionController;
 use App\Modules\OfficialRecords\OfficialRecordsController;
 use App\Modules\Admissions\Http\AdmissionRegistryController;
 use App\Modules\Admissions\Http\SeatMatrixSetupController;
+use App\Modules\Admissions\Http\IntakeRevisionController;
 use App\Modules\Academic\Http\AcademicCalendarController;
 use App\Modules\Academic\Http\BatchSetupController;
 use App\Modules\Academic\Http\CalendarPlanningController;
@@ -123,6 +124,11 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/exams/results/me', $guard->wrap([$officialRecords, 'ownResults'], 'result.view.own'));
     $router->get('/api/v1/certificates', $guard->wrap([$officialRecords, 'certificates'], 'certificate.view'));
     $router->get('/api/v1/certificates/me', $guard->wrap([$officialRecords, 'ownCertificates'], 'certificate.view.own'));
+    $intakeRevisions=new IntakeRevisionController($database);
+    $router->post('/api/v1/admission/intake-revisions', $guard->wrap(
+        [$intakeRevisions,'draft'], 'admission.intake.manage'));
+    $router->post('/api/v1/admission/intake-revisions/publish', $guard->wrap(
+        [$intakeRevisions,'publish'], 'admission.intake.manage'));
     $admissionSetup=new SeatMatrixSetupController($database);
     $router->post('/api/v1/admission/intakes', $guard->wrap(
         [$admissionSetup,'intake'], 'batch.manage'));

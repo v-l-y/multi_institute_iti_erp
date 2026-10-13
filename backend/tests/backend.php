@@ -456,6 +456,25 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$itsuController->crea
         'regulatory_source_id'=>1,'sanctioned_capacity'=>'20',
         'approval_reference'=>'LOCAL','valid_from'=>'2026-10-01',
         'affiliation_status'=>'approved','training_mode'=>'CTS']),$itsuWriter)),422, __LINE__);
+$intakeRevisionController=new App\Modules\Admissions\Http\IntakeRevisionController(new App\Core\Database([]));
+$intakeRevisionWriter=new AuthContext(1,3,1,'administrator',false,['administrator'],
+    ['admission.intake.manage'],7,null);
+$intakeRevisionPrincipal=new AuthContext(2,3,1,'principal',false,['principal'],
+    ['admission.intake.manage'],2,null);
+$intakeRevisionInput=['intake_id'=>1,'regulatory_source_id'=>1,'revision_code'=>'LOCAL',
+    'opens_on'=>'2026-07-01','closes_on'=>'2026-08-01','approval_reference'=>'LOCAL'];
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'intake_id'=>'1']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'opens_on'=>'2026-02-30']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request([...$intakeRevisionInput,'closes_on'=>'2026-06-30']),$intakeRevisionWriter)),422, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->draft(
+    new Request($intakeRevisionInput),$accountStudent)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->publish(
+    new Request(['intake_revision_id'=>1,'review_reference'=>'LOCAL']),$intakeRevisionWriter)),403, __LINE__);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$intakeRevisionController->publish(
+    new Request(['intake_revision_id'=>'1','review_reference'=>'LOCAL']),$intakeRevisionPrincipal)),422, __LINE__);
 $matrixController=new App\Modules\Admissions\Http\SeatMatrixSetupController(new App\Core\Database([]));
 $matrixActor=new AuthContext(1,3,1,'admin',false,['administrator'],[
     'batch.manage','seatmatrix.draft'],1,null);

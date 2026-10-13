@@ -11,7 +11,7 @@ All shared controls are implemented using native HTML elements, CSS and dependen
 | DOM / formatting | el, formatValue | Constructs DOM nodes with text nodes, avoiding interpolation of API text into HTML |
 | Actions | button, actionMenu | Native buttons, busy/disabled state, details-based accessible action list |
 | Permission-aware action | hasPermission, permissionButton | Hides actions without explicit permission and matching institute/platform scope; **not server authorization** |
-| Table | dataTable | Explicit columns, caption, header semantics, scrollable region, status cell formatting |
+| Table | dataTable | Explicit columns, caption, header semantics, scrollable region, status cell formatting; optional row selection and caller-owned actions |
 | Page search/filter/sort | tableFilters, filterRows | Local current-page search, explicit-value filters and numeric-aware string sorting, no fake DB-wide results |
 | Cursor pager | cursorPagination | Previous/next and page position, no invented total count |
 | Form basics | field, selectField, multiSelectField | Labels, required attributes, hints, native select and checkbox groups |

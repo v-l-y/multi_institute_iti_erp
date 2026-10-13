@@ -788,3 +788,27 @@ marks are guessed. Platform publication means reviewed institute ERP evidence,
 When a published global course year is linked locally, its complete official
 learning outcomes are mapped to `learning_outcomes` in the same transaction;
 manual local copy/paste of LO definitions is unnecessary.
+
+## CTS training-calendar source register
+
+Platform Developer with `platform.regulatory.manage` can create a source-backed
+CTS Calendar revision and annexure rows. This does **not** certify external DGT
+content, replace government uploads, or assign default official dates/shifts.
+
+- `POST /api/v1/platform/cts-calendars`: `admission_year`, `session_code`,
+  `revision_code`, `source_document_id` (reviewed published DGT order),
+  `training_starts_on`, `training_ends_on`, optional `upload_profile`
+  JSON object copied explicitly from the applicable reviewed annexure.
+- `POST /api/v1/platform/cts-calendars/milestones`: `calendar_id`,
+  `milestone_code`, `milestone_date`, `description`,
+  `document_section_reference`.
+- `POST /api/v1/platform/cts-calendars/portal-shifts`: `calendar_id`,
+  `session_part` (`primary` or `six_month_second`),
+  `physical_shift_no`, `portal_shift_no`, `document_section_reference`.
+  The portal shift values are operator-supplied from the published source;
+  no shift conversion is hard-coded.
+- `POST /api/v1/platform/cts-calendars/publish`: `calendar_id` and
+  `review_reference`, after milestones and portal shift mapping evidence exist.
+
+Published calendar IDs are referenced by institute admission intake and batch
+year workflows. Draft source annexures are never treated as government-approved.

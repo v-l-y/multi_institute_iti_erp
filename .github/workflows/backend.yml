@@ -1,5 +1,8 @@
 name: Backend foundation
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 jobs:
   verify:
     runs-on: ubuntu-latest

@@ -37,6 +37,10 @@ export function editableGrid(columns = [], initialRows = [], {
       const control = row.cells[column].querySelector("input, select, textarea");
       control.name = namePrefix + "[" + index + "][" + key + "]";
     }));
+    [...tbody.rows].forEach((row, index) => {
+      const remove = row.querySelector("button[data-remove-row]");
+      if (remove) remove.setAttribute("aria-label", "Remove row " + (index + 1));
+    });
     count.textContent = tbody.rows.length + " rows";
   }
   function emit() { updateNames(); onChange?.(read()); }
@@ -63,10 +67,14 @@ export function editableGrid(columns = [], initialRows = [], {
       control.addEventListener("change", emit);
       row.append(el("td", {}, control));
     }
-    if (allowRemove) row.append(el("td", {}, button("Remove row", {
-      variant: "ghost", ariaLabel: "Remove row",
-      onClick: () => { row.remove(); emit(); }
-    })));
+    if (allowRemove) {
+      const remove = button("Remove row", {
+        variant: "ghost", ariaLabel: "Remove row",
+        onClick: () => { row.remove(); emit(); }
+      });
+      remove.setAttribute("data-remove-row", "");
+      row.append(el("td", {}, remove));
+    }
     tbody.append(row);
     updateNames();
     if (notify) onChange?.(read());

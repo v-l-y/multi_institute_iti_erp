@@ -242,10 +242,11 @@ test('absent attendance cannot record positive attended minutes', () => {
   contains('attendance_records', "CHECK(status<>'absent' OR attended_minutes=0)");
 });
 
-test('Docker backend readiness probe preserves escaped PHP variable references', () => {
+test('Docker PHP readiness probe cannot be altered by Compose dollar interpolation', () => {
   const compose = readFileSync(new URL('../../compose.yaml', import.meta.url), 'utf8');
-  // Docker Compose must receive $$r in YAML for *each* $r used by php -r.
-  // Otherwise interpolation strips the lookup, keeping a healthy backend unhealthy.
-  assert.ok(compose.includes("$$r=json_decode(@file_get_contents('http://127.0.0.1/api/v1/ready'),true)"));
-  assert.ok(compose.includes("exit(($$r['data']['status']??null)==='ready'?0:1)"));
+  const probe = compose.split('php\\n        - -r\\n')[1]?.split('\\n')[0] ?? '';
+  assert.ok(probe.includes('json_decode(@file_get_contents(\'http://127.0.0.1/api/v1/ready\'),true)'));
+  assert.ok(probe.includes("['data']['status']??null)==='ready'?0:1"));
+  assert.ok(!probe.includes('
+), 'PHP readiness command must not contain Compose-interpolated variables');
 });

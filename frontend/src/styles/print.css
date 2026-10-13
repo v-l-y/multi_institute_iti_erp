@@ -1,0 +1,8 @@
+@page { margin: 16mm; }
+html { color: #172d38; background: #fff; font: 13px/1.45 system-ui, sans-serif; }
+body { margin: 0; }
+h1 { font-size: 1.35rem; margin: 0 0 16px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #9daab1; padding: 7px 10px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+th { background: #edf3f4; font-weight: 700; }
+tr { break-inside: avoid; }

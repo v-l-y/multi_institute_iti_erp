@@ -28,5 +28,6 @@ export function multiSelectField(name, label, options = [], { required = false }
     if (first) first.setCustomValidity(required && checked === 0 ? "Select at least one option." : "");
   };
   group.addEventListener("change", validate);
+  validate();
   return { node: group, validate };
 }

@@ -84,12 +84,12 @@ No React, Vue, Angular, Vite, Tailwind, Bootstrap, TypeScript or third-party run
 1. **Entrypoint:** src/main.js imports app/controller.js. index.html loads only that module.
 2. **Login:** auth/views.js gathers credentials. The app controller calls POST /api/v1/auth/login and GET /api/v1/auth/me. Token is stored only in core/auth/session.js memory.
 3. **Access:** app/routes.js evaluates the permission list from /auth/me for UI visibility. It does not infer a grant from role name. Server-side PHP authorization and institute tenancy remain mandatory.
-4. **Shell:** shared/layouts/app-shell.js handles sidebar, topbar, current route, mobile navigation, logout and persistent structure.
+4. **Shell:** shared/layouts/app-shell.js handles sidebar, topbar, current route, mobile navigation, logout and persistent structure. Mobile closed navigation is inert; opening it moves focus into the menu, Escape closes it, and disposal removes listeners.
 5. **View:** each route descriptor contains the exact backend endpoint and columns; views call core/http/client.js. Dashboard shows *available modules*, not fake numeric KPIs.
-6. **Register:** modules/registry/register-view.js owns cursor, search, request abort and active dialog; it is disposed when the route or session changes. Table search covers **only the currently loaded page**.
-7. **Mutation:** module-owned staff and student field configs feed the shared create dialog; POST requests go to existing guarded PHP endpoints.
+6. **Register:** modules/registry/register-view.js owns cursor, search, request abort and active dialog; it is disposed when the route or session changes. Refreshing records preserves the register toolbar and search focus. Table search covers **only the currently loaded page**.
+7. **Mutation:** module-owned staff and student field configs feed the shared create dialog; POST requests go to existing guarded PHP endpoints. The dialog guards duplicate submits, blocks dismissal during a save, and closes/aborts stale UI requests when disposed. Aborting a browser request does not guarantee that an already-sent backend mutation was rolled back.
 8. **Styling:** styles.css imports the six small stylesheets in cascade order. All UI uses shared tokens and components.
-9. **Local server:** dev-server.mjs serves an explicit root entry and restricted /src/*.js and /src/*.css file paths. It proxies /api/v1/* to the configured backend. It is loopback-only and not a production server.
+9. **Local server:** dev-server.mjs serves an explicit root entry and restricted /src/*.js and /src/*.css file paths. It proxies /api/v1/* to the configured backend. Local Host and write-Origin checks reduce DNS rebinding/cross-origin write risk; proxy request bodies are size-bounded. It is loopback-only and not a production server.
 
 ## Foundation mapping
 
@@ -113,6 +113,29 @@ Admission, Staff, Students and reusable Registry are application workflows subor
 - Client-side hiding is convenience only; every API mutation must still check backend authorization.
 - Use no fake institute, seat capacity, teacher, attendance, marks, source reference, certificate or official approval data.
 - Do not automatically run CI, tests, Docker builds or production deployments. Verification requires an explicit user request.
+
+## Hardening review and manual verification checklist
+
+Static inspection identified and addressed these issues in the frontend foundation:
+
+- Register pages previously replaced headers and search controls on refresh, losing keyboard focus.
+- Mobile sidebar previously allowed focus to reach navigation hidden outside the viewport.
+- Logout previously kept the sensitive workspace visible while waiting for the network response.
+- Dialogs previously allowed repeated Enter submits and stale callbacks after navigation.
+- Local server previously lacked explicit Host/Origin restrictions.
+- Root live region previously announced the entire application on updates; now only focused feedback regions announce changes.
+- Route registration now rejects duplicate and missing permission/endpoint descriptors at runtime.
+
+**Checks to perform manually when authorized** (not executed):
+
+1. Log in as a platform developer and as an institute account with different explicit permissions. Confirm menu isolation and backend 403 behavior for disallowed API requests.
+2. On a 320px-wide viewport, open mobile navigation, use Tab and Shift+Tab, press Escape, and resize to desktop. Check focus, inert state and backdrop behavior.
+3. Navigate between registers, refresh, search, follow Next/Previous. Confirm search applies to the loaded page only, focus is preserved, and stale responses never replace a new route.
+4. Open staff/student create dialog. Check native required-field validation, loading state, prevented duplicate saves, keyboard Escape while saving, and close when leaving the route.
+5. Log out while a register is loading. Confirm records disappear immediately and no stale view is restored. Disconnect the API and verify visible error feedback.
+6. Review color contrast with the browser accessibility tools and confirm screen reader landmark/heading order.
+
+No CI, browser automation, Docker or local backend tests have been run for this hardening pass.
 
 ## Current status / non-goals
 

@@ -10,6 +10,7 @@ export function createRegistryView(page, main, user) {
   let cursorIndex = 0;
   let viewRequest = null;
   let disposed = false;
+  let activeDialog = null;
 
 function searchRows(rows, term) {
   const q = term.trim().toLocaleLowerCase();
@@ -34,7 +35,10 @@ async function loadRegister(page) {
   const tools = el("div", { className: "heading-actions" }, refresh);
   if (creationConfig(page.id, user)) {
     tools.prepend(el("button", { type: "button", className: "button button-primary",
-      onClick: () => openCreationDialog(page, user, () => loadRegister(page)) }, "+ Add record"));
+      onClick: () => {
+        activeDialog?.close();
+        activeDialog = openCreationDialog(page, user, () => { if (!disposed) loadRegister(page); });
+      } }, "+ Add record"));
   }
   const holder = el("div", { className: "surface register-surface" }, loadingState());
   main.replaceChildren(
@@ -88,6 +92,8 @@ async function loadRegister(page) {
     mount() { if (!disposed) return loadRegister(page); },
     dispose() {
       disposed = true;
+      if (activeDialog?.open) activeDialog.close();
+      activeDialog = null;
       viewRequest?.abort();
       viewRequest = null;
     }

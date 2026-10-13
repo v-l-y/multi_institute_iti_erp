@@ -33,6 +33,7 @@ export function masterLookup({
   let selectedLabel = "";
   let resolved = selected === "";
   let options = [];
+  const verified = new Map();
   const validator = registerValidator(select, () => {
     if (pending) return "Wait until " + label + " finishes loading.";
     if (selected && !resolved) return "Select a verified " + label + " record.";
@@ -41,9 +42,14 @@ export function masterLookup({
 
   function render(items) {
     options = items;
+    items.forEach(item => verified.set(String(item.value), String(item.label ?? item.value)));
     const matching = items.find(item => String(item.value) === selected);
     if (matching) {
       selectedLabel = String(matching.label ?? matching.value);
+      resolved = true;
+    }
+    if (selected && verified.has(selected)) {
+      selectedLabel = verified.get(selected);
       resolved = true;
     }
     const shown = [...items];
@@ -100,7 +106,7 @@ export function masterLookup({
   select.addEventListener("change", () => {
     selected = select.value;
     const matching = options.find(item => String(item.value) === selected);
-    resolved = selected === "" || Boolean(matching) || (selected === String(value) && resolved);
+    resolved = selected === "" || verified.has(selected);
     if (matching) selectedLabel = String(matching.label ?? matching.value);
     validator.validate();
     onChange?.(selected);
@@ -116,7 +122,7 @@ export function masterLookup({
     setValue(next) {
       selected = String(next ?? "");
       const matching = options.find(item => String(item.value) === selected);
-      resolved = selected === "" || Boolean(matching);
+      resolved = selected === "" || verified.has(selected);
       if (matching) selectedLabel = String(matching.label ?? matching.value);
       render(options);
     },

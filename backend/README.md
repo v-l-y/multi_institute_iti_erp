@@ -65,6 +65,23 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Scoped institute reporting and audit search
+
+`GET /api/v1/reports/summary` requires `audit.view` and returns
+current institute counts (staff, learners, planned/active batches,
+active/pending admissions, locked attendance sessions and final
+Seat Matrix versions). It never aggregates another institute.
+
+`GET /api/v1/audit/events` requires `audit.view`, supports
+`after_id`, `page_size` (up to 100), exact `action_code` and
+`actor_user_id` filters, and returns only local event metadata,
+not potentially sensitive `event_data_json`.
+
+`GET /api/v1/platform/audit/events` is restricted to platform
+`developer` with `platform.audit.view`; only platform-scoped
+authentication audit metadata is returned, never password/tokens
+or unfiltered event payloads. Read APIs are always cursor-paginated.
+
 ## CTS daily teaching calendar and Principal review
 
 `POST /api/v1/academic/calendar-entries` requires `calendar.manage`,

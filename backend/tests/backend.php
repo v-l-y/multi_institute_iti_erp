@@ -490,6 +490,21 @@ $checks[]=$kernel->handle(static fn()=>$planning->review(
 $checks[]=$kernel->handle(static fn()=>$planning->review(
     new Request(['batch_year_id'=>'1','reviewed_through'=>'2026-10-05',
         'review_evidence_reference'=>'LOCAL']),$calendarReviewer))->status===422;
+$reporting=new App\Modules\Reports\ReportingController(new App\Core\Database([]));
+$auditor=new AuthContext(1,3,1,'principal',false,['principal'],['audit.view'],1,null);
+$platformAuditor=new AuthContext(2,null,2,'developer',false,['developer'],['platform.audit.view'],null,null);
+$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(query:['page_size'=>'101']),$auditor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(query:['action_code'=>[]]),$auditor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$reporting->instituteAudit(
+    new Request(),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$reporting->platformAudit(
+    new Request(query:['after_id'=>'bad']),$platformAuditor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$reporting->platformAudit(
+    new Request(),$auditor))->status===403;
+$checks[]=$kernel->handle(static fn()=>$reporting->summary(
+    new Request(),$accountStudent))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

@@ -856,6 +856,31 @@ try {
         'Daily attendance session must take its minutes from reviewed plan.');
     expectStatus(http('POST','/api/v1/attendance/sessions/lock',[
         'session_id'=>$dailySessionId],$tokens['principal']),409);
+    $summaryReport=http('GET','/api/v1/reports/summary',token:$tokens['principal']);
+    expectStatus($summaryReport,200);
+    verify((int)$summaryReport['body']['data']['institute_id']===1
+        && $summaryReport['body']['data']['counts']['batches_planned']>=1,
+        'Summary must be scoped to current institute only.');
+    expectStatus(http('GET','/api/v1/reports/summary',token:$tokens['student']),403);
+    $instituteAudit=http('GET','/api/v1/audit/events?page_size=100',
+        token:$tokens['administrator']);
+    expectStatus($instituteAudit,200);
+    verify(count($instituteAudit['body']['data']['events'])>=1,
+        'Institute activity log must be searchable.');
+    foreach ($instituteAudit['body']['data']['events'] as $event) {
+        verify(!array_key_exists('event_data_json',$event),
+            'Audit read must not expose unrestricted event payload.');
+    }
+    expectStatus(http('GET','/api/v1/audit/events?action_code[]=x',
+        token:$tokens['administrator']),422);
+    $platformAudit=http('GET','/api/v1/platform/audit/events?page_size=100',
+        token:$tokens['developer']);
+    expectStatus($platformAudit,200);
+    verify(count($platformAudit['body']['data']['events'])>=2
+        && !array_key_exists('event_data_json',$platformAudit['body']['data']['events'][0]),
+        'Platform audit search must not expose unrestricted JSON.');
+    expectStatus(http('GET','/api/v1/platform/audit/events',
+        token:$tokens['administrator']),403);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

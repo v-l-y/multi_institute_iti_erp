@@ -458,3 +458,36 @@ BEGIN
  IF OLD.locked_on IS NOT NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Frozen record: create a reviewed revision'; END IF;
 END$$
 DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER private_documents_immutable_update BEFORE UPDATE ON private_documents
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Private document metadata is immutable - archive and upload a replacement';
+END$$
+CREATE TRIGGER private_documents_immutable_delete BEFORE DELETE ON private_documents
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Private documents require audited archival';
+END$$
+CREATE TRIGGER formative_corrections_immutable_update BEFORE UPDATE ON formative_corrections
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Academic corrections are append-only';
+END$$
+CREATE TRIGGER formative_corrections_immutable_delete BEFORE DELETE ON formative_corrections
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Academic corrections are append-only';
+END$$
+CREATE TRIGGER attendance_corrections_immutable_update BEFORE UPDATE ON attendance_corrections
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Academic corrections are append-only';
+END$$
+CREATE TRIGGER attendance_corrections_immutable_delete BEFORE DELETE ON attendance_corrections
+FOR EACH ROW
+BEGIN
+ SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Academic corrections are append-only';
+END$$
+DELIMITER ;

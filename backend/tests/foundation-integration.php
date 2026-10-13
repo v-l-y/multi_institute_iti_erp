@@ -353,6 +353,15 @@ try {
     $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9102,9101,'AFTER-TRAINING','mains',9101,9101,'2026-09-03','2026-09-20','{}','eligibility_open')");
     $laterEligibility=$exam->freeze($actor,9101,9101,9101,9102,'LOCAL');
     foundationCheck((int)$db->query("SELECT scheduled_units FROM exam_eligibility WHERE id=$laterEligibility")->fetchColumn()===60,'Post-training cutoff must use only the reviewed training period.');
+    $corrector=new App\Modules\Assessment\AcademicCorrectionService($db);
+    $corrector->attendance($sessionPrincipal,9101,9101,0,'absent',0,'Corrected local evidence','ITI/LOCAL-ORDER');
+    $corrector->formative($formativePrincipal,$formativeId,9101,9101,null,'20.00',0,'Corrected local score','ITI/LOCAL-ORDER-2');
+    foundationCheck($db->query("SELECT eligibility_status FROM exam_eligibility WHERE id=$eligibility")->fetchColumn()==='eligible',
+        'New corrections must not rewrite frozen eligibility snapshots.');
+    $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9103,9101,'AFTER-CORRECTION','mains',9101,9101,'2026-09-03','2026-09-20','{}','eligibility_open')");
+    $correctedEligibility=$exam->freeze($actor,9101,9101,9101,9103,'LOCAL-CORRECTION');
+    foundationCheck($db->query("SELECT eligibility_status FROM exam_eligibility WHERE id=$correctedEligibility")->fetchColumn()==='ineligible',
+        'A new eligibility calculation must use reviewed corrected attendance.');
     $db->exec("INSERT INTO fee_heads (id,institute_id,code,name,requires_enrollment) VALUES (9101,9101,'LOCAL-REG','Local registration',0)");
     $db->exec("INSERT INTO fee_structures (id,institute_id,trade_id,version_no,effective_from,created_by) VALUES (9101,9101,9101,1,'2026-01-01',9202)");
     $db->exec('INSERT INTO fee_structure_items (institute_id,structure_id,head_id,amount) VALUES (9101,9101,9101,1000)');

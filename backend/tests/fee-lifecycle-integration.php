@@ -83,6 +83,12 @@ try {
     $paidStatement=$statements->statement(1,1,0,1);
     $check($paidStatement['totals']['outstanding']==='0.00' && $paidStatement['totals']['effective_paid']==='1000.00','Settled demand must have zero outstanding.');
     $check($paidStatement['next_after_id']===$demand,'Demand cursor must use the last returned demand.');
+    $lastPage=$statements->statement(1,1,$demand,1);
+    $check($lastPage['demands']===[] && $lastPage['totals']['effective_paid']==='1000.00',
+        'Totals must remain complete when the demand cursor is past the final row.');
+    $emptyStatement=$statements->statement(1,2,0,10);
+    $check($emptyStatement['totals']['outstanding']==='0.00' && $emptyStatement['totals']['unallocated_credit']==='0.00',
+        'An issued assessment without a demand must not create reported debt.');
     $service->createDemand($operator,1,$second,'D-2',gmdate('Y-m-d',time()+86400));
     $waivedStatement=$statements->statement(1,2,0,10);
     $check($waivedStatement['totals']['outstanding']==='900.00','Approved waiver must reduce demand due.');

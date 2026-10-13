@@ -1,5 +1,7 @@
 # Multi-Institute ITI ERP
 
+Frozen V1.0 scope and release acceptance baseline: [Project Goal](PROJECT_GOAL_V1.md).
+
 Local UAT setup and repeatable backend verification: [staging instructions](deployment/STAGING.md).
 
 ```text

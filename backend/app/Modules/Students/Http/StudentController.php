@@ -8,6 +8,7 @@ use App\Modules\Students\Application\StudentRegistrationService;
 use App\Modules\Students\Domain\StudentIdentity;
 use App\Modules\Students\Infrastructure\StudentRepository;
 use App\Modules\Students\Application\StudentQualificationService;
+use App\Modules\Students\Application\StudentLifecycleService;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
@@ -49,6 +50,30 @@ final readonly class StudentController
         return $value;
     }
 
+    public function correctProfile(Request $request, AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'student.manage');
+        $student=$request->body['student_id']??null;
+        $changes=$request->body['changes']??null;
+        if (!is_int($student) || $student<1 || !$changes instanceof \stdClass) throw new HttpException('INVALID_INPUT','Student ID and changes object required.',422);
+        $reason=self::text($request,'reason',1000);
+        (new StudentLifecycleService($this->database->connection()))->profile($actor,$institute,$student,(array)$changes,$reason);
+        return new Response(['success'=>true,'data'=>['student_id'=>$student]]);
+    }
+
+    public function transition(Request $request, AuthContext $actor): Response
+    {
+        $institute=self::institute($actor,'enrollment.manage');
+        $enrollment=$request->body['enrollment_id']??null;
+        $source=$request->body['source_id']??0;
+        $destination=$request->body['destination_mis_code']??null;
+        if (!is_int($enrollment) || $enrollment<1 || !is_int($source) || $source<0 || ($destination!==null && !is_string($destination))) throw new HttpException('INVALID_INPUT','Valid enrollment and optional source IDs required.',422);
+        $target=self::text($request,'status',20);
+        (new StudentLifecycleService($this->database->connection()))->transition($actor,$institute,$enrollment,$target,
+            self::text($request,'effective_on',10),$source,self::text($request,'reference',190),self::text($request,'reason',1000),$destination);
+        return new Response(['success'=>true,'data'=>['enrollment_id'=>$enrollment,'status'=>$target]]);
+    }
+
     public function index(Request $request, AuthContext $actor): Response
     {
         $institute = self::institute($actor, 'student.view');
@@ -66,6 +91,12 @@ final readonly class StudentController
         }
         $row = (new StudentRepository($this->database->connection()))->own($actor->studentId, $institute);
         return new Response(['success' => true, 'data' => $row]);
+    }
+    public function export(Request $request,AuthContext $actor): Response
+    {
+        $data=$this->index($request,$actor)->body['data'];
+        return \App\Http\CsvExport::response($data['students'],['Student ID'=>'id','Student code'=>'local_student_code','Name'=>'full_name',
+            'Birth date'=>'date_of_birth','Gender'=>'gender'],'student-register.csv',$data['next_after_id']);
     }
 
     public function createQualification(Request $request, AuthContext $actor): Response

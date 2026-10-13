@@ -4,6 +4,9 @@ namespace App\Modules\Auth\Http;
 
 use App\Core\Database;
 use App\Modules\Auth\Application\AuthService;
+use App\Modules\Auth\Application\PasswordRecoveryService;
+use App\Core\PrivateFiles;
+use App\Http\HttpException;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Auth\Infrastructure\LoginThrottle;
 use App\Http\Request;
@@ -20,6 +23,29 @@ final readonly class AuthController
     {
         (new LoginThrottle(sys_get_temp_dir() . '/iti-erp-login-throttle'))->check($request->ip);
         return new Response(['success' => true, 'data' => $this->service()->login($request)]);
+    }
+    private function recovery(Request $request): PasswordRecoveryService
+    {
+        if (getenv('AUTH_RECOVERY_MODE')!=='local_outbox') throw new HttpException('RECOVERY_UNAVAILABLE','Recovery delivery is not configured.',503);
+        (new LoginThrottle(sys_get_temp_dir().'/iti-erp-recovery-throttle',5,60))->check($request->ip);
+        return new PasswordRecoveryService($this->database->connection(),new PrivateFiles((string)getenv('AUTH_RECOVERY_OUTBOX')));
+    }
+    public function forgotPassword(Request $request): Response
+    {
+        $username=$request->body['username']??null; $institute=$request->body['institute_id']??null;
+        if (!is_string($username) || trim($username)==='' || strlen($username)>120 || ($institute!==null && (!is_int($institute) || $institute<1))) throw new HttpException('INVALID_INPUT','Username and valid institute identity required.',422);
+        $started=hrtime(true);
+        $this->recovery($request)->request(trim($username),$institute);
+        $remaining=(int)ceil((250000000-(hrtime(true)-$started))/1000);
+        if ($remaining>0) usleep($remaining);
+        return new Response(['success'=>true,'data'=>['message'=>'If the account is eligible, recovery instructions will be queued.']],202);
+    }
+    public function resetPassword(Request $request): Response
+    {
+        $token=$request->body['reset_token']??null; $password=$request->body['new_password']??null;
+        if (!is_string($token) || !is_string($password)) throw new HttpException('INVALID_INPUT','Reset token and new password required.',422);
+        $this->recovery($request)->reset($token,$password);
+        return new Response(['success'=>true,'data'=>['message'=>'Password recovered. Sign in again.']]);
     }
     public function me(Request $request, AuthContext $context): Response
     {

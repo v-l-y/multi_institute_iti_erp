@@ -95,9 +95,11 @@ final readonly class Request
             if (strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '')[0])) !== 'application/json') {
                 throw new HttpException('UNSUPPORTED_MEDIA_TYPE', 'Use application/json.', 415);
             }
-            $raw = file_get_contents('php://input', false, null, 0, 16385);
-            if ($raw === false || strlen($raw) > 16384) {
-                throw new HttpException('BODY_TOO_LARGE', 'Request body exceeds 16 KB.', 413);
+            $upload=($_SERVER['REQUEST_METHOD']??'')==='POST' && parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH)==='/api/v1/documents/upload';
+            $limit=$upload?8388608:16384;
+            $raw = file_get_contents('php://input', false, null, 0, $limit+1);
+            if ($raw === false || strlen($raw) > $limit) {
+                throw new HttpException('BODY_TOO_LARGE', $upload?'Document request exceeds 8 MB.':'Request body exceeds 16 KB.', 413);
             }
             try {
                 $decoded = json_decode($raw, false, 32, JSON_THROW_ON_ERROR);

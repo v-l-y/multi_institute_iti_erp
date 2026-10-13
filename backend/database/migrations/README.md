@@ -1,18 +1,9 @@
-# Database Migrations
+# Database migrations
 
-This directory is for reviewed, numbered **forward-only** upgrades to populated ERP databases. Fresh installation uses `../schema/iti_erp_schema.sql` and `../schema/integrity_guards.sql` instead. No reviewed numbered SQL migrations are installed yet. `--apply` therefore fails closed rather than reporting a misleading successful no-op.
+Migrations 001–008 upgrade the previous canonical 97-table schema to 99 application tables and 74 triggers, plus the migration ledger. They add private documents and immutable academic correction history. They are not a universal upgrade for older legacy databases.
 
-Run from `backend/`:
+Run `php bin/migrate.php --status` for read-only status; use `--apply` only after backup and rehearsal on a restored copy. The integration suite rehearses the populated previous schema upgrade and verifies repeat application is a no-op. Applied files must never be modified or renamed.
 
-```sh
-php bin/migrate.php --status
-php bin/migrate.php --apply
-```
+Fresh installation uses the canonical schema and integrity guards, which already contain these objects. Do not replay 001–008 on a fresh installation. Before future numbered upgrades, fresh installations currently require an operator-reviewed migration ledger baseline. Never baseline a partially upgraded database.
 
-The default `--status` is read-only. `--apply` explicitly acquires a database advisory lock, checks that the canonical `institute` table exists, checks applied checksums, and records a successful migration in `iti_erp_schema_migrations`. File names must be `001_description.sql`, `002_description.sql` etc., unique three-digit prefixes, with **one SQL statement per file**; procedure delimiters/batches are rejected. Do not rename or modify an applied file.
-
-MySQL/MariaDB DDL can auto-commit: if applying a statement succeeds but tracking fails, or a partial upgrade fails, stop and reconcile manually from a verified backup. The runner does not reset, seed, recreate, roll back or automatically retry a live database. Test new upgrades against an isolated copy first.
-
-Before every populated-database upgrade, run the read-only `php bin/schema-preflight.php` against an isolated restored copy and reconcile missing tables and integrity triggers. Its object-presence checks do not prove complete schema compatibility. There are still **no numbered SQL migrations** in this folder: existing one-time upgrade exporters require individual review, cannot be blindly replayed, and do not replace a complete migration history.
-
-**Safety behavior:** `--apply` now fails closed when no reviewed SQL migration files exist; `--status` remains read-only. Migration filenames must form a contiguous `001_...`, `002_...` sequence with no skipped prefix. These checks protect against an accidental green no-op; they do not themselves upgrade populated legacy databases. Exporter SQL and existing data still require reviewed migration authoring and an isolated restore rehearsal.
+MariaDB DDL auto-commits. Failed DDL tracking requires manual reconciliation; the runner does not reset or roll back a populated database. Files must contain exactly one statement with contiguous numbered prefixes. Schema preflight proves object presence, not complete compatibility.

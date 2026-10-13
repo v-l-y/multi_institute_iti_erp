@@ -2121,3 +2121,51 @@ CREATE TABLE fee_cash_closings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- END ADVANCED FEE MANAGEMENT v1
+
+CREATE TABLE private_documents (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ original_name VARCHAR(190) NOT NULL,
+ mime_type VARCHAR(80) NOT NULL,
+ byte_size INT UNSIGNED NOT NULL,
+ sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ storage_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+ uploaded_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(id,institute_id),
+ INDEX(institute_id,student_id,id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(uploaded_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(byte_size BETWEEN 1 AND 5242880),
+ CHECK(mime_type IN ('application/pdf','image/png','image/jpeg')),
+ CHECK(sha256 REGEXP '^[0-9a-f]{64}$'),
+ CHECK(storage_key REGEXP '^[0-9a-f]{32}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE formative_corrections (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ enrollment_id BIGINT UNSIGNED NOT NULL,
+ batch_id BIGINT UNSIGNED NOT NULL,
+ batch_year_id BIGINT UNSIGNED NOT NULL,
+ assessment_id BIGINT UNSIGNED NULL,
+ item_code VARCHAR(80) NULL,
+ before_json LONGTEXT NOT NULL CHECK(JSON_VALID(before_json)),
+ after_json LONGTEXT NOT NULL CHECK(JSON_VALID(after_json)),
+ source_id BIGINT UNSIGNED NULL,
+ reason TEXT NOT NULL,
+ authority_reference VARCHAR(190) NOT NULL,
+ approved_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX(assessment_id,institute_id,id),
+ INDEX(enrollment_id,batch_year_id,item_code,institute_id,id),
+ FOREIGN KEY(assessment_id,institute_id) REFERENCES formative_assessments(id,institute_id),
+ FOREIGN KEY(enrollment_id,batch_id,institute_id) REFERENCES enrollments(id,batch_id,institute_id),
+ FOREIGN KEY(batch_year_id,batch_id,institute_id) REFERENCES batch_years(id,batch_id,institute_id),
+ FOREIGN KEY(enrollment_id,batch_year_id,item_code,institute_id) REFERENCES formative_template_scores(enrollment_id,batch_year_id,item_code,institute_id),
+ FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(approved_by,institute_id) REFERENCES auth_users(id,institute_id),
+ CHECK((assessment_id IS NOT NULL AND item_code IS NULL) OR (assessment_id IS NULL AND item_code IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

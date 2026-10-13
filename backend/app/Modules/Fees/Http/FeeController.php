@@ -234,6 +234,29 @@ final readonly class FeeController
 
     public function receipt(Request $request, AuthContext $actor): Response { return $this->receiptRead($request,$actor,false); }
     public function ownReceipt(Request $request, AuthContext $actor): Response { return $this->receiptRead($request,$actor,true); }
+    private function statementCsv(Request $request,AuthContext $actor,bool $own): Response
+    {
+        $data=$this->statementRead($request,$actor,$own)->body['data'];
+        return \App\Http\CsvExport::response($data['demands'],['Demand'=>'demand_no','Due date'=>'due_on','Gross'=>'gross','Waived'=>'waived',
+            'Net due'=>'net_due','Effective paid'=>'effective_paid','Outstanding'=>'outstanding'],'fee-statement.csv',$data['next_after_id']);
+    }
+    public function exportStatement(Request $r,AuthContext $a): Response { return $this->statementCsv($r,$a,false); }
+    public function exportOwnStatement(Request $r,AuthContext $a): Response { return $this->statementCsv($r,$a,true); }
+    private function printReceiptRead(Request $request,AuthContext $actor,bool $own): Response
+    {
+        $receipt=$this->receiptRead($request,$actor,$own)->body['data'];
+        $identity=$receipt['identity_snapshot']??[];
+        $details=['Institute'=>$identity['institute']['name']??'', 'MIS code'=>$identity['institute']['mis_code']??'',
+            'Student'=>$identity['student_name']??'', 'Student code'=>$identity['local_student_code']??'',
+            'Receipt'=>$receipt['receipt_no'],'Payment'=>$receipt['payment_no'],'Paid on'=>$receipt['paid_on'],
+            'Amount'=>$receipt['amount'],'Mode'=>$receipt['payment_mode'],'Status'=>$receipt['status']];
+        $html='<!doctype html><html lang="en"><meta charset="utf-8"><title>Institute fee receipt</title><h1>Institute fee receipt</h1><table>';
+        foreach ($details as $label=>$value) $html.='<tr><th>'.htmlspecialchars($label,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</th><td>'.htmlspecialchars((string)$value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</td></tr>';
+        $html.='</table><p>Use your browser Print function to print or save this receipt as PDF.</p></html>';
+        return new Response([],200,['Content-Type'=>'text/html; charset=utf-8','Content-Disposition'=>'inline'],$html);
+    }
+    public function printReceipt(Request $r,AuthContext $a): Response { return $this->printReceiptRead($r,$a,false); }
+    public function printOwnReceipt(Request $r,AuthContext $a): Response { return $this->printReceiptRead($r,$a,true); }
 
     public function payments(Request $request, AuthContext $actor): Response
     {

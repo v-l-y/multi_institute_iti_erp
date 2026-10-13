@@ -40,7 +40,11 @@ final readonly class LoginThrottle
             if (!ftruncate($file, 0) || fwrite($file, json_encode($state, JSON_THROW_ON_ERROR)) === false || !fflush($file)) {
                 throw new HttpException('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable.', 503);
             }
-        } catch (\JsonException | \Throwable $e) {
+        } catch (HttpException $e) {
+            // Preserve intended 429/503 responses; only unexpected worker
+            // failures should be normalized to authentication unavailable.
+            throw $e;
+        } catch (\Throwable $e) {
             throw new HttpException('AUTH_UNAVAILABLE', 'Authentication temporarily unavailable.', 503);
         } finally {
             flock($file, LOCK_UN);

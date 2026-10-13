@@ -48,7 +48,16 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/health', new HealthController());
     $auth = new AuthController($database);
     $guard = new AuthMiddleware($database);
+    $documents=new \App\Modules\Documents\DocumentController($database);
+    $router->post('/api/v1/documents/upload',$guard->wrap([$documents,'upload'],'document.manage'));
+    $router->post('/api/v1/documents/archive',$guard->wrap([$documents,'archive'],'document.manage'));
+    $router->get('/api/v1/documents',$guard->wrap([$documents,'index'],'document.view'));
+    $router->get('/api/v1/documents/me',$guard->wrap([$documents,'own'],'document.view.own'));
+    $router->get('/api/v1/documents/download',$guard->wrap([$documents,'download'],'document.view'));
+    $router->get('/api/v1/documents/download/me',$guard->wrap([$documents,'ownDownload'],'document.view.own'));
     $router->post('/api/v1/auth/login', [$auth, 'login']);
+    $router->post('/api/v1/auth/forgot-password', [$auth,'forgotPassword']);
+    $router->post('/api/v1/auth/reset-password', [$auth,'resetPassword']);
     $router->get('/api/v1/auth/me', $guard->wrap([$auth, 'me'], allowPasswordChange: true));
     $router->post('/api/v1/auth/logout', $guard->wrap([$auth, 'logout'], allowPasswordChange: true));
     $router->post('/api/v1/auth/change-password', $guard->wrap([$auth, 'changePassword'], allowPasswordChange: true));
@@ -126,6 +135,9 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/instructors/mappings/release', $guard->wrap(
         [$instructorReview,'release'], 'instructor.mapping.manage'));
     $students = new StudentController($database);
+    $router->get('/api/v1/students/export',$guard->wrap([$students,'export'],'student.view'));
+    $router->post('/api/v1/students/profile/correct', $guard->wrap([$students,'correctProfile'], 'student.manage'));
+    $router->post('/api/v1/enrollments/transition', $guard->wrap([$students,'transition'], 'enrollment.manage'));
     $router->get('/api/v1/students', $guard->wrap([$students, 'index'], 'student.view'));
     $router->get('/api/v1/students/me', $guard->wrap([$students, 'own'], 'student.view.own'));
     $router->post('/api/v1/students', $guard->wrap([$students, 'create'], 'student.manage'));
@@ -151,6 +163,10 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/fees/structures/activate', $guard->wrap([$feeSetup, 'activateStructure'], 'fee.record'));
     $router->post('/api/v1/fees/assessments', $guard->wrap([$feeSetup, 'assessment'], 'fee.record'));
     $fees = new FeeController($database);
+    $router->get('/api/v1/fees/statements/export',$guard->wrap([$fees,'exportStatement'],'fee.view'));
+    $router->get('/api/v1/fees/statements/export/me',$guard->wrap([$fees,'exportOwnStatement'],'fee.view.own'));
+    $router->get('/api/v1/fees/receipts/print',$guard->wrap([$fees,'printReceipt'],'fee.view'));
+    $router->get('/api/v1/fees/receipts/print/me',$guard->wrap([$fees,'printOwnReceipt'],'fee.view.own'));
     $router->get('/api/v1/fees/statements', $guard->wrap([$fees,'statement'], 'fee.view'));
     $router->get('/api/v1/fees/statements/me', $guard->wrap([$fees,'ownStatement'], 'fee.view.own'));
     $router->get('/api/v1/fees/receipts', $guard->wrap([$fees,'receipt'], 'fee.view'));
@@ -171,6 +187,14 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/attendance/sessions', $guard->wrap([$sessions,'create'], 'calendar.manage'));
     $router->post('/api/v1/attendance/sessions/lock', $guard->wrap([$sessions,'lock'], 'attendance.correct'));
     $attendance = new AttendanceController($database);
+    $corrections=new \App\Modules\Assessment\AcademicCorrectionController($database);
+    $scoreReads=new \App\Modules\Assessment\FormativeReadController($database);
+    $router->get('/api/v1/formative/records',$guard->wrap([$scoreReads,'institute'],'formative.template.manage'));
+    $router->get('/api/v1/formative/records/me',$guard->wrap([$scoreReads,'own'],'formative.view.own'));
+    $router->get('/api/v1/formative/records/assigned',$guard->wrap([$scoreReads,'assigned'],'formative.record.assigned'));
+    $router->get('/api/v1/academic/corrections',$guard->wrap([$corrections,'history'],'audit.view'));
+    $router->post('/api/v1/attendance/corrections',$guard->wrap([$corrections,'attendance'],'attendance.correct'));
+    $router->post('/api/v1/formative/corrections',$guard->wrap([$corrections,'formative'],'formative.template.manage'));
     $router->get('/api/v1/attendance/records', $guard->wrap([$attendance, 'instituteRecords'], 'attendance.view'));
     $router->get('/api/v1/attendance/records/assigned', $guard->wrap([$attendance, 'assignedRecords'], 'attendance.view.assigned'));
     $router->get('/api/v1/attendance/records/me', $guard->wrap([$attendance, 'ownRecords'], 'attendance.view.own'));

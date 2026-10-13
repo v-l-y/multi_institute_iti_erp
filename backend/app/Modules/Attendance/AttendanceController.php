@@ -64,12 +64,15 @@ final readonly class AttendanceController
         }
         [$size, $afterSession, $afterEnrollment] = self::cursor($request);
 
-        $sql = 'SELECT r.session_id, r.enrollment_id, r.batch_id, r.attended_minutes, r.status,
+        $sql = "SELECT r.session_id, r.enrollment_id, r.batch_id, r.attended_minutes, r.status,
                        s.batch_year_id, s.session_date, s.component, s.scheduled_minutes,
-                       s.locked_on
+                       s.locked_on, c.id AS correction_id,
+                       COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.after_json,'$.attended_minutes')) AS UNSIGNED),r.attended_minutes) AS effective_attended_minutes,
+                       COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.after_json,'$.status')),r.status) AS effective_status
                 FROM attendance_records r
                 JOIN attendance_sessions s ON s.id=r.session_id
-                    AND s.batch_id=r.batch_id AND s.institute_id=r.institute_id';
+                    AND s.batch_id=r.batch_id AND s.institute_id=r.institute_id
+                LEFT JOIN attendance_corrections c ON c.id=(SELECT MAX(cx.id) FROM attendance_corrections cx WHERE cx.session_id=r.session_id AND cx.enrollment_id=r.enrollment_id AND cx.institute_id=r.institute_id)";
         if ($scope === 'own') {
             $sql .= ' JOIN enrollments e ON e.id=r.enrollment_id
                       AND e.batch_id=r.batch_id AND e.institute_id=r.institute_id';

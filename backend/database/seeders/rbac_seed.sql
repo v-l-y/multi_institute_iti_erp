@@ -277,3 +277,13 @@ SELECT r.id, p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN (
   'certificate.view.own',
   'fee.view.own'
 ) WHERE r.code = 'student';
+
+-- Private student documents. Review these added grants before production import.
+INSERT IGNORE INTO auth_permissions(code,description,module) VALUES
+ ('document.manage','Upload and archive institute student documents','documents'),
+ ('document.view','Read institute student documents','documents'),
+ ('document.view.own','Read own linked student documents','documents');
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code IN ('document.manage','document.view') WHERE r.code IN ('principal','administrator');
+INSERT IGNORE INTO auth_role_permissions(role_id,permission_id)
+ SELECT r.id,p.id FROM auth_roles r JOIN auth_permissions p ON p.code='document.view.own' WHERE r.code='student';

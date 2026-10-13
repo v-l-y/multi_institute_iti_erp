@@ -5,7 +5,7 @@ namespace App\Http;
 
 final readonly class Response
 {
-    public function __construct(public array $body, public int $status = 200, public array $headers = []) {}
+    public function __construct(public array $body, public int $status = 200, public array $headers = [], public ?string $rawBody = null) {}
 
     public static function error(string $code, string $message, int $status): self
     {
@@ -24,6 +24,6 @@ final readonly class Response
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);
         }
-        echo json_encode($this->body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        echo $this->rawBody ?? json_encode($this->body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 }

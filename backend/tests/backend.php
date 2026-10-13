@@ -87,7 +87,7 @@ $checks[] = $dstCashBounds[1] === '2026-03-09 04:00:00';
 
 $checks[] = \App\Modules\Academic\Domain\CalendarPage::integer(['page_size'=>'3'], 'page_size', 50, 100) === 3;
 $checks[] = \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN value INT;') === 'ALTER TABLE sample ADD COLUMN value INT';
-$checks[] = \App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations') === [];
+$checks[] = count(\App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations')) === 8;
 $checks[] = is_file(dirname(__DIR__) . '/bin/migrate.php');
 try {
     \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN a INT; DROP TABLE sample;');

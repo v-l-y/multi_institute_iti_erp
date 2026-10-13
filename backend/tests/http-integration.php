@@ -44,6 +44,14 @@ function expectStatus(array $response, int $status): void
 {
     verify($response['status'] === $status, 'Expected HTTP ' . $status . ', got ' . $response['status']);
 }
+function rawHttp(string $path,string $token): array
+{
+    $text=file_get_contents('http://127.0.0.1:18099'.$path,false,stream_context_create(['http'=>[
+        'header'=>'Authorization: Bearer '.$token,'ignore_errors'=>true,'timeout'=>5]]));
+    $headers=http_get_last_response_headers();
+    preg_match('/\s(\d{3})\s/',$headers[0],$match);
+    return ['status'=>(int)$match[1],'raw'=>$text,'headers'=>implode("\n",$headers)];
+}
 function bootstrapDeveloper(string $input, array $environment): array
 {
     $process = proc_open([PHP_BINARY, dirname(__DIR__) . '/bin/create-developer.php'], [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']], $pipes, dirname(__DIR__), $environment);
@@ -67,6 +75,8 @@ try {
     preg_match('/host=([^;]+)/', $dsn, $host);
     preg_match('/port=([^;]+)/', $dsn, $port);
     $environment = array_merge(getenv(), ['DB_HOST' => $host[1] ?? '127.0.0.1', 'DB_PORT' => $port[1] ?? '3306', 'DB_DATABASE' => $name, 'DB_USERNAME' => getenv('TEST_DB_USERNAME') ?: 'root', 'DB_PASSWORD' => getenv('TEST_DB_PASSWORD') ?: '']);
+    $privateRoot=sys_get_temp_dir().'/'.$name.'-private';
+    $environment=[...$environment,'PRIVATE_DOCUMENT_ROOT'=>$privateRoot.'/documents','AUTH_RECOVERY_MODE'=>'local_outbox','AUTH_RECOVERY_OUTBOX'=>$privateRoot.'/outbox'];
     $grantsBefore = $db->query('SELECT COUNT(*) FROM auth_role_permissions')->fetchColumn();
     $bootstrapInput = json_encode(['username'=>'bootstrap-test','password'=>'bootstrap-local-test-password']);
     $bootstrap = bootstrapDeveloper($bootstrapInput, $environment);
@@ -303,6 +313,24 @@ try {
     expectStatus(http('GET','/api/v1/fees/receipts/me?payment_id='.$feePaymentId,token:$tokens['student']),404);
     expectStatus(http('GET','/api/v1/fees/receipts?payment_id='.$linkedPaymentId,token:$tokens['other-admin']),404);
     expectStatus(http('GET','/api/v1/fees/receipts?payment_id=invalid',token:$tokens['administrator']),422);
+    $printed=rawHttp('/api/v1/fees/receipts/print/me?payment_id='.$linkedPaymentId,$tokens['student']);
+    expectStatus($printed,200);
+    verify(str_contains($printed['raw'],'Institute fee receipt') && str_contains($printed['headers'],'text/html'),
+        'Printable own receipt must preserve raw HTML through the kernel.');
+    expectStatus(rawHttp('/api/v1/students/export',$tokens['administrator']),200);
+    expectStatus(rawHttp('/api/v1/students/export',$tokens['student']),403);
+    $formulaCsv=App\Http\CsvExport::response([['name'=>'=1+1']],['Name'=>'name'],'test.csv');
+    verify(str_contains($formulaCsv->rawBody,"'=1+1"),'CSV must neutralize spreadsheet formulas.');
+    $pdf="%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n";
+    $uploaded=http('POST','/api/v1/documents/upload',['student_id'=>$linkedId,'filename'=>'test.pdf','content_base64'=>base64_encode($pdf)],$tokens['administrator']);
+    expectStatus($uploaded,201); $documentId=(int)$uploaded['body']['data']['document_id'];
+    $download=rawHttp('/api/v1/documents/download/me?document_id='.$documentId,$tokens['student']);
+    expectStatus($download,200);
+    verify($download['raw']===$pdf && str_contains($download['headers'],'application/pdf') && str_contains($download['headers'],'attachment;'),
+        'Authorized binary download must retain exact bytes and safe attachment headers.');
+    expectStatus(rawHttp('/api/v1/documents/download?document_id='.$documentId,$tokens['other-admin']),404);
+    expectStatus(http('POST','/api/v1/documents/archive',['document_id'=>$documentId,'reason'=>'Superseded evidence'],$tokens['administrator']),200);
+    expectStatus(rawHttp('/api/v1/documents/download/me?document_id='.$documentId,$tokens['student']),404);
     expectStatus(http('POST', '/api/v1/fees/assessments/issue', ['assessment_id'=>999999], $tokens['administrator']), 404);
     expectStatus(http('POST', '/api/v1/fees/refunds/decide', ['refund_id'=>1,'action'=>'made_up'], $tokens['principal']), 422);
     foreach (['/api/v1/attendance/records',
@@ -979,6 +1007,11 @@ try {
     } finally {
         $db->rollBack();
     }
+    $unknownRecovery=http('POST','/api/v1/auth/forgot-password',['username'=>'missing-account','institute_id'=>1]);
+    $knownRecovery=http('POST','/api/v1/auth/forgot-password',['username'=>'administrator','institute_id'=>1]);
+    expectStatus($unknownRecovery,202); expectStatus($knownRecovery,202);
+    verify($unknownRecovery['body']===$knownRecovery['body'],'Recovery must not enumerate account existence.');
+    verify(!str_contains(json_encode($knownRecovery['body']),'reset_token'),'Recovery response must not expose reset token.');
     // In this disposable database only, simulate a missing critical
     // schema table while connectivity remains healthy. DDL/trigger
     // verification is a separate privileged, manual preflight task.
@@ -1011,4 +1044,11 @@ try {
     }
     $db->exec("DROP DATABASE `$name`");
     unlink($log);
+    if (isset($privateRoot)) {
+        foreach (['documents','outbox'] as $folder) {
+            foreach (glob($privateRoot.'/'.$folder.'/*')?:[] as $file) unlink($file);
+            if (is_dir($privateRoot.'/'.$folder)) rmdir($privateRoot.'/'.$folder);
+        }
+        if (is_dir($privateRoot)) rmdir($privateRoot);
+    }
 }

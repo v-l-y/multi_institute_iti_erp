@@ -33,18 +33,19 @@ final readonly class FeeStatementRepository
                 (SELECT COALESCE(SUM(r.amount),0) FROM fee_refunds r WHERE r.demand_id=d.id AND r.institute_id=d.institute_id AND r.status='paid') AS refunded
                 FROM fee_demands d JOIN student_fee_assessments a ON a.id=d.assessment_id AND a.institute_id=d.institute_id
                 WHERE d.institute_id=? AND d.student_id=? AND d.status='issued' AND a.status='issued'";
+            $creditSql='SELECT COALESCE(SUM(p.amount-(SELECT COALESCE(SUM(x.amount),0) FROM fee_payment_allocations x WHERE x.payment_id=p.id AND x.institute_id=p.institute_id)),0)
+                FROM fee_payments p WHERE p.institute_id=? AND p.student_id=? AND NOT EXISTS
+                (SELECT 1 FROM fee_payment_reversals r WHERE r.payment_id=p.id AND r.institute_id=p.institute_id)';
             $totals=$this->query("SELECT COALESCE(SUM(gross),0) AS gross,COALESCE(SUM(waived),0) AS waived,
                 COALESCE(SUM(gross-waived),0) AS net_due,
                 COALESCE(SUM(allocated-refunded),0) AS effective_paid,
-                COALESCE(SUM(gross-waived-allocated+refunded),0) AS outstanding
-                FROM ($base) AS balances",[$institute,$student])->fetch(PDO::FETCH_ASSOC);
-            $credit=$this->query('SELECT COALESCE(SUM(p.amount-(SELECT COALESCE(SUM(x.amount),0) FROM fee_payment_allocations x WHERE x.payment_id=p.id AND x.institute_id=p.institute_id)),0)
-                FROM fee_payments p WHERE p.institute_id=? AND p.student_id=? AND NOT EXISTS
-                (SELECT 1 FROM fee_payment_reversals r WHERE r.payment_id=p.id AND r.institute_id=p.institute_id)',[$institute,$student])->fetchColumn();
+                COALESCE(SUM(gross-waived-allocated+refunded),0) AS outstanding,
+                ($creditSql) AS unallocated_credit
+                FROM ($base) AS balances",[$institute,$student,$institute,$student])->fetch(PDO::FETCH_ASSOC);
             $rows=$this->query("SELECT b.*,gross-waived AS net_due,allocated-refunded AS effective_paid,
                 gross-waived-allocated+refunded AS outstanding FROM ($base AND d.id>?) AS b ORDER BY id LIMIT ?",
                 [$institute,$student,$after,$size])->fetchAll(PDO::FETCH_ASSOC);
-            return ['ledger'=>'assessment','student'=>$identity,'totals'=>[...$totals,'unallocated_credit'=>(string)$credit],
+            return ['ledger'=>'assessment','student'=>$identity,'totals'=>$totals,
                 'demands'=>$rows,'next_after_id'=>count($rows)===$size?(int)$rows[count($rows)-1]['id']:null];
         });
     }

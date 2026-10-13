@@ -7,6 +7,10 @@ services:
     environment:
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?Set trusted proxy network in root .env}
       ALLOW_OFFICIAL_RECORD_IMPORT: ${ALLOW_OFFICIAL_RECORD_IMPORT:-0}
+      AUTH_RECOVERY_MODE: disabled
+      PRIVATE_DOCUMENT_ROOT: /var/lib/iti-private/documents
+    volumes:
+      - production_private:/var/lib/iti-private
   reverse-proxy:
     image: nginx:stable-alpine
     environment:
@@ -22,3 +26,5 @@ services:
       - ./deployment/nginx.conf:/etc/nginx/templates/default.conf.template:ro
       - ./deployment/certs:/etc/nginx/certs:ro
     restart: unless-stopped
+volumes:
+  production_private:

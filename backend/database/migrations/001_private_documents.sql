@@ -1,0 +1,21 @@
+CREATE TABLE private_documents (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ original_name VARCHAR(190) NOT NULL,
+ mime_type VARCHAR(80) NOT NULL,
+ byte_size INT UNSIGNED NOT NULL,
+ sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ storage_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+ uploaded_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(id,institute_id),
+ INDEX(institute_id,student_id,id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(uploaded_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(byte_size BETWEEN 1 AND 5242880),
+ CHECK(mime_type IN ('application/pdf','image/png','image/jpeg')),
+ CHECK(sha256 REGEXP '^[0-9a-f]{64}$'),
+ CHECK(storage_key REGEXP '^[0-9a-f]{32}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

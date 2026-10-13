@@ -57,7 +57,7 @@ final readonly class EligibilityService
             }
             if ($y['attendance_basis']==='minutes') {
                 foreach ($calendar as $entry) {
-                    $s=$this->one('SELECT s.*,a.attended_minutes FROM attendance_sessions s JOIN attendance_records a ON a.session_id=s.id AND a.institute_id=s.institute_id AND a.enrollment_id=? WHERE s.batch_year_id=? AND s.institute_id=? AND s.session_date=? AND s.component=? FOR UPDATE',[$enrollment,$year,$institute,$entry['session_date'],$entry['component']]);
+                    $s=$this->one("SELECT s.*,COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(c.after_json,'$.attended_minutes')) AS UNSIGNED),a.attended_minutes) AS attended_minutes FROM attendance_sessions s JOIN attendance_records a ON a.session_id=s.id AND a.institute_id=s.institute_id AND a.enrollment_id=? LEFT JOIN attendance_corrections c ON c.id=(SELECT MAX(cx.id) FROM attendance_corrections cx WHERE cx.session_id=a.session_id AND cx.enrollment_id=a.enrollment_id AND cx.institute_id=a.institute_id) WHERE s.batch_year_id=? AND s.institute_id=? AND s.session_date=? AND s.component=? FOR UPDATE",[$enrollment,$year,$institute,$entry['session_date'],$entry['component']]);
                     if ($s['locked_on']===null || (int)$s['scheduled_minutes']!==(int)$entry['scheduled_minutes'] || (int)$s['attended_minutes']>(int)$s['scheduled_minutes']) {
                         throw new HttpException('ATTENDANCE_NOT_RECONCILED','Attendance must match and be locked against the reviewed calendar.',409);
                     }
@@ -85,13 +85,13 @@ final readonly class EligibilityService
                 if (count($items)!==(int)$official['total']) {
                     throw new HttpException('FORMATIVE_INCOMPLETE','Local learning outcomes must cover the selected official curriculum year.',409);
                 }
-                $scores=$this->rows('SELECT * FROM formative_assessments WHERE enrollment_id=? AND batch_year_id=? AND institute_id=? AND assessed_on<=? FOR UPDATE',[$enrollment,$year,$institute,$cutoff]);
+                $scores=$this->rows("SELECT a.*,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.after_json,'$.obtained_marks')),a.obtained_marks) AS obtained_marks FROM formative_assessments a LEFT JOIN formative_corrections c ON c.id=(SELECT MAX(cx.id) FROM formative_corrections cx WHERE cx.assessment_id=a.id AND cx.institute_id=a.institute_id) WHERE a.enrollment_id=? AND a.batch_year_id=? AND a.institute_id=? AND a.assessed_on<=? FOR UPDATE",[$enrollment,$year,$institute,$cutoff]);
                 if (!$items || count($scores)!==count($items) || in_array(null,array_column($scores,'locked_on'),true)) {
                     throw new HttpException('FORMATIVE_INCOMPLETE','Complete locked learning-outcome scores required.',409);
                 }
                 $formative=round(100*array_sum(array_column($scores,'obtained_marks'))/array_sum(array_column($scores,'max_marks')),2);
             } elseif ($y['formative_method']==='template_weighted') {
-                $items=$this->rows('SELECT i.*,s.obtained_marks,s.locked_on,s.assessed_on FROM formative_template_items i LEFT JOIN formative_template_scores s ON s.batch_year_id=i.batch_year_id AND s.item_code=i.item_code AND s.institute_id=i.institute_id AND s.enrollment_id=? WHERE i.batch_year_id=? AND i.institute_id=? FOR UPDATE',[$enrollment,$year,$institute]);
+                $items=$this->rows("SELECT i.*,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.after_json,'$.obtained_marks')),s.obtained_marks) AS obtained_marks,s.locked_on,s.assessed_on FROM formative_template_items i LEFT JOIN formative_template_scores s ON s.batch_year_id=i.batch_year_id AND s.item_code=i.item_code AND s.institute_id=i.institute_id AND s.enrollment_id=? LEFT JOIN formative_corrections c ON c.id=(SELECT MAX(cx.id) FROM formative_corrections cx WHERE cx.enrollment_id=s.enrollment_id AND cx.batch_year_id=s.batch_year_id AND cx.item_code=s.item_code AND cx.institute_id=s.institute_id) WHERE i.batch_year_id=? AND i.institute_id=? FOR UPDATE",[$enrollment,$year,$institute]);
                 if (!$items || abs(array_sum(array_column($items,'weight_percent'))-100)>0.0001) {
                     throw new HttpException('FORMATIVE_WEIGHTS','Reviewed template weights must total 100.',409);
                 }

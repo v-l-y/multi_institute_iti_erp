@@ -599,6 +599,44 @@ try {
         $docList['body']['data']['documents'],'id')),true),
         'Regulatory document not visible to platform reviewer.');
     expectStatus(http('GET',$regBase,token:$tokens['administrator']),403);
+    $tradeBase='/api/v1/platform/trades';
+    $tradeData=['dgt_code'=>'LOCAL-TRADE-001','source_document_id'=>$docId,
+        'version_code'=>'LOCAL-2026','official_name'=>'LOCAL TEST TRADE',
+        'trade_type'=>'engineering','effective_from'=>'2026-05-09'];
+    expectStatus(http('POST',$tradeBase,$tradeData,$tokens['student']),403);
+    expectStatus(http('POST',$tradeBase,[...$tradeData,'trade_type'=>'OTHER'],$tokens['developer']),422);
+    $tradeDraft=http('POST',$tradeBase,$tradeData,$tokens['developer']);
+    expectStatus($tradeDraft,201);
+    $tradeId=(int)$tradeDraft['body']['data']['trade_id'];
+    $tradeV1=(int)$tradeDraft['body']['data']['revision_id'];
+    verify($tradeId>0 && $tradeV1>0 && $tradeDraft['body']['data']['status']==='draft',
+        'Global Trade must not auto-activate on creation.');
+    expectStatus(http('POST',$tradeBase,$tradeData,$tokens['developer']),409);
+    $activateUrl=$tradeBase.'/revisions/activate';
+    expectStatus(http('POST',$activateUrl,['revision_id'=>$tradeV1,
+        'review_reference'=>'LOCAL REVIEW ONLY'],$tokens['developer']),200);
+    expectStatus(http('POST',$activateUrl,['revision_id'=>$tradeV1,
+        'review_reference'=>'LOCAL REVIEW ONLY'],$tokens['developer']),409);
+    $tradeNext=['trade_id'=>$tradeId,'source_document_id'=>$docId,
+        'version_code'=>'LOCAL-2027','official_name'=>'LOCAL TEST REVISED TRADE',
+        'trade_type'=>'engineering','effective_from'=>'2027-01-01'];
+    $revisionDraft=http('POST',$tradeBase.'/revisions',$tradeNext,$tokens['developer']);
+    expectStatus($revisionDraft,201);
+    $tradeV2=(int)$revisionDraft['body']['data']['revision_id'];
+    expectStatus(http('POST',$activateUrl,['revision_id'=>$tradeV2,
+        'review_reference'=>'LOCAL REVISION ONLY'],$tokens['developer']),200);
+    verify($db->query("SELECT status FROM trade_master_revisions WHERE id=$tradeV1")->fetchColumn()==='superseded',
+        'Old Global Trade revision must retain superseded history.');
+    verify($db->query("SELECT effective_to FROM trade_master_revisions WHERE id=$tradeV1")->fetchColumn()==='2026-12-31',
+        'Old Global Trade effective period must end at new version boundary.');
+    verify($db->query("SELECT status FROM trade_master_revisions WHERE id=$tradeV2")->fetchColumn()==='active',
+        'Reviewed Global Trade revision must be active.');
+    $tradeList=http('GET',$tradeBase.'?page_size=100',token:$tokens['developer']);
+    expectStatus($tradeList,200);
+    verify(in_array($tradeId,array_map('intval',array_column(
+        $tradeList['body']['data']['trades'],'id')),true),
+        'Global Trade register must expose the stable Trade ID.');
+    expectStatus(http('GET',$tradeBase,token:$tokens['administrator']),403);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

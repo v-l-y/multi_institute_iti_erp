@@ -65,6 +65,31 @@ are implemented. Remaining CRUD, instructor assignments, other role-specific
 record access and populated-database migrations still require implementation.
 Follow the module boundaries below when adding them.
 
+## Global DGT Trade master
+
+Only the existing platform Developer with `platform.regulatory.manage`
+can register or revise Global Trade identities. There is **no**
+institute-specific Trade master API.
+
+- `POST /api/v1/platform/trades` creates a globally unique `dgt_code`
+  and first **draft** version using `source_document_id`,
+  `version_code`, `official_name`, `trade_type`
+  (`engineering`, `non_engineering`, `divyang`) and
+  `effective_from`. The source must be a previously published
+  registered **DGT document**.
+- `POST /api/v1/platform/trades/revisions` adds a draft revision
+  to an existing stable `trade_id`.
+- `POST /api/v1/platform/trades/revisions/activate` takes
+  `revision_id` and `review_reference`. It activates a draft
+  revision, supersedes the previous active revision (without deletion),
+  and retains the prior version's effective end date.
+- `GET /api/v1/platform/trades` lists stable Trade IDs with their
+  active revision, or a NULL revision if none is active.
+
+Operator-provided source/review evidence must be independently inspected;
+ERP activation means a locally reviewed master revision, not proof of
+official issuance.
+
 ## Platform regulatory source document register
 
 `POST /api/v1/platform/regulatory/documents/draft` accepts explicit

@@ -405,6 +405,21 @@ $checks[]=$kernel->handle(static fn()=>$regulatoryController->publish(
     new Request(['document_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
 $checks[]=$kernel->handle(static fn()=>$regulatoryController->index(
     new Request(query:['page_size'=>'101']),$developerActor))->status===422;
+$tradeController=new App\Modules\Regulatory\TradeMasterController(new App\Core\Database([]));
+$tradeInput=['dgt_code'=>'LOCAL-TRADE','source_document_id'=>1,'version_code'=>'LOCAL-V1',
+    'official_name'=>'LOCAL ONLY','trade_type'=>'engineering','effective_from'=>'2026-05-08'];
+$checks[]=$kernel->handle(static fn()=>$tradeController->create(
+    new Request([...$tradeInput,'trade_type'=>'other']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$tradeController->create(
+    new Request([...$tradeInput,'effective_from'=>'2026-02-30']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$tradeController->create(
+    new Request($tradeInput),$accountStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$tradeController->draftRevision(
+    new Request([...$tradeInput,'trade_id'=>'1']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$tradeController->activate(
+    new Request(['revision_id'=>'1','review_reference'=>'LOCAL']),$developerActor))->status===422;
+$checks[]=$kernel->handle(static fn()=>$tradeController->index(
+    new Request(query:['page_size'=>'101']),$developerActor))->status===422;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

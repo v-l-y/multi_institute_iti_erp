@@ -54,7 +54,7 @@ final readonly class PracticalExamController
 
     private static function decimal(Request $r,string $key,bool $positive): array
     {
-        $v=self::text($r,$key,7);
+        $v=self::text($r,$key,8);
         if (!preg_match('/^(?:0|[1-9][0-9]{0,4})(?:\\.[0-9]{1,2})?$/D',$v)) {
             throw new HttpException('INVALID_INPUT','Decimal string '.$key.' required.',422);
         }

@@ -9,6 +9,7 @@ use App\Core\Database;
 use App\Modules\Auth\Http\AuthMiddleware;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Institutes\InstituteRepository;
+use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Institutes\InstituteContactController;
 use App\Modules\Operations\OperationsController;
 use App\Modules\Staff\Http\StaffController;
@@ -40,6 +41,13 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/auth/users/disable', $guard->wrap([$userManagement, 'disable'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/revoke-role', $guard->wrap([$userManagement, 'revokeRole'], 'auth.user.view'));
     $router->post('/api/v1/auth/users/reset-password', $guard->wrap([$userManagement, 'resetPassword'], 'auth.password.reset_user'));
+    $platformInstitute=new PlatformInstituteController($database);
+    $router->get('/api/v1/platform/institutes', $guard->wrap(
+        [$platformInstitute,'index'], 'platform.institute.view'));
+    $router->post('/api/v1/platform/institutes', $guard->wrap(
+        [$platformInstitute,'create'], 'platform.institute.create'));
+    $router->post('/api/v1/platform/institutes/principal', $guard->wrap(
+        [$platformInstitute,'provisionPrincipal'], 'platform.institute.update'));
     $router->get('/api/v1/institute/profile', $guard->wrap(
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',

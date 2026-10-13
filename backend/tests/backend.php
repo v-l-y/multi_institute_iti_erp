@@ -17,6 +17,14 @@ $checks = [
     $router->dispatch('POST', '/api/v1/health')->status === 405,
     $router->dispatch('POST', '/api/v1/health')->headers['Allow'] === 'GET',
 ];
+$duplicateRouteRejected = false;
+try {
+    $router->get('/api/v1/health', static fn() => new App\Http\Response(['success' => false]));
+} catch (LogicException $exception) {
+    $duplicateRouteRejected = $exception->getMessage() === 'Duplicate route registration: GET /api/v1/health.';
+}
+$checks[] = $duplicateRouteRejected;
+$checks[] = $router->dispatch('GET', '/api/v1/health')->body['data']['status'] === 'ok';
 $router->post('/test', static fn(Request $request) => new App\Http\Response(['value' => $request->body['value']]));
 $checks[] = $router->dispatch('POST', '/test', new Request(['value' => 17]))->body['value'] === 17;
 $application = require dirname(__DIR__) . '/bootstrap/app.php';

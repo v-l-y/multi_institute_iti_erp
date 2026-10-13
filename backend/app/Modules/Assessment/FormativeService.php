@@ -64,11 +64,21 @@ final readonly class FormativeService
                 if (!$enrolled) {
                     throw new HttpException('ENROLLMENT_NOT_ACTIVE','Active enrollment in matching batch required.',409);
                 }
-                $lo=$this->row('SELECT id FROM learning_outcomes
-                    WHERE id=? AND institute_id=? AND curriculum_year_id=? FOR UPDATE',
+                $lo=$this->row('SELECT l.id,g.formative_max_marks AS official_max_marks
+                    FROM learning_outcomes l
+                    JOIN global_learning_outcomes g ON g.id=l.global_learning_outcome_id
+                      AND g.global_curriculum_year_id=l.global_curriculum_year_id
+                    WHERE l.id=? AND l.institute_id=? AND l.curriculum_year_id=? FOR UPDATE',
                     [$outcome,$institute,$year['curriculum_year_id']]);
                 if (!$lo) {
                     throw new HttpException('LEARNING_OUTCOME_MISMATCH','Official course-year learning outcome required.',409);
+                }
+                // The instructor cannot override an explicitly declared DGT
+                // learning-outcome maximum through the assessment request.
+                if ($lo['official_max_marks']!==null
+                    && (string)$lo['official_max_marks']!==$maximum) {
+                    throw new HttpException('FORMATIVE_OFFICIAL_MAX',
+                        'Assessment maximum must match the published syllabus learning-outcome maximum.',409);
                 }
                 $mapping=$this->row("SELECT m.id FROM instructor_mappings m
                     JOIN staff s ON s.id=m.staff_id AND s.institute_id=m.institute_id

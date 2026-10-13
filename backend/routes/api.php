@@ -221,6 +221,10 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/exams/cycles/open', $guard->wrap([$examSetup, 'open'], 'exam.eligibility.manage'));
     $router->post('/api/v1/exams/eligibility/freeze', $guard->wrap([$operations, 'freezeEligibility'], 'exam.eligibility.manage'));
     $ojt=new OjtController($database);
+    $router->get('/api/v1/ojt/projects', $guard->wrap(
+        [$ojt,'instituteProjects'], 'ojt.view'));
+    $router->get('/api/v1/ojt/projects/me', $guard->wrap(
+        [$ojt,'ownProjects'], 'ojt.view.own'));
     $router->post('/api/v1/ojt/projects', $guard->wrap(
         [$ojt,'plan'], 'calendar.manage'));
     $router->post('/api/v1/ojt/projects/start', $guard->wrap(

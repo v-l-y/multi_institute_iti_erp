@@ -26,3 +26,5 @@ jobs:
       - name: Clean up test stack
         if: always()
         run: docker compose -p iti-erp-ci -f compose.test.yaml down
+
+# Verification attempt 2: frontend syntax repairs.

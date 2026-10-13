@@ -61,7 +61,7 @@ function bootstrapDeveloper(string $input, array $environment): array
 $db->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 try {
     $db->exec("USE `$name`");
-    $db->exec(file_get_contents(dirname(__DIR__) . '/database/schema/iti_erp_schema.sql'));
+    App\Core\SchemaInstaller::install($db);
     $db->exec("SET time_zone='+00:00'");
     $db->exec(file_get_contents(dirname(__DIR__) . '/database/seeders/rbac_seed.sql'));
     preg_match('/host=([^;]+)/', $dsn, $host);

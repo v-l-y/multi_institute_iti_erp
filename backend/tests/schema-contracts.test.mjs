@@ -4,6 +4,64 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 const sql = readFileSync(new URL('../database/schema/iti_erp_schema.sql', import.meta.url), 'utf8');
+const rbacSeed = readFileSync(new URL('../database/seeders/rbac_seed.sql', import.meta.url), 'utf8');
+const guards = readFileSync(new URL('../database/schema/integrity_guards.sql', import.meta.url), 'utf8');
+
+test('Bihar foundation retains route evidence, DST coverage and unknown EWS', () => {
+  contains('students', 'is_ews TINYINT NULL');
+  contains('enrollments', 'FOREIGN KEY(admission_route_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id)');
+  contains('dst_agreement_units', 'FOREIGN KEY(agreement_id,trade_id,institute_id)');
+  contains('dst_agreement_units', 'FOREIGN KEY(trade_unit_shift_id,trade_id,institute_id)');
+  contains('cts_training_calendars', 'upload_profile_json LONGTEXT NULL');
+  contains('institute_activity_log', 'FOREIGN KEY(actor_user_id,institute_id) REFERENCES auth_users(id,institute_id)');
+});
+
+test('exam snapshots reject contradictory eligibility and excess relaxation', () => {
+  contains('exam_eligibility', 'effective_attendance-raw_attendance<=relaxation_cap_as_applied');
+  contains('exam_eligibility', 'relaxation_id IS NOT NULL OR effective_attendance=raw_attendance');
+  contains('exam_eligibility', "eligibility_status<>'eligible' OR (formative_complete=1 AND effective_attendance>=minimum_attendance_as_applied AND formative_percent>=minimum_formative_as_applied)");
+});
+
+test('separate integrity module protects frozen evidence and immutable financial records', () => {
+  assert.equal((guards.match(/^END\$\$\s*$/gm) || []).length, (guards.match(/CREATE TRIGGER /g) || []).length, 'each trigger must close with END$$');
+  assert.ok(!/^END\$(?!\$)/m.test(guards), 'single-dollar trigger delimiter is invalid');
+  for (const trigger of ['global_regulatory_documents_frozen_update','seat_matrix_entries_parent_update','student_fee_assessment_items_parent_update','fee_payments_immutable_update','fee_payment_allocations_immutable_delete','fee_refunds_workflow_update','exam_eligibility_immutable_update','attendance_records_session_update','formative_template_scores_max_insert']) {
+    assert.ok(guards.includes('CREATE TRIGGER ' + trigger), 'missing integrity trigger ' + trigger);
+  }
+});
+
+test('fee demands, allocations and refunds retain student and institute identity', () => {
+  contains('student_fee_assessments', 'FOREIGN KEY(enrollment_id,student_id,institute_id) REFERENCES enrollments(id,student_id,institute_id)');
+  contains('fee_demands', 'FOREIGN KEY(assessment_id,student_id,institute_id) REFERENCES student_fee_assessments(id,student_id,institute_id)');
+  contains('fee_payment_allocations', 'FOREIGN KEY(payment_id,student_id,institute_id) REFERENCES fee_payments(id,student_id,institute_id)');
+  contains('fee_payment_allocations', 'FOREIGN KEY(demand_id,student_id,institute_id) REFERENCES fee_demands(id,student_id,institute_id)');
+  contains('fee_refunds', 'FOREIGN KEY(allocation_id,demand_id,student_id,institute_id) REFERENCES fee_payment_allocations(id,demand_id,student_id,institute_id)');
+  contains('fee_waivers', 'FOREIGN KEY(assessment_id,student_id,institute_id)');
+  contains('fee_payment_reversals', 'FOREIGN KEY(payment_id,student_id,institute_id)');
+});
+
+test('fee mutations support retry identity and independent approval', () => {
+  for (const name of ['fee_payments', 'fee_refunds', 'fee_cash_transfers']) {
+    contains(name, 'UNIQUE(idempotency_key,institute_id)');
+    contains(name, "CHECK(request_fingerprint REGEXP '^[0-9a-f]{64}$')");
+    contains(name, 'CHECK(amount>0)');
+  }
+  contains('fee_waivers', "CHECK(status<>'approved' OR decided_by<>requested_by)");
+  contains('fee_refunds', "CHECK(status NOT IN ('approved','paid') OR decided_by<>requested_by)");
+  contains('fee_payment_reversals', 'UNIQUE(payment_id,institute_id)');
+  contains('fee_payment_reversals', 'CHECK(requested_by<>approved_by)');
+  contains('fee_payments', 'FOREIGN KEY(received_by,institute_id) REFERENCES auth_users(id,institute_id)');
+});
+
+test('assessment snapshots and cash reconciliation avoid mutable balance copies', () => {
+  contains('student_fee_assessment_items', 'head_code VARCHAR(50) NOT NULL');
+  contains('student_fee_assessment_items', 'head_name VARCHAR(120) NOT NULL');
+  contains('fee_structures', 'UNIQUE(active_trade_guard,institute_id)');
+  contains('fee_cash_closings', 'opening_amount+collected_amount-refunded_amount+added_amount-deposited_amount-withdrawn_amount');
+  contains('fee_cash_closings', 'actual_amount-expected_amount');
+  assert.ok(!table('fee_demands').includes('balance_amount'));
+});
+
 function table(name) {
   const re = new RegExp('CREATE TABLE ' + name + '\\s*\\(([\\s\\S]*?)\\n\\) ENGINE=InnoDB');
   const m = sql.match(re);
@@ -14,7 +72,8 @@ function contains(name, fragment) {
   assert.ok(table(name).includes(fragment), name + ' missing: ' + fragment);
 }
 test('expected table/trigger count', () => {
-  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 81);
+  assert.ok(!/,\s*,/.test(sql), 'schema contains duplicate comma separators');
+  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 97);
   assert.equal((sql.match(/CREATE TRIGGER /g) || []).length, 0);
 });
 test('enrollment qualification cannot refer to another student', () => {
@@ -64,9 +123,10 @@ test('five canonical authentication roles have correct scope and identity contra
   const roles = table('auth_roles');
   for (const code of ['developer', 'principal', 'administrator', 'instructor', 'student']) {
     assert.ok(roles.includes("'" + code + "'"), 'auth_roles missing ' + code);
-    assert.ok(sql.includes("'" + code + "'"), 'role seed missing ' + code);
+    assert.ok(rbacSeed.includes("'" + code + "'"), 'role seeder missing ' + code);
   }
   assert.ok(!roles.includes("'administration'"), 'legacy administration role should be renamed');
+  assert.ok(!/INSERT\s+INTO\s+auth_roles\b/i.test(sql), 'role inserts belong in the seeder');
   contains('auth_roles', "scope ENUM('platform','institute') NOT NULL");
   contains('auth_roles', "code='developer' AND scope='platform'");
   contains('auth_users', 'institute_id BIGINT UNSIGNED NULL');

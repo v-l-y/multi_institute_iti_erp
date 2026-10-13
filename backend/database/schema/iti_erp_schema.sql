@@ -352,6 +352,33 @@ CREATE TABLE trade_units (
  CHECK(unit_no>0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE dst_agreements (
+ institute_id BIGINT UNSIGNED NOT NULL,
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ source_id BIGINT UNSIGNED NOT NULL,
+ agreement_no VARCHAR(190) NOT NULL,
+ industry_name VARCHAR(255) NOT NULL,
+ industry_registration_reference VARCHAR(190) NOT NULL,
+ industry_address TEXT NOT NULL,
+ industry_contact VARCHAR(190) NOT NULL,
+ starts_on DATE NOT NULL,
+ ends_on DATE NOT NULL,
+ status ENUM('draft','verified','expired','revoked','superseded') NOT NULL DEFAULT 'draft',
+ verification_reference VARCHAR(500) NULL,
+ verified_on DATE NULL,
+ signed_evidence_reference VARCHAR(500) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(id,trade_id,institute_id),
+ UNIQUE(id,institute_id),
+ UNIQUE(agreement_no,institute_id),
+ FOREIGN KEY(trade_id) REFERENCES trades(id),
+ FOREIGN KEY(source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ CHECK(ends_on>=starts_on),
+ CHECK(status<>'verified' OR (verification_reference IS NOT NULL AND verified_on IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE trade_unit_shifts (
  institute_id BIGINT UNSIGNED NOT NULL,
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -385,6 +412,17 @@ CREATE TABLE trade_unit_shifts (
  CHECK(shift_no BETWEEN 1 AND 3 AND sanctioned_capacity>0),
  CHECK(shift_no<>3 OR training_mode='DST'),
  CHECK(valid_to IS NULL OR valid_to>=valid_from)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE dst_agreement_units (
+ institute_id BIGINT UNSIGNED NOT NULL,
+ agreement_id BIGINT UNSIGNED NOT NULL,
+ trade_unit_shift_id BIGINT UNSIGNED NOT NULL,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ PRIMARY KEY(agreement_id,trade_unit_shift_id,institute_id),
+ FOREIGN KEY(agreement_id,trade_id,institute_id) REFERENCES dst_agreements(id,trade_id,institute_id),
+ FOREIGN KEY(trade_unit_shift_id,trade_id,institute_id) REFERENCES trade_unit_shifts(id,trade_id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE instructor_mappings (
@@ -458,6 +496,7 @@ CREATE TABLE cts_training_calendars (
  source_document_id BIGINT UNSIGNED NOT NULL,
  training_starts_on DATE NOT NULL,
  training_ends_on DATE NOT NULL,
+ upload_profile_json LONGTEXT NULL CHECK(upload_profile_json IS NULL OR JSON_VALID(upload_profile_json)),
  status ENUM('draft','published','superseded','withdrawn') NOT NULL DEFAULT 'draft',
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -825,7 +864,7 @@ CREATE TABLE students (
  pwd_category VARCHAR(80) NULL,
  address TEXT NOT NULL,
  category_code VARCHAR(40) NULL,
- is_ews TINYINT NOT NULL DEFAULT 0,
+ is_ews TINYINT NULL,
  disability_percent DECIMAL(5,2) NULL,
  identity_mode ENUM('aadhaar','non_aadhaar') NOT NULL,
  identity_evidence_reference VARCHAR(190) NOT NULL,
@@ -844,7 +883,7 @@ CREATE TABLE students (
  UNIQUE(apaar_id,institute_id),
  UNIQUE(id,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
- CHECK(is_ews IN(0,1)),
+ CHECK(is_ews IS NULL OR is_ews IN(0,1)),
  CHECK(disability_percent IS NULL OR disability_percent BETWEEN 0 AND 100),
  CHECK(prn_verified_on IS NULL OR (prn IS NOT NULL AND prn_source_reference IS NOT NULL)),
  CHECK(apaar_id IS NULL OR (apaar_consent='granted' AND consent_reference IS NOT NULL AND consent_on IS NOT NULL))
@@ -879,6 +918,9 @@ CREATE TABLE enrollments (
  admission_number VARCHAR(80) NOT NULL,
  state_registration_number VARCHAR(100) NULL,
  trainee_type VARCHAR(40) NULL,
+ admission_route ENUM('unverified','iticat_counselling','iticat_spot','institute_direct','transfer') NOT NULL DEFAULT 'unverified',
+ admission_route_source_id BIGINT UNSIGNED NULL,
+ admission_route_evidence_reference VARCHAR(500) NULL,
  admitted_on DATE NOT NULL,
  status ENUM('pending_verification','active','completed','transferred','dropout','cancelled') NOT NULL DEFAULT 'pending_verification',
  admission_rule_id BIGINT UNSIGNED NOT NULL,
@@ -908,12 +950,14 @@ CREATE TABLE enrollments (
  FOREIGN KEY(batch_id,intake_id,institute_id) REFERENCES batches(id,intake_id,institute_id),
  FOREIGN KEY(admission_intake_revision_id,intake_id,institute_id) REFERENCES admission_intake_revisions(id,intake_id,institute_id),
  FOREIGN KEY(admission_rule_id,institute_id) REFERENCES admission_rules(id,institute_id),
+ FOREIGN KEY(admission_route_source_id,institute_id) REFERENCES regulatory_sources(id,institute_id),
  FOREIGN KEY(qualification_id,student_id,institute_id) REFERENCES student_qualifications(id,student_id,institute_id),
  FOREIGN KEY(vertical_quota_id,batch_id,vertical_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id),
  FOREIGN KEY(horizontal_quota_id,batch_id,horizontal_quota_type,institute_id) REFERENCES batch_quotas(id,batch_id,quota_type,institute_id),
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(vertical_quota_type='vertical' AND horizontal_quota_type='horizontal'),
  CHECK(qualification_check_passed IN(0,1)),
+ CHECK(admission_route='unverified' OR (admission_route_source_id IS NOT NULL AND admission_route_evidence_reference IS NOT NULL AND CHAR_LENGTH(TRIM(admission_route_evidence_reference))>0)),
  CHECK(status NOT IN ('active','completed') OR qualification_check_passed=1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1337,6 +1381,9 @@ CREATE TABLE exam_eligibility (
  relaxation_id BIGINT UNSIGNED NULL,
  formative_percent DECIMAL(5,2) NOT NULL,
  formative_complete TINYINT NOT NULL,
+ minimum_attendance_as_applied DECIMAL(5,2) NOT NULL,
+ minimum_formative_as_applied DECIMAL(5,2) NOT NULL,
+ relaxation_cap_as_applied DECIMAL(5,2) NOT NULL,
  eligibility_status ENUM('eligible','ineligible','withheld') NOT NULL,
  reason VARCHAR(1000) NULL,
  rule_snapshot_json LONGTEXT NOT NULL CHECK(JSON_VALID(rule_snapshot_json)),
@@ -1356,7 +1403,12 @@ CREATE TABLE exam_eligibility (
  FOREIGN KEY(institute_id) REFERENCES institute(id),
  CHECK(scheduled_units>0 AND attended_units BETWEEN 0 AND scheduled_units),
  CHECK(raw_attendance BETWEEN 0 AND 100 AND effective_attendance BETWEEN 0 AND 100 AND formative_percent BETWEEN 0 AND 100),
- CHECK(formative_complete IN(0,1))
+ CHECK(formative_complete IN(0,1)),
+ CHECK(minimum_attendance_as_applied BETWEEN 0 AND 100 AND minimum_formative_as_applied BETWEEN 0 AND 100 AND relaxation_cap_as_applied BETWEEN 0 AND 100),
+ CHECK(effective_attendance>=raw_attendance AND effective_attendance-raw_attendance<=relaxation_cap_as_applied),
+ CHECK(relaxation_id IS NOT NULL OR effective_attendance=raw_attendance),
+ CHECK(ABS(raw_attendance-ROUND(100*attended_units/scheduled_units,2))<=0.01),
+ CHECK(eligibility_status<>'eligible' OR (formative_complete=1 AND effective_attendance>=minimum_attendance_as_applied AND formative_percent>=minimum_formative_as_applied))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE hall_tickets (
@@ -1751,10 +1803,321 @@ CREATE TABLE auth_user_permissions (
  FOREIGN KEY(granted_by) REFERENCES auth_users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Role identities only. No permissions are auto-granted: authorization remains deny-by-default.
-INSERT INTO auth_roles (code,scope,name,description,is_system) VALUES
- ('developer','platform','Developer','ERP technical platform administration, not a government regulator',1),
- ('principal','institute','Principal','Institute principal account',1),
- ('administrator','institute','Administrator','Institute administration account',1),
- ('instructor','institute','Instructor','Institute instructor assigned to staff identity',1),
- ('student','institute','Student','Institute student linked to learner identity',1);
+
+
+CREATE TABLE institute_activity_log (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ actor_user_id BIGINT UNSIGNED NOT NULL,
+ action_code VARCHAR(80) NOT NULL,
+ entity_table VARCHAR(80) NOT NULL,
+ entity_id BIGINT UNSIGNED NOT NULL,
+ event_data_json LONGTEXT NOT NULL CHECK(JSON_VALID(event_data_json)),
+ occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(actor_user_id,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ INDEX(institute_id,entity_table,entity_id,occurred_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- BEGIN ADVANCED FEE MANAGEMENT v1
+-- Additive module: no automatic conversion or dual writes to the legacy fee ledger.
+-- Aggregate limits require locked transactional services; CHECK constraints guard individual rows.
+
+CREATE TABLE fee_heads (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ code VARCHAR(50) NOT NULL,
+ name VARCHAR(120) NOT NULL,
+ requires_enrollment TINYINT NOT NULL DEFAULT 1,
+ is_active TINYINT NOT NULL DEFAULT 1,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(code,institute_id),
+ CHECK(is_active IN (0,1)),
+ CHECK(requires_enrollment IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_structures (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ trade_id BIGINT UNSIGNED NOT NULL,
+ version_no INT UNSIGNED NOT NULL,
+ effective_from DATE NOT NULL,
+ effective_to DATE NULL,
+ status ENUM('draft','active','inactive') NOT NULL DEFAULT 'draft',
+ active_trade_guard BIGINT UNSIGNED GENERATED ALWAYS AS (IF(status='active',trade_id,NULL)) STORED,
+ created_by BIGINT UNSIGNED NOT NULL,
+ activated_by BIGINT UNSIGNED NULL,
+ activated_at DATETIME NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(trade_id) REFERENCES trades(id),
+ FOREIGN KEY(created_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(activated_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(trade_id,version_no,institute_id),
+ UNIQUE(active_trade_guard,institute_id),
+ CHECK(version_no>0),
+ CHECK(effective_to IS NULL OR effective_to>=effective_from),
+ CHECK(status<>'active' OR (activated_by IS NOT NULL AND activated_at IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_structure_items (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ structure_id BIGINT UNSIGNED NOT NULL,
+ head_id BIGINT UNSIGNED NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(structure_id,institute_id) REFERENCES fee_structures(id,institute_id),
+ FOREIGN KEY(head_id,institute_id) REFERENCES fee_heads(id,institute_id),
+ UNIQUE(structure_id,head_id,institute_id),
+ CHECK(amount>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE student_fee_assessments (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ enrollment_id BIGINT UNSIGNED NULL,
+ structure_id BIGINT UNSIGNED NOT NULL,
+ assessment_no VARCHAR(100) NOT NULL,
+ assessed_on DATE NOT NULL,
+ status ENUM('draft','issued','cancelled') NOT NULL DEFAULT 'draft',
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(enrollment_id,student_id,institute_id) REFERENCES enrollments(id,student_id,institute_id),
+ FOREIGN KEY(structure_id,institute_id) REFERENCES fee_structures(id,institute_id),
+ FOREIGN KEY(created_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(assessment_no,institute_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE student_fee_assessment_items (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ assessment_id BIGINT UNSIGNED NOT NULL,
+ head_id BIGINT UNSIGNED NOT NULL,
+ head_code VARCHAR(50) NOT NULL,
+ head_name VARCHAR(120) NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(assessment_id,institute_id) REFERENCES student_fee_assessments(id,institute_id),
+ FOREIGN KEY(head_id,institute_id) REFERENCES fee_heads(id,institute_id),
+ UNIQUE(assessment_id,head_id,institute_id),
+ CHECK(amount>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_demands (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ assessment_id BIGINT UNSIGNED NOT NULL,
+ demand_no VARCHAR(100) NOT NULL,
+ issued_on DATE NOT NULL,
+ due_on DATE NOT NULL,
+ status ENUM('issued','cancelled') NOT NULL DEFAULT 'issued',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(assessment_id,student_id,institute_id) REFERENCES student_fee_assessments(id,student_id,institute_id),
+ UNIQUE(assessment_id,institute_id),
+ UNIQUE(demand_no,institute_id),
+ CHECK(due_on>=issued_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_payments (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ payment_no VARCHAR(100) NOT NULL,
+ receipt_no VARCHAR(100) NOT NULL,
+ paid_on DATETIME NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ payment_mode ENUM('cash','bank','upi','card','cheque','gateway','other') NOT NULL,
+ reference_no VARCHAR(190) NULL,
+ receipt_identity_json LONGTEXT NULL,
+ idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_fingerprint CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ received_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(received_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(payment_no,institute_id),
+ UNIQUE(receipt_no,institute_id),
+ UNIQUE(idempotency_key,institute_id),
+ CHECK(amount>0),
+ CHECK(CHAR_LENGTH(idempotency_key)>0),
+ CHECK(request_fingerprint REGEXP '^[0-9a-f]{64}$'),
+ CHECK(receipt_identity_json IS NULL OR JSON_VALID(receipt_identity_json))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_payment_allocations (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ payment_id BIGINT UNSIGNED NOT NULL,
+ demand_id BIGINT UNSIGNED NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(payment_id,student_id,institute_id) REFERENCES fee_payments(id,student_id,institute_id),
+ FOREIGN KEY(demand_id,student_id,institute_id) REFERENCES fee_demands(id,student_id,institute_id),
+ UNIQUE(payment_id,demand_id,institute_id),
+ UNIQUE(id,demand_id,student_id,institute_id),
+ CHECK(amount>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_waivers (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ assessment_id BIGINT UNSIGNED NOT NULL,
+ waiver_no VARCHAR(100) NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ reason VARCHAR(500) NOT NULL,
+ status ENUM('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+ requested_by BIGINT UNSIGNED NOT NULL,
+ requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ decided_by BIGINT UNSIGNED NULL,
+ decided_at DATETIME NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(assessment_id,student_id,institute_id) REFERENCES student_fee_assessments(id,student_id,institute_id),
+ FOREIGN KEY(requested_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(decided_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(waiver_no,institute_id),
+ CHECK(amount>0),
+ CHECK(CHAR_LENGTH(TRIM(reason))>0),
+ CHECK(status='pending' OR (decided_by IS NOT NULL AND decided_at IS NOT NULL)),
+ CHECK(status<>'approved' OR decided_by<>requested_by)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_refunds (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ demand_id BIGINT UNSIGNED NOT NULL,
+ allocation_id BIGINT UNSIGNED NOT NULL,
+ refund_no VARCHAR(100) NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ reason VARCHAR(500) NOT NULL,
+ status ENUM('pending','approved','paid','rejected','cancelled') NOT NULL DEFAULT 'pending',
+ refund_mode ENUM('cash','bank','upi','gateway','other') NOT NULL,
+ reference_no VARCHAR(190) NULL,
+ idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_fingerprint CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ requested_by BIGINT UNSIGNED NOT NULL,
+ requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ decided_by BIGINT UNSIGNED NULL,
+ decided_at DATETIME NULL,
+ paid_by BIGINT UNSIGNED NULL,
+ paid_at DATETIME NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(allocation_id,demand_id,student_id,institute_id) REFERENCES fee_payment_allocations(id,demand_id,student_id,institute_id),
+ FOREIGN KEY(requested_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(decided_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(paid_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(refund_no,institute_id),
+ UNIQUE(idempotency_key,institute_id),
+ CHECK(amount>0),
+ CHECK(CHAR_LENGTH(TRIM(reason))>0),
+ CHECK(CHAR_LENGTH(idempotency_key)>0),
+ CHECK(request_fingerprint REGEXP '^[0-9a-f]{64}$'),
+ CHECK(status='pending' OR (decided_by IS NOT NULL AND decided_at IS NOT NULL)),
+ CHECK(status NOT IN ('approved','paid') OR decided_by<>requested_by),
+ CHECK((status='paid' AND paid_by IS NOT NULL AND paid_at IS NOT NULL) OR (status<>'paid' AND paid_by IS NULL AND paid_at IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_payment_reversals (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ student_id BIGINT UNSIGNED NOT NULL,
+ payment_id BIGINT UNSIGNED NOT NULL,
+ reversal_no VARCHAR(100) NOT NULL,
+ reason VARCHAR(500) NOT NULL,
+ requested_by BIGINT UNSIGNED NOT NULL,
+ approved_by BIGINT UNSIGNED NOT NULL,
+ reversed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ UNIQUE(id,student_id,institute_id),
+ FOREIGN KEY(student_id,institute_id) REFERENCES students(id,institute_id),
+ FOREIGN KEY(payment_id,student_id,institute_id) REFERENCES fee_payments(id,student_id,institute_id),
+ FOREIGN KEY(requested_by,institute_id) REFERENCES auth_users(id,institute_id),
+ FOREIGN KEY(approved_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(payment_id,institute_id),
+ UNIQUE(reversal_no,institute_id),
+ CHECK(requested_by<>approved_by),
+ CHECK(CHAR_LENGTH(TRIM(reason))>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_cash_transfers (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ occurred_at DATETIME NOT NULL,
+ transfer_type ENUM('bank_deposit','cash_withdrawal','counter_addition') NOT NULL,
+ amount DECIMAL(14,2) NOT NULL,
+ reference_no VARCHAR(190) NULL,
+ idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ request_fingerprint CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ recorded_by BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(recorded_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(idempotency_key,institute_id),
+ CHECK(amount>0),
+ CHECK(CHAR_LENGTH(idempotency_key)>0),
+ CHECK(request_fingerprint REGEXP '^[0-9a-f]{64}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE fee_cash_closings (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_id BIGINT UNSIGNED NOT NULL,
+ closing_date DATE NOT NULL,
+ opening_amount DECIMAL(14,2) NOT NULL,
+ collected_amount DECIMAL(14,2) NOT NULL,
+ refunded_amount DECIMAL(14,2) NOT NULL,
+ added_amount DECIMAL(14,2) NOT NULL,
+ deposited_amount DECIMAL(14,2) NOT NULL,
+ withdrawn_amount DECIMAL(14,2) NOT NULL,
+ actual_amount DECIMAL(14,2) NOT NULL,
+ expected_amount DECIMAL(14,2) GENERATED ALWAYS AS (opening_amount+collected_amount-refunded_amount+added_amount-deposited_amount-withdrawn_amount) STORED,
+ difference_amount DECIMAL(14,2) GENERATED ALWAYS AS (actual_amount-expected_amount) STORED,
+ closed_by BIGINT UNSIGNED NOT NULL,
+ closed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(institute_id) REFERENCES institute(id),
+ UNIQUE(id,institute_id),
+ FOREIGN KEY(closed_by,institute_id) REFERENCES auth_users(id,institute_id),
+ UNIQUE(closing_date,institute_id),
+ CHECK(opening_amount>=0 AND collected_amount>=0 AND refunded_amount>=0 AND added_amount>=0 AND deposited_amount>=0 AND withdrawn_amount>=0 AND actual_amount>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- END ADVANCED FEE MANAGEMENT v1

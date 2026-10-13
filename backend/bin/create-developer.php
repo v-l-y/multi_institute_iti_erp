@@ -22,7 +22,7 @@ try {
     $db->beginTransaction();
     $role = $db->query("SELECT id FROM auth_roles WHERE code='developer' AND scope='platform' FOR UPDATE")->fetchColumn();
     if ($role === false) {
-        throw new RuntimeException('Import the schema first.');
+        throw new RuntimeException('Import the schema and reviewed RBAC seeder first.');
     }
     if ($db->query("SELECT id FROM auth_users WHERE institute_id IS NULL LIMIT 1")->fetchColumn() !== false) {
         throw new RuntimeException('A platform account already exists; bootstrap is disabled.');

@@ -26,4 +26,4 @@ services:
     command:
       - sh
       - -ec
-      - "find app bootstrap config public routes bin tests -name '*.php' -print0 | xargs -0 -n1 php -l > /tmp/lint.log; php tests/backend.php; php tests/auth-integration.php; php tests/http-integration.php"
+      - "find app bootstrap config public routes bin tests -name '*.php' -print0 | xargs -0 -n1 php -l > /tmp/lint.log; php tests/backend.php; php tests/auth-integration.php; php tests/http-integration.php; php tests/fee-integration.php; php tests/foundation-integration.php; php tests/upload-validation.php"

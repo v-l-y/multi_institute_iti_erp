@@ -1,6 +1,7 @@
 # Multi-Institute ITI ERP backend
 
 Modular PHP 8.5.x API foundation using PDO and the existing SQL schema.
+Internal admission/fee/exam transaction services and SQL record guards are documented in [FOUNDATION_UPGRADE.md](database/schema/FOUNDATION_UPGRADE.md). They add no business HTTP write routes. Existing databases require the manual reviewed upgrade; rebuilding Docker alone does not apply it.
 No framework or third-party runtime dependencies are required.
 
 ## Structure
@@ -195,8 +196,8 @@ The following features are not implemented or certified by the current tests:
 - Verified official-master data loading without invented regulatory defaults.
 - Refresh token rotation and forgot-password delivery.
 - Instructor assigned-record and student own-record access on business endpoints.
-- Admission lifecycle, eligibility evidence, approvals and cancellations.
-- Attendance, formative marks and exam-eligibility reconciliation.
-- Concurrent enrollment/cancellation workflows with seat and quota locks.
+- Admission, fee and exam HTTP/UI integration and complete approval/correction workflows; internal guarded services now exist.
+- Broader attendance/formative data-entry workflows and official reconciliation policies beyond the configured freeze service.
+- Full simultaneous admissions/cancellations load tests; the new suite covers counters and institute lock serialization.
 - Governed OJT, exam, official-result and certificate imports/revisions.
 - Full recovery drills and reconciliation for a populated application database.

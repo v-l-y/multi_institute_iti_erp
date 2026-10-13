@@ -37,7 +37,7 @@ function fails(callable $action, int $status): void
 $db->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 try {
     $db->exec("USE `$name`");
-    $db->exec(file_get_contents(dirname(__DIR__) . '/database/schema/iti_erp_schema.sql'));
+    App\Core\SchemaInstaller::install($db);
     $db->exec("SET time_zone='+00:00'");
     $db->exec(file_get_contents(dirname(__DIR__) . '/database/seeders/rbac_seed.sql'));
     $db->exec("INSERT INTO institute (name,mis_code,address) VALUES ('Test A','TEST-A','Test'),('Test B','TEST-B','Test')");

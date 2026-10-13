@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
 const enabled = process.env.ITI_ERP_RUN_MYSQL === '1';
 const skip = enabled ? false : 'Set ITI_ERP_RUN_MYSQL=1 and configure local mysql/mysqldump to execute disposable-DB tests';
 const schema = readFileSync(new URL('../database/schema/iti_erp_schema.sql', import.meta.url), 'utf8');
+const rbacSeed = readFileSync(new URL('../database/seeders/rbac_seed.sql', import.meta.url), 'utf8');
+const guards = readFileSync(new URL('../database/schema/integrity_guards.sql', import.meta.url), 'utf8');
 const host = process.env.ITI_ERP_TEST_HOST || '127.0.0.1';
 const port = process.env.ITI_ERP_TEST_PORT || '3306';
 const user = process.env.ITI_ERP_TEST_USER || 'root';
@@ -72,54 +74,7 @@ function dropDatabase(name) {
 
 // No official regulatory facts, published evidence or government approvals are seeded.
 // IDs are fixed only inside this isolated throwaway database for unambiguous negative cases.
-const fixtures = [
-  "INSERT INTO institute (id,name,mis_code,address) VALUES (9101,'LOCAL TEST ITI A','LOCAL-TEST-A','Test'),(9102,'LOCAL TEST ITI B','LOCAL-TEST-B','Test');",
-  "INSERT INTO global_regulatory_documents (id,authority,document_type,title,reference_no,issued_on,evidence_reference) VALUES (9101,'DGT','local_fixture','LOCAL TEST ONLY','NOT-AN-OFFICIAL-ORDER','2026-01-01','NOT-OFFICIAL');",
-  "INSERT INTO regulatory_sources (id,institute_id,global_document_id) VALUES (9101,9101,9101),(9102,9102,9101);",
-  "INSERT INTO trades (id,dgt_code) VALUES (9101,'LOCAL-TRADE-TEST');",
-  "INSERT INTO global_shifts (id,shift_no,shift_code,display_name,revision_code,source_document_id,effective_from) VALUES (9101,1,'LOCAL-1','Local shift','LOCAL-REV',9101,'2026-01-01');",
-  "INSERT INTO global_curriculum_versions (id,trade_id,source_document_id,version_code,duration_months,nsqf_level,unit_strength,effective_from) VALUES (9101,9101,9101,'LOCAL',12,4,20,'2026-01-01');",
-  "INSERT INTO global_curriculum_years (id,global_curriculum_id,year_no,trade_practical_minutes,trade_theory_minutes,employability_minutes) VALUES (9101,9101,1,100,100,100);",
-  "INSERT INTO curriculum_versions (id,institute_id,trade_id,global_curriculum_id) VALUES (9101,9101,9101,9101);",
-  "INSERT INTO curriculum_years (id,institute_id,curriculum_id,global_curriculum_id,global_curriculum_year_id,year_no) VALUES (9101,9101,9101,9101,9101,1);",
-  "INSERT INTO trade_units (id,institute_id,trade_id,unit_no) VALUES (9101,9101,9101,1);",
-  "INSERT INTO trade_unit_shifts (id,institute_id,trade_unit_id,trade_id,global_shift_id,shift_no,affiliation_status,sanctioned_capacity,valid_from,source_id,approval_reference) VALUES (9101,9101,9101,9101,9101,1,'approved',20,'2026-01-01',9101,'LOCAL-TEST');",
-  "INSERT INTO instructor_identities (id,iprn) VALUES (9101,'NOT-OFFICIAL-IPRN-TEST');",
-  "INSERT INTO staff (id,institute_id,employee_code,full_name,staff_category,designation,joined_on,identity_id) VALUES (9101,9101,'T-A','Local Instructor','teaching','Instructor','2026-01-01',9101),(9102,9102,'T-B','Other Institute Staff','non_teaching','Clerk','2026-01-01',NULL);",
-  "INSERT INTO instructor_mappings (id,institute_id,staff_id,mapping_type,identity_id,trade_unit_shift_id,valid_from,qualification_source_id,qualification_check_json,qualification_checked_by,nims_reference) VALUES (9101,9101,9101,'trade',9101,9101,'2026-01-01',9101,'{}','LOCAL','NOT-OFFICIAL');",
-  "INSERT INTO cts_training_calendars (id,admission_year,session_code,revision_code,source_document_id,training_starts_on,training_ends_on) VALUES (9101,2026,'LOCAL','LOCAL',9101,'2026-08-01','2027-07-01');",
-  "INSERT INTO cts_portal_shift_mappings (id,calendar_id,session_part,physical_shift_no,portal_shift_no,document_section_reference) VALUES (9101,9101,'primary',1,1,'LOCAL TEST ONLY');",
-  "INSERT INTO admission_intakes (id,institute_id,admission_year,calendar_id,intake_code,session_part) VALUES (9101,9101,2026,9101,'LOCAL-PRIMARY','primary');",
-  "INSERT INTO admission_intake_revisions (id,institute_id,intake_id,source_id,revision_code,opens_on,closes_on,approval_reference) VALUES (9101,9101,9101,9101,'LOCAL','2026-01-01','2026-12-31','LOCAL-TEST');",
-  "INSERT INTO seat_matrix_versions (id,institute_id,admission_year,intake_id,version_code,source_id,portal_reference) VALUES (9101,9101,2026,9101,'LOCAL',9101,'NOT-OFFICIAL');",
-  "INSERT INTO seat_matrix_entries (id,institute_id,version_id,intake_id,trade_unit_shift_id,calendar_id,session_part,physical_shift_no,portal_shift_no,seat_capacity,admission_allowed,instructor_mapping_id,instructor_mapping_satisfied,portal_itsu_reference) VALUES (9101,9101,9101,9101,9101,9101,'primary',1,1,20,1,9101,1,'LOCAL-TEST');",
-  "INSERT INTO global_admission_rule_versions (id,trade_id,global_curriculum_id,source_document_id,admission_window_document_id,version_code,minimum_age_years,age_cutoff_date,qualification_routes_json,admission_opens_on,admission_closes_on) VALUES (9101,9101,9101,9101,9101,'LOCAL',14,'2026-08-01','{}','2026-01-01','2026-12-31');",
-  "INSERT INTO admission_rules (id,institute_id,trade_id,curriculum_id,global_curriculum_id,global_admission_rule_id) VALUES (9101,9101,9101,9101,9101,9101);",
-  "INSERT INTO batches (id,institute_id,batch_code,trade_unit_shift_id,trade_id,curriculum_id,seat_matrix_entry_id,admission_rule_id,admission_year,intake_id,calendar_id,starts_on,ends_on,capacity) VALUES (9101,9101,'LOCAL-BATCH',9101,9101,9101,9101,9101,2026,9101,9101,'2026-08-01','2027-07-01',20);",
-  "INSERT INTO students (id,institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference) VALUES (9101,9101,'S-A','Local Student A','2005-01-01','other','LOCAL','non_aadhaar','LOCAL-NOT-OFFICIAL'),(9102,9102,'S-B','Local Student B','2005-01-01','other','LOCAL','non_aadhaar','LOCAL-NOT-OFFICIAL');",
-  "INSERT INTO student_qualifications (id,institute_id,student_id,level_code,board_name,passing_year,certificate_reference,subject_results_json,verified_by,verified_on) VALUES (9101,9101,9101,'10','LOCAL',2024,'LOCAL','{}','LOCAL','2026-07-01'),(9102,9102,9102,'10','LOCAL',2024,'LOCAL','{}','LOCAL','2026-07-01');",
-  "INSERT INTO enrollments (id,institute_id,student_id,batch_id,intake_id,admission_intake_revision_id,admission_number,admitted_on,admission_rule_id,qualification_id,qualification_route_code,qualification_check_json,qualification_check_passed,checked_by,checked_on) VALUES (9101,9101,9101,9101,9101,9101,'LOCAL-ADM','2026-08-01',9101,9101,'LOCAL','{}',1,'LOCAL','2026-08-01');",
-  "INSERT INTO batch_years (id,institute_id,batch_id,curriculum_id,curriculum_year_id,calendar_id,starts_on,ends_on,attendance_basis,attendance_basis_source_id) VALUES (9101,9101,9101,9101,9101,9101,'2026-08-01','2027-07-01','minutes',9101);",
-  "INSERT INTO attendance_sessions (id,institute_id,batch_year_id,batch_id,session_date,component,scheduled_minutes,instructor_id) VALUES (9101,9101,9101,9101,'2026-09-01','trade_theory',60,9101);",
-  "INSERT INTO attendance_records (institute_id,session_id,batch_id,enrollment_id,attended_minutes,status,recorded_by) VALUES (9101,9101,9101,9101,40,'present','LOCAL');",
-  "INSERT INTO global_reservation_policies (id,admission_year,version_code,source_document_id,policy_json) VALUES (9101,2026,'LOCAL',9101,'{}');",
-  "INSERT INTO reservation_policies (id,institute_id,admission_year,global_reservation_policy_id) VALUES (9101,9101,2026,9101);",
-  "INSERT INTO batch_quotas (id,institute_id,batch_id,admission_year,policy_id,category_code,quota_type,seats,eligibility_condition_json) VALUES (9101,9101,9101,2026,9101,'LOCAL-V','vertical',10,'{}'),(9102,9101,9101,2026,9101,'LOCAL-H','horizontal',10,'{}');",
-  "INSERT INTO fee_transactions (id,institute_id,student_id,enrollment_id,fee_head,transaction_type,amount,paid_on,receipt_no,payment_mode,recorded_by) VALUES (9101,9101,9101,9101,'tuition','payment',100,'2026-08-02','LOCAL-FEE-1','cash','LOCAL'),(9102,9101,9101,9101,'tuition','refund',20,'2026-08-03','LOCAL-FEE-2','cash','LOCAL');"
-];
-// Replace the refund fixture with a legal reference to the original payment:
-fixtures[fixtures.length - 1] = "INSERT INTO fee_transactions (id,institute_id,student_id,enrollment_id,fee_head,transaction_type,amount,paid_on,receipt_no,payment_mode,reverses_transaction_id,recorded_by) VALUES (9101,9101,9101,9101,'tuition','payment',100,'2026-08-02','LOCAL-FEE-1','cash',NULL,'LOCAL'),(9102,9101,9101,9101,'tuition','refund',20,'2026-08-03','LOCAL-FEE-2','cash',9101,'LOCAL');";
-
-// Authentication fixtures validate database identities, not HTTP login or password verification.
-fixtures.push(
-  "INSERT INTO auth_users (id,institute_id,username,password_hash) VALUES (9201,NULL,'local-dev','NOT-A-REAL-PASSWORD-HASH'),(9202,9101,'local-instructor','NOT-A-REAL-PASSWORD-HASH'),(9203,9101,'local-student','NOT-A-REAL-PASSWORD-HASH'),(9204,9102,'local-staff-b','NOT-A-REAL-PASSWORD-HASH');",
-  "INSERT INTO auth_staff_links (institute_id,user_id,staff_id) VALUES (9101,9202,9101),(9102,9204,9102);",
-  "INSERT INTO auth_student_links (institute_id,user_id,student_id) VALUES (9101,9203,9101);",
-  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope) VALUES (NULL,9201,(SELECT id FROM auth_roles WHERE code='developer'),'developer','platform');",
-  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope,staff_link_user_id) VALUES (9101,9202,(SELECT id FROM auth_roles WHERE code='instructor'),'instructor','institute',9202);",
-  "INSERT INTO auth_user_roles (institute_id,user_id,role_id,role_code,scope,student_link_user_id) VALUES (9101,9203,(SELECT id FROM auth_roles WHERE code='student'),'student','institute',9203);"
-);
-
+const fixtures = readFileSync(new URL('./fixtures/foundation.sql', import.meta.url), 'utf8').split(/;\s*(?:\r?\n|$)/).map(s => s.trim()).filter(Boolean).map(s => s + ';');
 before(() => {
   if (!enabled) return;
   // Safety: refuse to run potentially destructive SQL against any remote DB or user-named DB.
@@ -127,6 +82,8 @@ before(() => {
   assert.match(port, /^\d{2,5}$/, 'Invalid local MySQL port');
   createDatabase(database);
   sql(schema);
+  sql(guards);
+  sql(rbacSeed);
   insertFixture(fixtures);
 });
 after(() => {
@@ -134,9 +91,9 @@ after(() => {
   for (const name of [...created].reverse()) dropDatabase(name);
 });
 
-test('fresh SQL imports into a disposable database with 81 tables and zero triggers', { skip }, () => {
-  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE';")), 81);
-  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE();")), 0);
+test('fresh SQL imports into a disposable database with 97 tables and integrity triggers', { skip }, () => {
+  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE';")), 97);
+  assert.equal(Number(scalar("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE();")), (guards.match(/CREATE TRIGGER /g) || []).length);
 });
 
 test('tenant isolation: staff from institute B cannot teach institute A attendance', { skip }, () => {
@@ -199,6 +156,30 @@ test('concurrency: two separate MySQL sessions cannot oversubscribe a capacity-l
   assert.deepEqual(results.sort(), [0, 1]);
   assert.equal(scalar('SELECT CONCAT(occupied_seats,\',\',capacity) FROM batches WHERE id=9101;'), '20,20');
 });
+
+
+test('advanced fee workflow rejects cross-student allocations, foreign actors and unsafe refunds', { skip }, () => {
+  sql("INSERT INTO students (id,institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference) VALUES (9301,9101,'FEE-OTHER','Other same-institute learner','2005-01-01','other','LOCAL','non_aadhaar','LOCAL-NOT-OFFICIAL');");
+  sql("INSERT INTO fee_heads (id,institute_id,code,name) VALUES (9301,9101,'LOCAL-TUITION','Local tuition');");
+  sql("INSERT INTO fee_structures (id,institute_id,trade_id,version_no,effective_from,created_by) VALUES (9301,9101,9101,1,'2026-01-01',9202);");
+  sql("INSERT INTO fee_structure_items (institute_id,structure_id,head_id,amount) VALUES (9101,9301,9301,1000);");
+  sql("INSERT INTO student_fee_assessments (id,institute_id,student_id,structure_id,assessment_no,assessed_on,created_by) VALUES (9301,9101,9101,9301,'LOCAL-A','2026-01-01',9202),(9302,9101,9301,9301,'LOCAL-B','2026-01-01',9202);");
+  sql("INSERT INTO student_fee_assessment_items (institute_id,assessment_id,head_id,head_code,head_name,amount) VALUES (9101,9301,9301,'LOCAL-TUITION','Local tuition',1000);");
+  sql("INSERT INTO fee_demands (id,institute_id,student_id,assessment_id,demand_no,issued_on,due_on) VALUES (9301,9101,9101,9301,'LOCAL-A','2026-01-01','2026-02-01'),(9302,9101,9301,9302,'LOCAL-B','2026-01-01','2026-02-01');");
+  const payment = "INSERT INTO fee_payments (id,institute_id,student_id,payment_no,receipt_no,paid_on,amount,payment_mode,idempotency_key,request_fingerprint,received_by) VALUES ";
+  sql(payment + "(9301,9101,9101,'LOCAL-P','LOCAL-R','2026-01-01',500,'cash','local-payment',REPEAT('a',64),9202);");
+  rejectsSql(payment + "(9302,9101,9101,'OTHER-P','OTHER-R','2026-01-01',100,'cash','other-payment',REPEAT('b',64),9204);", '1452');
+  rejectsSql(payment + "(9302,9101,9101,'OTHER-P','OTHER-R','2026-01-01',100,'cash','local-payment',REPEAT('b',64),9202);", '1062');
+  rejectsSql("INSERT INTO fee_payment_allocations (institute_id,student_id,payment_id,demand_id,amount) VALUES (9101,9101,9301,9302,500);", '1452');
+  sql("INSERT INTO fee_payment_allocations (id,institute_id,student_id,payment_id,demand_id,amount) VALUES (9301,9101,9101,9301,9301,500);");
+  const refund = "INSERT INTO fee_refunds (institute_id,student_id,demand_id,allocation_id,refund_no,amount,reason,status,refund_mode,idempotency_key,request_fingerprint,requested_by,decided_by,decided_at,paid_by,paid_at) VALUES ";
+  rejectsSql(refund + "(9101,9301,9302,9301,'LOCAL-RF',100,'Local test','pending','cash','local-refund',REPEAT('a',64),9202,NULL,NULL,NULL,NULL);", '1452');
+  rejectsSql(refund + "(9101,9101,9301,9301,'LOCAL-RF',100,'Local test','approved','cash','local-refund',REPEAT('a',64),9202,9202,NOW(),NULL,NULL);", '(?:3819|4025)');
+  rejectsSql(refund + "(9101,9101,9301,9301,'LOCAL-RF',100,'Local test','paid','cash','local-refund',REPEAT('a',64),9202,9203,NOW(),NULL,NULL);", '(?:3819|4025)');
+  sql(refund + "(9101,9101,9301,9301,'LOCAL-RF',100,'Local test','pending','cash','local-refund',REPEAT('a',64),9202,NULL,NULL,NULL,NULL);");
+  assert.equal(scalar('SELECT SUM(amount) FROM fee_payment_allocations WHERE payment_id=9301;'), '500.00');
+});
+
 
 test('backup/restore: dumped schema and fixtures survive a separate temporary restore', { skip }, () => {
   createDatabase(restored);

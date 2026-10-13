@@ -1,7 +1,5 @@
 name: Backend foundation
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 jobs:
   verify:

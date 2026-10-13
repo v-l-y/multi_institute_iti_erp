@@ -12,6 +12,10 @@ Duplicate payment or receipt numbers with a new idempotency key return `PAYMENT_
 
 ## Institute fee setup and cash closure (new local APIs)
 
+Fee setup will reject a Global Trade unless a Trade Unit for that same institute exists. A trade offered only at a different institute cannot receive this institute's fee structure (`INSTITUTE_TRADE_NOT_CONFIGURED`). This check does not substitute for an approved affiliation or fee regulatory-source review; it enforces the existing institute/trade mapping only. The isolated finance lifecycle regression now includes that cross-institute check.
+
+
+
 The fee setup flow now uses:
 `POST /api/v1/fees/heads` (explicit `requires_enrollment` boolean),
 `POST /api/v1/fees/structures` (global `trade_id`, version, dates),

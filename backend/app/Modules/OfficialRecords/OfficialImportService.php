@@ -32,9 +32,25 @@ final readonly class OfficialImportService
         return $q->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    private function officialSource(int $institute, int $sourceId, string $sourceSystem): array
+    /**
+     * Source registration is a typed reviewed document, not a generic regulatory
+     * citation. This local type check does not independently authenticate the
+     * government export or its candidate contents.
+     */
+    public static function acceptsDocumentType(string $documentType, string $recordKind): bool
     {
-        $source = $this->one('SELECT d.id,d.status,d.sha256,d.authority,d.source_system,d.reference_no
+        $type = strtolower(trim($documentType));
+        return match ($recordKind) {
+            'result' => str_contains($type, 'result'),
+            'certificate' => str_contains($type, 'certificate')
+                || str_contains($type, 'marksheet') || str_contains($type, 'ntc'),
+            default => false,
+        };
+    }
+
+    private function officialSource(int $institute, int $sourceId, string $sourceSystem, string $recordKind): array
+    {
+        $source = $this->one('SELECT d.id,d.status,d.sha256,d.authority,d.source_system,d.reference_no,d.document_type
             FROM regulatory_sources rs JOIN global_regulatory_documents d ON d.id=rs.global_document_id
             WHERE rs.id=? AND rs.institute_id=? FOR UPDATE', [$sourceId, $institute]);
         if (!$source || $source['status'] !== 'published' || !$source['sha256']) {
@@ -46,6 +62,10 @@ final readonly class OfficialImportService
             }
         } elseif ($source['source_system'] !== $sourceSystem) {
             throw new HttpException('SOURCE_SYSTEM_MISMATCH', 'Official source system mismatch.', 409);
+        }
+        if (!self::acceptsDocumentType((string)$source['document_type'], $recordKind)) {
+            throw new HttpException('OFFICIAL_DOCUMENT_TYPE',
+                'Official result and certificate imports require the matching reviewed document type.', 409);
         }
         return $source;
     }
@@ -67,7 +87,7 @@ final readonly class OfficialImportService
         self::principal($actor);
         return $this->run($actor, $institute, 'result.import',
             function () use ($actor, $institute, $data): int {
-                $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system']);
+                $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system'], 'result');
                 $enrollment = $this->one('SELECT id,batch_id FROM enrollments
                     WHERE id=? AND institute_id=? FOR UPDATE',
                     [$data['enrollment_id'], $institute]);
@@ -132,7 +152,7 @@ final readonly class OfficialImportService
         self::principal($actor);
         return $this->run($actor, $institute, 'certificate.record',
             function () use ($actor, $institute, $data): int {
-                $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system']);
+                $source = $this->officialSource($institute, $data['regulatory_source_id'], $data['source_system'], 'certificate');
                 $result = $this->one('SELECT id,enrollment_id,result_status FROM official_results
                     WHERE id=? AND institute_id=? FOR UPDATE', [$data['official_result_id'], $institute]);
                 if (!$result || (int)$result['enrollment_id'] !== $data['enrollment_id']) {

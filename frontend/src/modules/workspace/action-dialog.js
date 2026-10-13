@@ -15,6 +15,8 @@ export function openActionDialog(spec, { onDone, initial = {}, user } = {}) {
   if (!permittedAction(user, spec)) return null;
   const controller = new AbortController();
   let busy = false;
+  // A retry of the same form must reuse its key to avoid duplicate financial writes.
+  const idempotencyKey = spec.idempotency ? globalThis.crypto?.randomUUID?.() : null;
   const feedback = el("div", { className: "form-feedback", "aria-live": "assertive" });
   const fields = spec.fields.map(def => {
     const opts = {
@@ -69,8 +71,8 @@ export function openActionDialog(spec, { onDone, initial = {}, user } = {}) {
         }
       }
       if (spec.idempotency) {
-        if (!globalThis.crypto?.randomUUID) throw new Error("Secure browser context required.");
-        payload.idempotency_key = crypto.randomUUID();
+        if (!idempotencyKey) throw new Error("Secure browser context required.");
+        payload.idempotency_key = idempotencyKey;
       }
     } catch (error) {
       feedback.replaceChildren(notice("Check entered values", error.message, "error"));

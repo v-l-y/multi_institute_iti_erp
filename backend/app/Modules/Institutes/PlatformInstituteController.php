@@ -79,7 +79,7 @@ final readonly class PlatformInstituteController
 
     public function provisionPrincipal(Request $request,AuthContext $actor): Response
     {
-        $actor->requirePermission('platform.institute.update');
+        $actor->requirePermission('platform.user.provision_principal');
         if ($actor->instituteId!==null || !in_array('developer',$actor->roles,true)) {
             throw new HttpException('FORBIDDEN','Platform Developer required.',403);
         }

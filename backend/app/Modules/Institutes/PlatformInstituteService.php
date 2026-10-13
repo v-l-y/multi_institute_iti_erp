@@ -77,7 +77,7 @@ final readonly class PlatformInstituteService
         string $name,string $designation,string $joinedOn,string $appointmentReference,
         string $username,string $password): array
     {
-        self::authorize($actor,'platform.institute.update');
+        self::authorize($actor,'platform.user.provision_principal');
         $hash=PasswordHasher::hash(InstituteUserService::validatePassword($password));
         if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/D',$username)) {
             throw new HttpException('INVALID_USERNAME','Valid 3–120 character username required.',422);

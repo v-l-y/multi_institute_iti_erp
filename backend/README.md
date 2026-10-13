@@ -268,7 +268,7 @@ tenants and provision their first Principal account.
   `management_type`. Records a local institute directory entry only:
   **not DGT affiliation, Seat Matrix approval or recognition**.
 - `POST /api/v1/platform/institutes/principal`:
-  `platform.institute.update`; JSON `institute_id`, `employee_code`,
+  `platform.user.provision_principal`; JSON `institute_id`, `employee_code`,
   `full_name`, `designation`, `joined_on`, `appointment_reference`,
   `username`, `temporary_password`. Creates a staff identity, principal
   assignment, linked user identity, Principal role and Argon2id credentials

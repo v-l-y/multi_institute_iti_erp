@@ -384,11 +384,19 @@ function backendExpectStatus(\App\Http\Response $response, int $expected, int $l
 $platformController=new App\Modules\Institutes\PlatformInstituteController(new App\Core\Database([]));
 $developerActor=new AuthContext(1,null,1,'developer',false,['developer'],[
     'platform.institute.create','platform.institute.update','platform.institute.view',
-    'platform.regulatory.manage'],null,null);
+    'platform.user.provision_principal','platform.regulatory.manage'],null,null);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
     'name'=>'A','mis_code'=>'X','address'=>'Test']),$accountStudent)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->create(new Request([
     'name'=>'A','mis_code'=>'','address'=>'Test']),$developerActor)),422, __LINE__);
+// Directory updates must not grant the independent authority to provision a Principal.
+$directoryOnlyDeveloper=new AuthContext(2,null,1,'developer',false,['developer'],
+    ['platform.institute.update'],null,null);
+$checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
+    'institute_id'=>1,'employee_code'=>'P','full_name'=>'Principal',
+    'designation'=>'Principal','joined_on'=>'2026-01-01',
+    'appointment_reference'=>'TEST','username'=>'principal01',
+    'temporary_password'=>'123456789012']),$directoryOnlyDeveloper)),403, __LINE__);
 $checks[]=backendExpectStatus($kernel->handle(static fn()=>$platformController->provisionPrincipal(new Request([
     'institute_id'=>'1','employee_code'=>'P','full_name'=>'Principal',
     'designation'=>'Principal','joined_on'=>'2026-01-01',

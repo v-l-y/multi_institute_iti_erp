@@ -71,7 +71,7 @@ return static function (Router $router, Database $database): void {
     $router->post('/api/v1/platform/institutes', $guard->wrap(
         [$platformInstitute,'create'], 'platform.institute.create'));
     $router->post('/api/v1/platform/institutes/principal', $guard->wrap(
-        [$platformInstitute,'provisionPrincipal'], 'platform.institute.update'));
+        [$platformInstitute,'provisionPrincipal'], 'platform.user.provision_principal'));
     $router->get('/api/v1/institute/profile', $guard->wrap(
         static fn(Request $request, AuthContext $context) => new Response(['success' => true, 'data' => (new InstituteRepository($database->connection()))->profile($context)]),
         'institute.profile.view',

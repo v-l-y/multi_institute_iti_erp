@@ -9,12 +9,20 @@ final class Router
 
     public function get(string $path, callable $handler): void
     {
-        $this->routes[$path]['GET'] = $handler;
+        $this->register('GET', $path, $handler);
     }
 
     public function post(string $path, callable $handler): void
     {
-        $this->routes[$path]['POST'] = $handler;
+        $this->register('POST', $path, $handler);
+    }
+
+    private function register(string $method, string $path, callable $handler): void
+    {
+        if (isset($this->routes[$path][$method])) {
+            throw new \LogicException("Duplicate route registration: {$method} {$path}.");
+        }
+        $this->routes[$path][$method] = $handler;
     }
 
     public function dispatch(string $method, string $path, ?Request $request = null): Response

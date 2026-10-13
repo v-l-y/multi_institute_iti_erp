@@ -808,6 +808,12 @@ $checks[]=backendExpectStatus($kernel->handle(static fn()=>$ojtController->evalu
 $checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('AITT_Official_Result', 'result');
 $checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('CTS_Syllabus', 'result');
 $checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('CTS_Training_Calendar', 'certificate');
+$checks[] = \App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('AITT_Exam_Schedule');
+$checks[] = \App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('ExaminationTimeTable');
+$checks[] = \App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('CTS_Exam_Calendar');
+$checks[] = !\App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('CTS_Training_Calendar');
+$checks[] = !\App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('Trades_Syllabus');
+$checks[] = !\App\Modules\Exams\ExamCycleService::acceptsScheduleDocumentType('NonExamSchedule');
 $checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('NTC_Certificate', 'certificate');
 $checks[] = \App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('marksheet', 'certificate');
 $checks[] = !\App\Modules\OfficialRecords\OfficialImportService::acceptsDocumentType('official_result', 'certificate');

@@ -209,8 +209,11 @@ final readonly class FormativeTemplateScoreService
             $evidence,$reason,$review,$tx
         ): void {
             $year=$this->year($institute,$yearId);
-            if ($assessedOn<$year['starts_on'] || $assessedOn>$year['ends_on']) {
-                throw new HttpException('FORMATIVE_DATE','Date outside course year.',422);
+            if ($assessedOn<$year['starts_on'] || $assessedOn>$year['ends_on']
+                || $assessedOn>(new \DateTimeImmutable('now',
+                    new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d')) {
+                throw new HttpException('FORMATIVE_DATE',
+                    'Correction date must represent a completed day within the course year.',422);
             }
             $this->enrollment($institute,$enrollment,(int)$year['batch_id'],$assessedOn);
             $this->noFrozenEligibility($institute,$yearId,$enrollment);

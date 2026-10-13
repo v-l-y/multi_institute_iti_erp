@@ -52,10 +52,14 @@ export function registerValidator(control, validator) {
 export function validateForm(form, { matches = [], rules = [], validators = [] } = {}) {
   if (!(form instanceof HTMLFormElement)) throw new TypeError("Expected a form");
   const named = name => form.elements.namedItem(name);
-  // External validators survive this invocation and are refreshed first.
+  const pending = new Map();
   for (const control of [...form.elements]) {
+    if (ownedMessages.has(control)) setOwnedMessage(control, "");
     const check = registered.get(control);
-    if (check) setOwnedMessage(control, check(control.value, control) || "");
+    if (check) {
+      const message = check(control.value, control);
+      if (message) pending.set(control, String(message));
+    }
   }
   for (const validate of validators) {
     if (typeof validate === "function") validate();
@@ -63,19 +67,19 @@ export function validateForm(form, { matches = [], rules = [], validators = [] }
   for (const [name, other, message] of matches) {
     const control = named(name), counterpart = named(other);
     if (control && counterpart && typeof control.setCustomValidity === "function" &&
-        control.value !== counterpart.value) {
-      setOwnedMessage(control, message || "Values must match.");
+        control.value !== counterpart.value && !pending.has(control)) {
+      pending.set(control, message || "Values must match.");
     }
   }
   for (const { name, check, message } of rules) {
     const control = named(name);
     if (control && typeof check === "function" &&
         typeof control.setCustomValidity === "function" &&
-        !check(control.value, form)) {
-      setOwnedMessage(control, message || "Invalid value.");
+        !check(control.value, form) && !pending.has(control)) {
+      pending.set(control, message || "Invalid value.");
     }
   }
-  // Cross-field checks should not remain stale after user edits.
+  for (const [control, message] of pending) setOwnedMessage(control, message);
   const valid = form.checkValidity();
   if (!valid) {
     form.reportValidity();

@@ -168,10 +168,10 @@ test('attendance: actual recorded minutes can be reconciled to scheduled minutes
   assert.equal(attendance, '40,60'); // Only the raw evidence, NOT official eligibility logic.
 });
 
-test('capacity: repeated conditional seat claims cannot exceed capacity (sequential CLI)', { skip }, async () => {
+test('concurrency: two separate MySQL sessions cannot oversubscribe a capacity-limited batch', { skip }, async () => {
   sql('UPDATE batches SET occupied_seats=capacity-1 WHERE id=9101;');
   const claim = "UPDATE batches SET occupied_seats=occupied_seats+1 WHERE id=9101 AND occupied_seats<capacity; SELECT ROW_COUNT();";
-  const results = await Promise.all([Promise.resolve().then(() => Number(scalar(claim))), Promise.resolve().then(() => Number(scalar(claim)))]);
+  const results = (await Promise.all([queryConcurrent(claim), queryConcurrent(claim)])).map(Number);
   assert.deepEqual(results.sort(), [0, 1]);
   assert.equal(scalar('SELECT CONCAT(occupied_seats,\',\',capacity) FROM batches WHERE id=9101;'), '20,20');
 });

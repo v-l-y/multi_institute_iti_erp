@@ -12,10 +12,11 @@ project="iti-erp-restore-$$"
 compose=(docker compose -p "$project" -f deployment/restore.compose.yaml)
 cleanup() { "${compose[@]}" down -v --remove-orphans >/dev/null || true; }
 trap cleanup EXIT
+start_seconds=$SECONDS
 "${compose[@]}" up -d --wait restore-db
 gpg --batch --decrypt -- "$archive" \
   | "${compose[@]}" exec -T restore-db sh -ec \
     'exec mariadb --user=root --password="$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"'
 "${compose[@]}" exec -T restore-db sh -ec \
-  'mariadb --batch --skip-column-names --user=root --password="$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE(); SELECT COUNT(*) FROM institute;"'
-echo "Isolated restore finished; review table and institute counts, then run read-only schema preflight on a copy."
+  'mariadb --batch --skip-column-names --user=root --password="$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" -e "SELECT COUNT(*) AS restored_table_count FROM information_schema.tables WHERE table_schema=DATABASE(); SELECT COUNT(*) AS restored_institutes FROM institute; SELECT COUNT(*) AS restored_students FROM students; SELECT COUNT(*) AS restored_payments FROM fee_payments; SELECT COUNT(*) AS restored_results FROM official_results; SELECT COUNT(*) AS restored_certificates FROM certificates;"'
+echo "Isolated restore finished in $((SECONDS-start_seconds)) seconds; verify restored institute/student/payment/result counts and inspect application invariants."

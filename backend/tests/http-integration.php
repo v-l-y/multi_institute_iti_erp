@@ -344,6 +344,22 @@ try {
         expectStatus(http('GET', $route.'?page_size=101', token:$tokens['administrator']), 422);
         expectStatus(http('GET', $route.'?after_id[]=1', token:$tokens['administrator']), 422);
     }
+    $draftRoute = '/api/v1/enrollments/drafts';
+    expectStatus(http('POST', $draftRoute, []), 401);
+    expectStatus(http('POST', $draftRoute, [], $tokens['student']), 403);
+    $draftRequest = [
+        'student_id'=>$studentId,
+        'batch_id'=>1,
+        'qualification_id'=>1,
+        'admission_intake_revision_id'=>1,
+        'admission_number'=>'HTTP-LOCAL-DRAFT',
+        'admitted_on'=>'2026-08-01',
+        'qualification_route_code'=>'LOCAL'
+    ];
+    expectStatus(http('POST', $draftRoute, [...$draftRequest,'student_id'=>'1'], $tokens['administrator']), 422);
+    expectStatus(http('POST', $draftRoute, [...$draftRequest,'admitted_on'=>'2026-02-30'], $tokens['administrator']), 422);
+    expectStatus(http('POST', $draftRoute, $draftRequest, $tokens['administrator']), 404);
+    expectStatus(http('POST', $draftRoute, $draftRequest, $tokens['other-admin']), 404);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

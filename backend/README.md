@@ -203,6 +203,25 @@ permissions or create a login. Codes are unique within an institute and writes
 are audited and serialized. Staff updates, verified mappings and account
 provisioning remain separate workflows.
 
+## Unverified admission drafts
+
+`POST /api/v1/enrollments/drafts` requires `enrollment.manage` and a
+JSON body with `student_id`, `batch_id`, `qualification_id`,
+`admission_intake_revision_id` (positive integer IDs),
+`admission_number`, `admitted_on` (`YYYY-MM-DD`),
+and `qualification_route_code`.
+
+The server derives institute identity and batch intake/admission-rule IDs,
+checks that the student, qualification, intake revision and batch belong
+together in that same institute, rejects duplicate student/admission identities,
+and creates only `pending_verification` with `admission_route=unverified`,
+`qualification_check_passed=0`, and no official source/allotment claim.
+It does **not** occupy a seat; activation remains blocked until an independent,
+source-backed verification and review workflow populates genuine evidence.
+Because the existing schema requires non-null `checked_by`/`checked_on`
+even for drafts, `checked_by` is stored as `NOT_YET_VERIFIED`; that value
+is not a claimed approval. Writes run in a tenant transaction and are audited.
+
 ## Admissions, Seat Matrix and calendar registries
 
 | Method | Endpoint | Permission | Scope |
@@ -214,8 +233,8 @@ provisioning remain separate workflows.
 All use keyset pagination (`page_size` 1–100, `after_id`).
 Draft and final versions remain distinct; a read never certifies a source,
 marks an applicant eligible or allocates a seat. No other institute's records
-are returned. Enrollment creation/approval and governed source imports remain
-separate transactional workflows.
+are returned. Enrollment review/approval and governed source imports remain
+separate transactional workflows; only unverified local draft creation is exposed.
 
 ## Official results and certificates (read-only)
 

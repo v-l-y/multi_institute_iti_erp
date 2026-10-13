@@ -8,6 +8,7 @@ use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
 use App\Modules\Admissions\AdmissionService;
+use App\Modules\Admissions\AdmissionDraftService;
 use App\Modules\Admissions\TraineeUploadService;
 use App\Modules\Auth\AuthContext;
 use App\Modules\Exams\EligibilityService;
@@ -43,6 +44,29 @@ final readonly class OperationsController
             throw new HttpException('INVALID_INPUT', $key . ' must be non-empty text of at most ' . $maximum . ' bytes.', 422);
         }
         return trim($value);
+    }
+
+    public function createDraftEnrollment(Request $request, AuthContext $actor): Response
+    {
+        $institute = $this->institute($actor, 'enrollment.manage');
+        $student = self::id($request, 'student_id');
+        $batch = self::id($request, 'batch_id');
+        $qualification = self::id($request, 'qualification_id');
+        $revision = self::id($request, 'admission_intake_revision_id');
+        $number = self::text($request, 'admission_number', 80);
+        $date = self::text($request, 'admitted_on', 10);
+        $route = self::text($request, 'qualification_route_code', 80);
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/D', $date)
+            || $parsed === false || $parsed->format('Y-m-d') !== $date) {
+            throw new HttpException('INVALID_INPUT', 'admitted_on must be a real YYYY-MM-DD date.', 422);
+        }
+        $id = (new AdmissionDraftService($this->database->connection()))->create(
+            $actor, $institute, $student, $batch, $qualification, $revision, $number, $date, $route
+        );
+        return new Response(['success'=>true,'data'=>[
+            'enrollment_id'=>$id,'status'=>'pending_verification','qualification_check_passed'=>false,
+        ]], 201);
     }
 
     public function activateEnrollment(Request $request, AuthContext $actor): Response

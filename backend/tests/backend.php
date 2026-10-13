@@ -197,6 +197,21 @@ $checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->academicCalendars(new Request(query:['page_size'=>'0']), $admissionReader))->status === 422;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->enrollments(new Request(), $catalogReader))->status === 403;
 $checks[] = $kernel->handle(static fn() => $admissionRegistry->seatMatrixEntries(new Request(), $platform))->status === 403;
+$draftBody = [
+    'student_id'=>11,'batch_id'=>12,'qualification_id'=>13,
+    'admission_intake_revision_id'=>14,'admission_number'=>'LOCAL-DRAFT',
+    'admitted_on'=>'2026-08-01','qualification_route_code'=>'LOCAL'
+];
+$checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
+    new Request([...$draftBody,'student_id'=>'11']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
+    new Request([...$draftBody,'admitted_on'=>'2026-02-30']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
+    new Request([...$draftBody,'admission_number'=>'']), $operator))->status === 422;
+$checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
+    new Request($draftBody), $context))->status === 403;
+$checks[] = $kernel->handle(static fn() => $operations->createDraftEnrollment(
+    new Request($draftBody), $platform))->status === 403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

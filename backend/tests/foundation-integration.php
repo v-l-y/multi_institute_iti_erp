@@ -109,6 +109,39 @@ try {
     $db->exec("UPDATE batches SET training_mode='CTS' WHERE id=9101");
     $admissions->activate($actor,9101,9101);
     foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,'Activation must reconcile occupancy.');
+    // New locally registered student with an independent qualification.
+    // No guessed official allotment, final approval or consumed seat.
+    $db->exec("INSERT INTO students
+        (id,institute_id,local_student_code,full_name,date_of_birth,gender,address,identity_mode,identity_evidence_reference)
+        VALUES (9111,9101,'LOCAL-DRAFT-LEARNER','Local Draft Learner','2005-01-01','other','LOCAL',
+                'non_aadhaar','LOCAL-TEST-NOT-OFFICIAL')");
+    $db->exec("INSERT INTO student_qualifications
+        (id,institute_id,student_id,level_code,board_name,passing_year,
+         certificate_reference,subject_results_json,verified_by,verified_on)
+        VALUES (9111,9101,9111,'10','LOCAL',2024,'LOCAL','{}','LOCAL','2026-07-01')");
+    $drafts = new App\Modules\Admissions\AdmissionDraftService($db);
+    $newDraft = $drafts->create($actor,9101,9111,9101,9111,9101,
+        'LOCAL-DRAFT-001','2026-08-01','LOCAL');
+    $draftRow = $db->query("SELECT * FROM enrollments WHERE id=$newDraft")->fetch(PDO::FETCH_ASSOC);
+    foundationCheck($draftRow['status']==='pending_verification'
+        && $draftRow['admission_route']==='unverified'
+        && (int)$draftRow['qualification_check_passed']===0
+        && $draftRow['admission_route_source_id']===null,
+        'Draft must remain unverified with no fabricated route/source.');
+    foundationCheck((int)$db->query('SELECT occupied_seats FROM batches WHERE id=9101')->fetchColumn()===1,
+        'Unverified draft must not occupy an approved seat.');
+    foundationReject(fn()=>$admissions->activate($actor,9101,$newDraft),'UNVERIFIED_ADMISSION');
+    foundationReject(fn()=>$drafts->create($actor,9101,9111,9101,9111,9101,
+        'LOCAL-DRAFT-001','2026-08-01','LOCAL'),'ADMISSION_EXISTS');
+    foundationReject(fn()=>$drafts->create($actor,9101,9111,9101,9101,9101,
+        'LOCAL-DRAFT-002','2026-08-01','LOCAL'),'NOT_FOUND');
+    foundationReject(fn()=>$drafts->create($actor,9101,9102,9101,9111,9101,
+        'LOCAL-DRAFT-003','2026-08-01','LOCAL'),'NOT_FOUND');
+    foundationReject(fn()=>$drafts->create($actor,9101,9101,9101,9101,9101,
+        'LOCAL-DRAFT-004','2026-08-01','LOCAL'),'ADMISSION_EXISTS');
+    foundationCheck((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
+        WHERE action_code='enrollment.draft.create' AND entity_id=$newDraft")->fetchColumn()===1,
+        'Admission draft creation must be audited once.');
     // Create a second local attendance session: the first fixture session is
     // already populated and must not be overwritten by new marking.
     $db->exec("INSERT INTO attendance_sessions

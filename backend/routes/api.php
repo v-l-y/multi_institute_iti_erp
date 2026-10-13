@@ -68,6 +68,7 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/seat-matrix/entries', $guard->wrap([$admissionRegistry, 'seatMatrixEntries'], 'seatmatrix.view'));
     $router->get('/api/v1/academic/calendars', $guard->wrap([$admissionRegistry, 'academicCalendars'], 'calendar.view'));
     $operations = new OperationsController($database);
+    $router->post('/api/v1/enrollments/drafts', $guard->wrap([$operations, 'createDraftEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/activate', $guard->wrap([$operations, 'activateEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/cancel', $guard->wrap([$operations, 'cancelEnrollment'], 'enrollment.manage'));
     $router->post('/api/v1/enrollments/trainee-upload/prepare', $guard->wrap([$operations, 'prepareTraineeUpload'], 'enrollment.manage'));

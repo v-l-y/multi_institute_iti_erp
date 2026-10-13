@@ -67,24 +67,33 @@ The creation forms use only fields expected by the current backend and do **not*
 
 ## Architecture
 
-    frontend/
-      index.html          Browser entrypoint
-      styles.css          Shared responsive tokens, components and states
-      package.json        Only local dev/start scripts; no dependencies
-      dev-server.mjs      Loopback static server and same-origin API proxy
-      src/
-        api.js            JSON contracts, in-memory bearer auth, errors
-        registry.js       Page/permission/endpoint definitions
-        ui.js             Accessible, DOM-safe UI primitives
-        main.js           Login, password change, navigation, registers, forms
+The frontend now uses a layered and module-owned structure. See the
+[complete folder tree, source mapping and extension rules](docs/ARCHITECTURE.md).
+
+- `src/main.js` is a minimal entrypoint.
+- `src/app/` owns route/session/view orchestration.
+- `src/core/` contains in-memory authentication and the shared API client.
+- `src/shared/` owns UI primitives and the responsive application shell.
+- `src/modules/` owns institute, regulatory, trade, syllabus, calendar and
+  linked institute-business modules.
+- `src/styles/` holds tokens, components, shell, auth and responsive CSS.
+- `styles.css` remains the stylesheet entrypoint.
+
+The syllabus directory is reserved for a future **verified source-backed read
+API**. It is not presented as a working UI route, because the backend contract
+has not been confirmed.
 
 ### Extension rules
 
-1. Only add a page when a real backend route and permission exist. Add its definition in src/registry.js and reuse common src/ui.js components.
-2. Every institute data request derives tenant scope **on the backend** from the authenticated account. Never add frontend-controlled institute selection to institute APIs.
-3. Preserve current-stable layout; don't overwrite the whole screen during register refresh.
-4. Keep the local proxy loopback-only. Production requires a reviewed HTTPS/static-host and API reverse-proxy setup; dev-server.mjs is **not production deployment**.
-5. Do not add pretend syllabus/calendar/government rules, seed fake records, expose government portal credentials, or claim official export certification.
+1. Add module routes in that module's `routes.js`; the route collection in
+   `src/app/routes.js` is the only navigation index.
+2. Use `src/core/http/client.js` for network requests; authorization is
+   always enforced by PHP backend permissions and tenant scope.
+3. Put domain-specific forms in domain modules, generic table/field/dialog
+   foundations in `src/shared/` and `src/modules/registry/`.
+4. Prefer stable layouts and abort obsolete reads on route/session change.
+5. No mock official rules, statuses, registrations or government data.
+6. The local Node server is not a production deployment.
 
 ## Not yet delivered
 

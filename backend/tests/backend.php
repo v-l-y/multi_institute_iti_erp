@@ -355,6 +355,19 @@ $checks[]=$kernel->handle(static fn()=>$staffController->exitEmployment(new Requ
     'staff_id'=>1,'left_on'=>'2026-02-30','reference'=>'EXIT']),$staffWriter))->status===422;
 $checks[]=$kernel->handle(static fn()=>$staffController->exitEmployment(new Request([
     'staff_id'=>1,'left_on'=>'2026-09-01','reference'=>'EXIT']),$context))->status===403;
+$sessionController=new App\Modules\Attendance\AttendanceSessionController(new App\Core\Database([]));
+$calendarWriter=new AuthContext(3,3,1,'administrator',false,['administrator'],['calendar.manage'],3,null);
+$principalLocker=new AuthContext(4,3,1,'principal',false,['principal'],['attendance.correct'],4,null);
+$sessionBody=['batch_year_id'=>1,'session_date'=>'2026-09-03','component'=>'trade_theory','instructor_id'=>2];
+$checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request([
+    ...$sessionBody,'instructor_id'=>'2']),$calendarWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request([
+    ...$sessionBody,'component'=>'unknown']),$calendarWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request([
+    ...$sessionBody,'session_date'=>'2026-02-30']),$calendarWriter))->status===422;
+$checks[]=$kernel->handle(static fn()=>$sessionController->create(new Request($sessionBody),$attendanceStudent))->status===403;
+$checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>'1']),$principalLocker))->status===422;
+$checks[]=$kernel->handle(static fn()=>$sessionController->lock(new Request(['session_id'=>1]),$calendarWriter))->status===403;
 foreach ($checks as $check) {
     if (!$check) {
         throw new RuntimeException('Backend contract failed.');

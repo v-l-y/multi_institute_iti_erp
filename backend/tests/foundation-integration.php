@@ -276,6 +276,42 @@ try {
     // The additional locally marked and locked session must also be in the
     // reviewed test calendar before the eligibility reconciliation snapshot.
     $db->exec("INSERT INTO training_calendar_entries (institute_id,batch_year_id,calendar_id,session_date,component,scheduled_minutes) VALUES (9101,9101,9101,'2026-09-02','trade_theory',60)");
+    // A reviewed entry is required; use only existing verified local
+    // instructor mappings, and prevent Principal lock until marked.
+    $db->exec("UPDATE batch_years SET calendar_reviewed_through='2026-09-03' WHERE id=9101");
+    $db->exec("INSERT INTO training_calendar_entries
+        (institute_id,batch_year_id,calendar_id,session_date,component,scheduled_minutes)
+        VALUES (9101,9101,9101,'2026-09-03','trade_theory',60)");
+    $sessionCreator=new AuthContext(9202,9101,1,'local-admin',false,
+        ['administrator'],['calendar.manage'],9101,null);
+    $sessionPrincipal=new AuthContext(9215,9101,8,'local-principal',false,
+        ['principal'],['attendance.correct'],9115,null);
+    $sessionService=new App\Modules\Attendance\AttendanceSessionService($db);
+    foundationReject(fn()=>$sessionService->create($sessionCreator,9101,9101,
+        '2026-09-03','trade_theory',9102),'INSTRUCTOR_NOT_VERIFIED');
+    $newSession=$sessionService->create($sessionCreator,9101,9101,
+        '2026-09-03','trade_theory',9101);
+    foundationCheck($newSession>0 &&
+        (int)$db->query("SELECT scheduled_minutes FROM attendance_sessions WHERE id=$newSession")->fetchColumn()===60,
+        'Session minutes must derive from the reviewed calendar entry.');
+    foundationReject(fn()=>$sessionService->create($sessionCreator,9101,9101,
+        '2026-09-03','trade_theory',9101),'SESSION_EXISTS');
+    foundationReject(fn()=>$sessionService->lock($sessionPrincipal,9101,$newSession),
+        'ATTENDANCE_INCOMPLETE');
+    $sessionMarked=$attendanceController->markAssigned(new App\Http\Request([
+        'session_id'=>$newSession,'enrollment_id'=>9101,
+        'attended_minutes'=>50,'status'=>'present'
+    ]),$markActor);
+    foundationCheck($sessionMarked->status===201,'Instructor must record session attendance before Principal locking.');
+    $sessionService->lock($sessionPrincipal,9101,$newSession);
+    foundationCheck($db->query("SELECT locked_on FROM attendance_sessions WHERE id=$newSession")->fetchColumn()!==null,
+        'Principal lock must freeze the full daily session.');
+    foundationReject(fn()=>$sessionService->lock($sessionPrincipal,9101,$newSession),
+        'SESSION_LOCKED');
+    foundationReject(fn()=>$attendanceController->markAssigned(new App\Http\Request([
+        'session_id'=>$newSession,'enrollment_id'=>9101,
+        'attended_minutes'=>50,'status'=>'present'
+    ]),$markActor),'SESSION_LOCKED');
     $db->exec("INSERT INTO global_exam_rule_versions (id,source_document_id,code,cycle_type,minimum_attendance,minimum_formative,principal_relaxation_cap,requires_prn,requires_cbt_fee,requires_practical_fee,requires_ojt_for_certificate,practical_upload_hours,effective_from,status) VALUES (9101,9101,'LOCAL','mains',60,60,0,0,0,0,0,24,'2026-01-01','published')");
     $db->exec("INSERT INTO exam_rule_versions (id,institute_id,global_exam_rule_id,cycle_type) VALUES (9101,9101,9101,'mains')");
     $db->exec("INSERT INTO exam_cycles (id,institute_id,code,cycle_type,rule_id,schedule_source_id,eligibility_cutoff,exam_starts_on,activity_windows_json,status) VALUES (9101,9101,'LOCAL','mains',9101,9101,'2026-09-01','2026-09-20','{}','eligibility_open')");

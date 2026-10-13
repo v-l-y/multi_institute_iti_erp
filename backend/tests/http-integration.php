@@ -497,6 +497,19 @@ try {
     verify((int)$db->query("SELECT COUNT(*) FROM institute_activity_log
         WHERE action_code='staff.employment.exit' AND entity_id=$createdId")->fetchColumn()===1,
         'One staff exit should create exactly one audit event.');
+    $sessionEndpoint='/api/v1/attendance/sessions';
+    $sessionInput=['batch_year_id'=>1,'session_date'=>'2026-09-03',
+        'component'=>'trade_theory','instructor_id'=>1];
+    expectStatus(http('POST',$sessionEndpoint,[]),401);
+    expectStatus(http('POST',$sessionEndpoint,$sessionInput,$tokens['student']),403);
+    expectStatus(http('POST',$sessionEndpoint,[...$sessionInput,'instructor_id'=>'1'],$tokens['administrator']),422);
+    expectStatus(http('POST',$sessionEndpoint,[...$sessionInput,'session_date'=>'2026-02-30'],$tokens['administrator']),422);
+    expectStatus(http('POST',$sessionEndpoint,$sessionInput,$tokens['administrator']),404);
+    $lockEndpoint='/api/v1/attendance/sessions/lock';
+    expectStatus(http('POST',$lockEndpoint,[]),401);
+    expectStatus(http('POST',$lockEndpoint,['session_id'=>1],$tokens['administrator']),403);
+    expectStatus(http('POST',$lockEndpoint,['session_id'=>'1'],$tokens['principal']),422);
+    expectStatus(http('POST',$lockEndpoint,['session_id'=>999999],$tokens['principal']),404);
     $admin = $users['administrator']['id'];
     expectStatus(http('GET', '/api/v1/auth/me?access_token=' . $tokens['administrator']), 401);
     expectStatus(http('GET', '/api/v1/auth/me', token: 'malformed-token'), 401);

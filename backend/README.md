@@ -347,6 +347,24 @@ a pass/fail decision or generated certificate. Both support keyset pagination
 (`page_size` 1–100, `after_id`). Signed imports, evidence verification,
 revocations and corrections require separately audited workflows.
 
+## Attendance daily sessions and Principal lock
+
+`POST /api/v1/attendance/sessions` requires `calendar.manage` and
+`batch_year_id`, `session_date`, `component`, `instructor_id`.
+An institute must already have a **published CTS calendar**, a reviewed
+calendar through that day, a corresponding scheduled entry with its real
+minutes, and a valid active NIMS-verified teaching-staff mapping for the
+batch ITSU (or, for Employability, the subject batch-year assignment).
+The service derives the actual minutes from the calendar; it does not
+accept guessed client values or duplicate sessions.
+
+`POST /api/v1/attendance/sessions/lock` requires `attendance.correct`
+and a Principal account, with JSON `session_id`. It rejects future
+sessions, an empty register or missing records for applicable enrolled
+students. Once locked, existing database triggers reject modifying the
+session/marks; any corrections must use separately authorized audited
+workflows. Both actions are institute-serialized and audited.
+
 ## Attendance read APIs
 
 | Method | Endpoint | Permission | Record boundary |

@@ -33,6 +33,10 @@ final readonly class Request
         }
         $max = strlen($network) * 8;
         $prefix = isset($parts[1]) && ctype_digit($parts[1]) ? (int)$parts[1] : $max;
+        // Reject trust-all CIDRs, which would allow untrusted clients to spoof IPs.
+        if ($prefix === 0) {
+            return false;
+        }
         if ($prefix < 0 || $prefix > $max) {
             return false;
         }

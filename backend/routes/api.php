@@ -13,6 +13,7 @@ use App\Modules\Institutes\PlatformInstituteController;
 use App\Modules\Regulatory\RegulatoryDocumentController;
 use App\Modules\Regulatory\TradeMasterController;
 use App\Modules\Regulatory\CurriculumMasterController;
+use App\Modules\Regulatory\TrainingCalendarMasterController;
 use App\Modules\Reports\ReportingController;
 use App\Modules\Assessment\FormativeController;
 use App\Modules\Institutes\InstituteContactController;
@@ -72,6 +73,15 @@ return static function (Router $router, Database $database): void {
         [$curricula,'outcome'], 'platform.regulatory.manage'));
     $router->post('/api/v1/platform/curricula/publish', $guard->wrap(
         [$curricula,'publish'], 'platform.regulatory.manage'));
+    $globalCalendars=new TrainingCalendarMasterController($database);
+    $router->post('/api/v1/platform/cts-calendars', $guard->wrap(
+        [$globalCalendars,'draft'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/milestones', $guard->wrap(
+        [$globalCalendars,'milestone'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/portal-shifts', $guard->wrap(
+        [$globalCalendars,'portalShift'], 'platform.regulatory.manage'));
+    $router->post('/api/v1/platform/cts-calendars/publish', $guard->wrap(
+        [$globalCalendars,'publish'], 'platform.regulatory.manage'));
     $regulatoryDocuments=new RegulatoryDocumentController($database);
     $router->get('/api/v1/platform/regulatory/documents', $guard->wrap(
         [$regulatoryDocuments,'index'], 'platform.regulatory.manage'));

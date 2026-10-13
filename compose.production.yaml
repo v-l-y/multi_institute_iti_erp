@@ -1,5 +1,4 @@
-# Manual production overlay: requires real TLS certificates and trusted proxy CIDRs.
-# Inspect: docker compose -f compose.yaml -f compose.production.yaml config
+# Manual production overlay; requires operator-managed DNS, TLS certs and proxy CIDR.
 services:
   backend:
     environment:
@@ -8,16 +7,7 @@ services:
     image: nginx:stable-alpine
     environment:
       ERP_DOMAIN: ${ERP_DOMAIN:?Set production hostname in root .env}
-      NGINX_ENVSUBST_FILTER: '^ERP_DOMAIN
-        condition: service_healthy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deployment/nginx.conf:/etc/nginx/templates/default.conf.template:ro
-      - ./deployment/certs:/etc/nginx/certs:ro
-    restart: unless-stopped
-
+      NGINX_ENVSUBST_FILTER: "^ERP_DOMAIN$"
     depends_on:
       backend:
         condition: service_healthy
@@ -25,6 +15,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deployment/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deployment/nginx.conf:/etc/nginx/templates/default.conf.template:ro
       - ./deployment/certs:/etc/nginx/certs:ro
     restart: unless-stopped

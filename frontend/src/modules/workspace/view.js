@@ -28,6 +28,7 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
     datasets.some(item => item.id === id)));
   let rows=[],cursorHistory=[{}],pageIndex=0,nextCursor=null;
   let pending=null,disposed=false,modal=null,downloadPending=null;
+  let loadError=false;
   const count=el("span",{className:"muted","aria-live":"polite"});
   const panel=el("div",{"aria-busy":"false"});
   const region=createHydrationRegion(panel);
@@ -71,11 +72,11 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
     }}));
   }
   const pager=cursorPagination({
-    onPrevious:()=>{if(pageIndex<1||pending||disposed)return;pageIndex--;void load();},
+    onPrevious:()=>{if(pageIndex<1||pending||disposed)return;pageIndex--;rows=[];region.reset();void load();},
     onNext:()=>{
       if(!nextCursor||pending||disposed)return;
       cursorHistory=cursorHistory.slice(0,pageIndex+1);
-      cursorHistory.push(nextCursor);pageIndex++;void load();
+      cursorHistory.push(nextCursor);pageIndex++;rows=[];region.reset();void load();
     }
   });
   let filter=null,columns=null;
@@ -101,6 +102,7 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
 
   function resetControls(){
     rows=[];nextCursor=null;cursorHistory=[{}];pageIndex=0;
+    loadError=false;
     region.reset();
     summary.replaceChildren();
     filterSlot.replaceChildren();requiredSlot.replaceChildren();
@@ -126,6 +128,13 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
       requiredInput=el("input",{type:"number",min:"1",step:"1",className:"search-input",
         placeholder:q.label,"aria-label":q.label});
       if(positive(remembered.requiredValue)) requiredInput.value=String(remembered.requiredValue);
+      requiredInput.addEventListener("input",()=>{
+        if(pending){pending.abort();pending=null;}
+        region.reset();rows=[];loadError=false;nextCursor=null;
+        cursorHistory=[{}];pageIndex=0;
+        summary.replaceChildren();count.textContent="";
+        refreshPager();
+      });
       const loadButton=button("Load statement",{onClick:()=>{
         if(!positive(requiredInput.value)){feedback.replaceChildren(
           notice("Student ID required","Enter a valid student ID to retrieve a statement.","error"));return;}
@@ -168,7 +177,7 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
   }
 
   function render(){
-    if(disposed||!active)return;
+    if(disposed||!active||loadError)return;
     const chosen=columns.getColumns();
     const visible=filterRows(rows,{...filter.read(),searchKeys:chosen.map(([key])=>key)});
     count.textContent=visible.length+" of "+rows.length+" records on this page";
@@ -198,6 +207,7 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
     });
     if(!controller)return;
     pending=controller;
+    loadError=false;
     nextCursor=null;refreshPager(true);
     feedback.replaceChildren();
     const q={page_size:"25",...(active.query||{}),...cursorHistory[pageIndex]};
@@ -227,7 +237,7 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
       render();
     }catch(error){
       if(error?.name==="AbortError"||disposed||pending!==controller)return;
-      rows=[];count.textContent="Records unavailable";
+      rows=[];loadError=true;count.textContent="Records unavailable";
       region.fail(controller,errorPanel(error?.message||"Request failed.",
         {onRetry:()=>void load()}));
     }finally{

@@ -27,7 +27,7 @@ export function filterRows(rows, { search = "", column = "", direction = "asc", 
 }
 
 /** Explicitly labelled search, sort and filters; no fabricated filter options. */
-export function tableFilters({ columns = [], filters = [], onChange, label = "Search this page" } = {}) {
+export function tableFilters({ columns = [], filters = [], onChange, label = "Search this page", initialState = null } = {}) {
   const search = el("input", {
     type: "search", className: "search-input", "aria-label": label,
     placeholder: "Search this page…"
@@ -54,9 +54,21 @@ export function tableFilters({ columns = [], filters = [], onChange, label = "Se
   for (const control of [search, sort, direction, ...extra.map(x => x.control)]) {
     control.addEventListener(control === search ? "input" : "change", notify);
   }
+  function hydrate(state, notifyChange = false) {
+    if (!state || typeof state !== "object") return;
+    search.value = typeof state.search === "string" ? state.search.slice(0, 150) : "";
+    sort.value = columns.some(([key]) => key === state.column) ? state.column : "";
+    direction.value = state.direction === "desc" ? "desc" : "asc";
+    for (const { key, control } of extra) {
+      const next = state.filters?.[key];
+      control.value = [...control.options].some(option => option.value === next) ? next : "";
+    }
+    if (notifyChange) notify();
+  }
+  hydrate(initialState);
   const node = el("div", { className: "table-filters", role: "group", "aria-label": "Current-page controls" },
     search, sort, direction, ...extra.map(x => x.control));
-  return { node, search, read, reset() {
+  return { node, search, read, hydrate, reset() {
     search.value = ""; sort.value = ""; direction.value = "asc";
     extra.forEach(({ control }) => { control.value = ""; });
     notify();

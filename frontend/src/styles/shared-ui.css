@@ -76,3 +76,24 @@
 .data-table .selection-cell { min-width: 48px; width: 48px; text-align: center; padding-inline: 10px; }
 .row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .row-actions .button { min-height: 36px; }
+
+
+/* Progressive API hydration: visible refresh state without removing toolbar or rows. */
+[data-hydration="refreshing"] {
+  position: relative;
+}
+[data-hydration="refreshing"]::before {
+  content: "Refreshing records…";
+  display: block;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: #f4f9f9;
+  color: #345660;
+  font-size: .8rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-hydration="loading"],
+  [data-hydration="refreshing"] { scroll-behavior: auto; }
+}

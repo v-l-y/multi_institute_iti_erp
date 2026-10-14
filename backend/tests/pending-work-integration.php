@@ -58,7 +58,10 @@ try {
     $reject(fn()=>$documents->download($student,$id,true),'NOT_FOUND');
     $check(is_file($root.'/documents/'.$key),'Archival must preserve original evidence.');
 
-    $recovery=new PasswordRecoveryService($db,new PrivateFiles($root.'/outbox'));
+    putenv('AUTH_RECOVERY_MODE=local_outbox');
+    putenv('AUTH_RECOVERY_OUTBOX='.$root.'/outbox');
+    $db->exec("INSERT INTO auth_recovery_emails(user_id,email,verified_at) VALUES(9203,'student@example.test',UTC_TIMESTAMP())");
+    $recovery=new PasswordRecoveryService($db,new \App\Modules\Auth\Infrastructure\RecoveryDelivery());
     $recovery->request('not-an-account',9101);
     $check(count(glob($root.'/outbox/*.json'))===0,'Unknown accounts must not generate recovery tokens.');
     $recovery->request('local-student',9102);
@@ -66,7 +69,8 @@ try {
     $recovery->request('local-student',9101);
     $mailFiles=glob($root.'/outbox/*.json');
     $mail=json_decode(file_get_contents($mailFiles[0]),true,32,JSON_THROW_ON_ERROR);
-    $token=$mail['reset_token'];
+    if (!preg_match('/[a-f0-9]{64}/',$mail['body'],$tokenMatch)) throw new RuntimeException('Recovery email token missing.');
+    $token=$tokenMatch[0];
     $check($db->query('SELECT token_hash FROM auth_password_resets LIMIT 1')->fetchColumn()===hash('sha256',$token),'Recovery DB must store only a token digest.');
     $recovery->request('local-student',9101);
     $check(count(glob($root.'/outbox/*.json'))===1,'Cooldown must prevent mailbox flooding.');

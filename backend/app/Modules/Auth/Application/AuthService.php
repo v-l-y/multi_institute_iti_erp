@@ -5,6 +5,7 @@ namespace App\Modules\Auth\Application;
 use App\Http\HttpException;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Auth\Infrastructure\PasswordHasher;
+use App\Modules\Auth\Infrastructure\Totp;
 use App\Http\Request;
 use PDO;
 use Throwable;
@@ -77,6 +78,26 @@ final class AuthService
                 $this->rejectAttempt($user ?: null, 'login_failed', $request);
             }
             $context = $this->context($user, 0);
+            // MFA must be checked before issuing any usable session.
+            $mfa=$this->query('SELECT secret_cipher,last_counter,verified_at
+                FROM auth_mfa_credentials WHERE user_id=? FOR UPDATE',[$user['id']])->fetch(PDO::FETCH_ASSOC);
+            if($mfa && $mfa['verified_at']!==null){
+                $code=$request->body['otp_code']??null;
+                $counter=is_string($code)
+                    ?Totp::matchCounter(Totp::open($mfa['secret_cipher']),$code,(int)$mfa['last_counter']):null;
+                if($counter!==null){
+                    $this->query('UPDATE auth_mfa_credentials SET last_counter=? WHERE user_id=?',
+                        [$counter,$user['id']]);
+                }else{
+                    $recovery=$request->body['recovery_code']??null;
+                    if(!is_string($recovery)||!preg_match('/^[0-9a-f]{12}$/D',$recovery)){
+                        $this->rejectAttempt($user,'mfa_failed',$request);
+                    }
+                    $q=$this->query('DELETE FROM auth_mfa_recovery_codes
+                        WHERE user_id=? AND code_hash=?',[$user['id'],hash('sha256',$recovery)]);
+                    if($q->rowCount()!==1)$this->rejectAttempt($user,'mfa_failed',$request);
+                }
+            }
             if (PasswordHasher::needsUpgrade($user['password_hash'])) {
                 $this->query('UPDATE auth_users SET password_hash=? WHERE id=?', [PasswordHasher::hash($password), $user['id']]);
             }
@@ -86,11 +107,20 @@ final class AuthService
                 $this->query('UPDATE auth_sessions SET revoked_at=UTC_TIMESTAMP() WHERE id=?', [$sessionId]);
             }
             $token = bin2hex(random_bytes(32));
-            $this->query('INSERT INTO auth_sessions (user_id,institute_id,session_token_hash,issued_at,expires_at,ip_address,user_agent) VALUES (?,?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(), INTERVAL 60 MINUTE),?,?)', [$user['id'], $user['institute_id'], hash('sha256', $token), $request->ip, $request->userAgent]);
+            $refresh=bin2hex(random_bytes(32));
+            $this->query('INSERT INTO auth_sessions
+              (user_id,institute_id,session_token_hash,refresh_token_hash,issued_at,expires_at,
+               refresh_expires_at,ip_address,user_agent)
+              VALUES (?,?,?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(), INTERVAL 60 MINUTE),
+              DATE_ADD(UTC_TIMESTAMP(),INTERVAL 7 DAY),?,?)',
+              [$user['id'],$user['institute_id'],hash('sha256',$token),hash('sha256',$refresh),
+                  $request->ip,$request->userAgent]);
             $this->query('UPDATE auth_users SET failed_attempts=0,locked_until=NULL,last_login_at=UTC_TIMESTAMP() WHERE id=?', [$user['id']]);
             $this->audit('login_succeeded', $context->userId, $context->instituteId, $request);
             $this->db->commit();
-            return ['access_token' => $token, 'token_type' => 'Bearer', 'expires_in' => 3600, 'user' => $context->profile()];
+            return ['access_token' => $token, 'refresh_token'=>$refresh,
+                'token_type' => 'Bearer', 'expires_in' => 3600,
+                'refresh_expires_in'=>604800,'user' => $context->profile()];
         } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -104,6 +134,53 @@ final class AuthService
                 }
             }
             throw $exception;
+        }
+    }
+
+    /**
+     * Rotate a refresh token atomically. A reused previous token revokes the
+     * affected session: simultaneous refreshes intentionally fail closed.
+     */
+    public function refresh(Request $request): array
+    {
+        $raw=$request->body['refresh_token']??null;
+        if(!is_string($raw)||!preg_match('/^[a-f0-9]{64}$/iD',$raw)){
+            $this->unauthorized();
+        }
+        $hash=hash('sha256',$raw);
+        $this->db->beginTransaction();
+        try{
+            $replay=$this->query('SELECT session_id FROM auth_refresh_replays
+                WHERE old_token_hash=? FOR UPDATE',[$hash])->fetchColumn();
+            if($replay!==false){
+                $this->query('UPDATE auth_sessions SET revoked_at=UTC_TIMESTAMP()
+                  WHERE id=? AND revoked_at IS NULL',[$replay]);
+                $this->db->commit();
+                $this->unauthorized();
+            }
+            $session=$this->query("SELECT s.id AS refresh_session_id,s.refresh_expires_at,u.* FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
+                AND u.tenant_key=s.tenant_key WHERE s.refresh_token_hash=?
+                AND s.revoked_at IS NULL AND s.refresh_expires_at>UTC_TIMESTAMP()
+                AND s.updated_at>DATE_SUB(UTC_TIMESTAMP(),INTERVAL 15 MINUTE)
+                AND u.status='active' AND (u.locked_until IS NULL OR u.locked_until<=UTC_TIMESTAMP())
+                FOR UPDATE",[$hash])->fetch(PDO::FETCH_ASSOC);
+            if(!$session){$this->db->rollBack();$this->unauthorized();}
+            // Re-evaluate current roles, institute and identity links.
+            $context=$this->context($session,(int)$session['refresh_session_id']);
+            $access=bin2hex(random_bytes(32));$refresh=bin2hex(random_bytes(32));
+            $this->query('INSERT INTO auth_refresh_replays
+              (old_token_hash,session_id,expires_at) VALUES (?,?,?)',
+              [$hash,$session['refresh_session_id'],$session['refresh_expires_at']]);
+            $this->query('UPDATE auth_sessions SET session_token_hash=?,
+              refresh_token_hash=?,expires_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE),
+              updated_at=UTC_TIMESTAMP() WHERE id=?',
+              [hash('sha256',$access),hash('sha256',$refresh),$session['refresh_session_id']]);
+            $this->db->commit();
+            return ['access_token'=>$access,'refresh_token'=>$refresh,
+              'token_type'=>'Bearer','expires_in'=>3600,'user'=>$context->profile()];
+        }catch(Throwable $e){
+            if($this->db->inTransaction())$this->db->rollBack();
+            throw $e;
         }
     }
 

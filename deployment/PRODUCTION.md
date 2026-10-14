@@ -106,7 +106,7 @@ The results are not a complete schema diff or permission audit.
 Review `backend/database/migrations/README.md`,
 `backend/database/schema/FEE_MANAGEMENT.md` and
 `backend/database/schema/FOUNDATION_UPGRADE.md`.
-**Current database baseline is 000.** Former 001–014 changes are consolidated
+**Current database baseline is 000.** Former 001–020 changes are consolidated
 into the canonical table and integrity-guard files for an empty database.
 There are no forward migrations yet. After fresh installation, use the explicit
 DDL-verified `--baseline-current` workflow to register `000_canonical_schema`.

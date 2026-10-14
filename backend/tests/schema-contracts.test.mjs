@@ -73,7 +73,7 @@ function contains(name, fragment) {
 }
 test('expected table/trigger count', () => {
   assert.ok(!/,\s*,/.test(sql), 'schema contains duplicate comma separators');
-  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 101);
+  assert.equal((sql.match(/CREATE TABLE /g) || []).length, 106);
   assert.equal((sql.match(/CREATE TRIGGER /g) || []).length, 0);
 });
 test('enrollment qualification cannot refer to another student', () => {

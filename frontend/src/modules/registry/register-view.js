@@ -7,30 +7,42 @@ import {
 import { pageHeader } from "../../shared/ui/headers.js";
 import { creationConfig } from "./create-config.js";
 import { openCreationDialog } from "./create-dialog.js";
+import { createHydrationRegion } from "../../core/hydration/region.js";
 
 /** Shared UI is the single owner of table controls. Backend owns tenant and permissions. */
-export function createRegistryView(page, main, user) {
-  let cursors = [0];
-  let cursorIndex = 0;
+export function createRegistryView(page, main, user, { initialState = null } = {}) {
+  const restored = initialState || {};
+  const history = Array.isArray(restored.cursors) && restored.cursors.length < 101 &&
+    restored.cursors[0] === 0 &&
+    restored.cursors.every(n => Number.isSafeInteger(n) && n >= 0);
+  let cursors = history ? [...restored.cursors] : [0];
+  let cursorIndex = Number.isSafeInteger(restored.cursorIndex) &&
+    restored.cursorIndex >= 0 && restored.cursorIndex < cursors.length
+    ? restored.cursorIndex : 0;
   let inFlight = null;
   let disposed = false;
   let activeDialog = null;
   let rows = [];
   let nextCursor = null;
+  let loadError = false;
 
   const count = el("span", { className: "muted", "aria-live": "polite" });
   const dataArea = el("div", { "aria-busy": "false" });
+  const region = createHydrationRegion(dataArea);
   const pageHint = el("span", { className: "page-hint" }, "25 per page · search and sort this page");
   const filters = tableFilters({
-    columns: page.columns,
+    columns: page.columns, initialState: restored.filters,
     onChange: () => renderRows()
   });
-  const columns = columnChooser(page.columns, { onChange: () => renderRows() });
+  const columns = columnChooser(page.columns, {
+    initialKeys: restored.visibleColumns, onChange: () => renderRows()
+  });
   let detailsDialog = null;
   const pager = cursorPagination({
     onPrevious: () => {
       if (cursorIndex === 0 || inFlight || disposed) return;
       cursorIndex--;
+      rows = []; region.reset();
       void load();
     },
     onNext: () => {
@@ -39,6 +51,7 @@ export function createRegistryView(page, main, user) {
       cursors = cursors.slice(0, cursorIndex + 1);
       cursors.push(nextCursor);
       cursorIndex++;
+      rows = []; region.reset();
       void load();
     }
   });
@@ -79,13 +92,13 @@ export function createRegistryView(page, main, user) {
   }
 
   function renderRows() {
-    if (disposed) return;
+    if (disposed || loadError) return;
     const filtered = filterRows(rows, {
       ...filters.read(),
       searchKeys: columns.getColumns().map(([key]) => key)
     });
     count.textContent = filtered.length + " of " + rows.length + " records on this page";
-    dataArea.replaceChildren(filtered.length
+    region.update(filtered.length
       ? dataTable(filtered, columns.getColumns(), {
           caption: page.label + " (current page)",
           rowActions: record => [{
@@ -114,13 +127,15 @@ export function createRegistryView(page, main, user) {
 
   async function load() {
     if (disposed) return;
-    inFlight?.abort();
-    const controller = new AbortController();
+    const controller = region.begin({
+      placeholder: skeleton({ rows: 5, columns: page.columns.length })
+    });
+    if (!controller) return;
     inFlight = controller;
+    loadError = false;
     nextCursor = null;
     updatePaging(true);
-    dataArea.setAttribute("aria-busy", "true");
-    dataArea.replaceChildren(skeleton({ rows: 5, columns: page.columns.length }));
+
 
     const after = cursors[cursorIndex];
     const path = page.path + "?page_size=25" +
@@ -141,13 +156,14 @@ export function createRegistryView(page, main, user) {
     } catch (error) {
       if (error.name === "AbortError" || disposed || inFlight !== controller) return;
       rows = [];
+      loadError = true;
       count.textContent = "Records unavailable";
-      dataArea.replaceChildren(errorPanel(
+      region.fail(controller, errorPanel(
         error.message || "Please try again.", { title: "Unable to load records", onRetry: () => void load() }));
     } finally {
       if (inFlight === controller) {
         inFlight = null;
-        dataArea.setAttribute("aria-busy", "false");
+        region.end(controller);
         updatePaging();
       }
     }
@@ -155,8 +171,17 @@ export function createRegistryView(page, main, user) {
 
   return {
     mount() { return load(); },
+    snapshot() {
+      return {
+        filters: filters.read(),
+        visibleColumns: columns.getState(),
+        cursors: cursors.slice(0, 100),
+        cursorIndex
+      };
+    },
     dispose() {
       disposed = true;
+      region.dispose();
       inFlight?.abort();
       inFlight = null;
       if (activeDialog?.open) activeDialog.close();

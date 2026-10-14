@@ -1,8 +1,9 @@
 import {
-  getAccessToken, setAccessToken, clearAccessToken, isSignedIn
+  getAccessToken, setAccessToken, getRefreshToken, setRefreshToken,
+  clearAccessToken, isSignedIn
 } from "../auth/session.js";
 
-export { setAccessToken, clearAccessToken, isSignedIn };
+export { setAccessToken, setRefreshToken, clearAccessToken, isSignedIn };
 
 export class ApiError extends Error {
   constructor(message, code = "NETWORK_ERROR", status = 0) {
@@ -13,8 +14,44 @@ export class ApiError extends Error {
   }
 }
 
+let refreshFlight = null;
+/** Only one refresh may rotate a token, even with concurrent API calls. */
+async function refreshSession() {
+  if (refreshFlight) return refreshFlight;
+  const original = getRefreshToken();
+  if (!original) throw new ApiError("Sign in again.", "UNAUTHORIZED", 401);
+  const flight = (async () => {
+    let response;
+    try {
+      response = await fetch("/api/v1/auth/refresh", {
+        method: "POST", cache: "no-store", credentials: "omit", redirect: "error",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ refresh_token: original })
+      });
+    } catch {
+      throw new ApiError("Could not refresh ERP session.", "NETWORK_ERROR");
+    }
+    let payload;
+    try { payload = await response.json(); } catch {
+      throw new ApiError("Invalid refresh response.", "INVALID_RESPONSE");
+    }
+    if (!response.ok || payload?.success !== true) {
+      throw new ApiError("Session refresh denied.", "UNAUTHORIZED", response.status);
+    }
+    if (getRefreshToken() !== original) {
+      throw new ApiError("Session changed during refresh.", "UNAUTHORIZED", 401);
+    }
+    setAccessToken(payload.data.access_token);
+    setRefreshToken(payload.data.refresh_token);
+    return payload.data;
+  })();
+  refreshFlight = flight;
+  try { return await flight; }
+  finally { if (refreshFlight === flight) refreshFlight = null; }
+}
+
 /* All requests are same-origin and API paths are explicit. */
-async function request(path, { method = "GET", body, signal } = {}) {
+async function request(path, { method = "GET", body, signal, retryRefresh = true } = {}) {
   if (typeof path !== "string" || !path.startsWith("/api/v1/") || path.startsWith("//")) {
     throw new ApiError("Invalid API path.", "INVALID_PATH");
   }
@@ -39,6 +76,21 @@ async function request(path, { method = "GET", body, signal } = {}) {
   } catch {
     throw new ApiError("Server returned an invalid JSON response.", "INVALID_RESPONSE", response.status);
   }
+  if (response.status === 401 && currentToken && retryRefresh &&
+      getRefreshToken() && !["/api/v1/auth/login","/api/v1/auth/refresh",
+        "/api/v1/auth/forgot-password","/api/v1/auth/reset-password"].includes(path)) {
+    try {
+      // Another request may already have completed rotation.
+      if (currentToken === getAccessToken()) await refreshSession();
+      return request(path, { method, body, signal, retryRefresh: false });
+    } catch {
+      if (currentToken === getAccessToken()) {
+        clearAccessToken();
+        window.dispatchEvent(new Event("erp:session-expired"));
+      }
+      throw new ApiError("Session expired. Sign in again.", "UNAUTHORIZED", 401);
+    }
+  }
   if (!response.ok || payload?.success !== true) {
     const code = typeof payload?.error?.code === "string" ? payload.error.code : "REQUEST_FAILED";
     const message = typeof payload?.error?.message === "string" ? payload.error.message : "Request failed.";
@@ -53,7 +105,8 @@ async function request(path, { method = "GET", body, signal } = {}) {
 
 
 /** Authenticated binary GET for institute documents; bearer stays in the header. */
-async function download(path, { signal, acceptedTypes = ["application/pdf", "image/png", "image/jpeg"] } = {}) {
+async function download(path, { signal, acceptedTypes = ["application/pdf", "image/png", "image/jpeg"],
+  retryRefresh = true } = {}) {
   if (typeof path !== "string" || !path.startsWith("/api/v1/") || path.startsWith("//")) {
     throw new ApiError("Invalid download path.", "INVALID_PATH");
   }
@@ -68,6 +121,18 @@ async function download(path, { signal, acceptedTypes = ["application/pdf", "ima
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     throw new ApiError("Could not download this document.");
+  }
+  if (response.status === 401 && retryRefresh && getRefreshToken()) {
+    try {
+      if (token === getAccessToken()) await refreshSession();
+      return download(path, { signal, acceptedTypes, retryRefresh: false });
+    } catch {
+      if (token === getAccessToken()) {
+        clearAccessToken();
+        window.dispatchEvent(new Event("erp:session-expired"));
+      }
+      throw new ApiError("Session expired. Sign in again.", "UNAUTHORIZED", 401);
+    }
   }
   if (!response.ok) {
     let error;
@@ -93,10 +158,13 @@ export const api = Object.freeze({
   get: (path, options) => request(path, options),
   download,
   post: (path, body, options = {}) => request(path, { ...options, method: "POST", body }),
-  login: (username, password, instituteId) =>
+  login: (username, password, instituteId, otpCode = "", recoveryCode = "") =>
     request("/api/v1/auth/login", {
       method: "POST",
-      body: { username, password, institute_id: instituteId }
+      body: { username, password, institute_id: instituteId,
+        ...(otpCode ? { otp_code: otpCode } : {}),
+        ...(recoveryCode ? { recovery_code: recoveryCode } : {}) }
     }),
-  me: () => request("/api/v1/auth/me")
+  me: () => request("/api/v1/auth/me"),
+  refresh: refreshSession
 });

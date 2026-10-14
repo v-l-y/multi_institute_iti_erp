@@ -5,10 +5,12 @@ namespace App\Modules\Auth\Http;
 use App\Core\Database;
 use App\Modules\Auth\Application\AuthService;
 use App\Modules\Auth\Application\PasswordRecoveryService;
-use App\Core\PrivateFiles;
+use App\Modules\Auth\Application\MfaService;
+use App\Modules\Auth\Application\RecoveryEmailService;
+use App\Modules\Auth\Infrastructure\RecoveryDelivery;
 use App\Http\HttpException;
 use App\Modules\Auth\Domain\AuthContext;
-use App\Modules\Auth\Infrastructure\LoginThrottle;
+use App\Modules\Auth\Infrastructure\DatabaseThrottle;
 use App\Http\Request;
 use App\Http\Response;
 
@@ -19,16 +21,28 @@ final readonly class AuthController
     {
         return new AuthService($this->database->connection());
     }
+    private function throttle(Request $request,string $operation,int $limit=30): void
+    {
+        (new DatabaseThrottle($this->database->connection()))
+            ->check($operation,$request->ip,$limit,60);
+    }
     public function login(Request $request): Response
     {
-        (new LoginThrottle(sys_get_temp_dir() . '/iti-erp-login-throttle'))->check($request->ip);
+        $this->throttle($request,'login',30);
         return new Response(['success' => true, 'data' => $this->service()->login($request)]);
+    }
+    public function refresh(Request $request): Response
+    {
+        $this->throttle($request,'refresh',30);
+        return new Response(['success'=>true,'data'=>$this->service()->refresh($request)]);
     }
     private function recovery(Request $request): PasswordRecoveryService
     {
-        if (getenv('AUTH_RECOVERY_MODE')!=='local_outbox') throw new HttpException('RECOVERY_UNAVAILABLE','Recovery delivery is not configured.',503);
-        (new LoginThrottle(sys_get_temp_dir().'/iti-erp-recovery-throttle',5,60))->check($request->ip);
-        return new PasswordRecoveryService($this->database->connection(),new PrivateFiles((string)getenv('AUTH_RECOVERY_OUTBOX')));
+        if (!in_array(getenv('AUTH_RECOVERY_MODE'),['smtp','local_outbox'],true)) {
+            throw new HttpException('RECOVERY_UNAVAILABLE','Recovery delivery is not configured.',503);
+        }
+        $this->throttle($request,'recovery',5);
+        return new PasswordRecoveryService($this->database->connection(),new RecoveryDelivery());
     }
     public function forgotPassword(Request $request): Response
     {
@@ -47,6 +61,51 @@ final readonly class AuthController
         $this->recovery($request)->reset($token,$password);
         return new Response(['success'=>true,'data'=>['message'=>'Password recovered. Sign in again.']]);
     }
+    public function mfaStatus(Request $request,AuthContext $actor): Response
+    {
+        return new Response(['success'=>true,'data'=>
+          (new MfaService($this->database->connection()))->status($actor)]);
+    }
+    public function mfaEnroll(Request $request,AuthContext $actor): Response
+    {
+        $this->throttle($request,'mfa_enroll',5);
+        return new Response(['success'=>true,'data'=>
+          (new MfaService($this->database->connection()))->enroll($actor,$request)]);
+    }
+    public function mfaConfirm(Request $request,AuthContext $actor): Response
+    {
+        $this->throttle($request,'mfa_confirm',5);
+        (new DatabaseThrottle($this->database->connection()))->check(
+          'mfa_account',null,5,600,(string)$actor->userId);
+        return new Response(['success'=>true,'data'=>
+          (new MfaService($this->database->connection()))->confirm($actor,$request)]);
+    }
+    public function mfaDisable(Request $request,AuthContext $actor): Response
+    {
+        $this->throttle($request,'mfa_disable',5);
+        (new MfaService($this->database->connection()))->disable($actor,$request);
+        return new Response(['success'=>true,'data'=>['enabled'=>false]]);
+    }
+    public function recoveryEmailStatus(Request $request,AuthContext $actor): Response
+    {
+        return new Response(['success'=>true,'data'=>
+          (new RecoveryEmailService($this->database->connection(),new RecoveryDelivery()))->status($actor)]);
+    }
+    public function recoveryEmailStart(Request $request,AuthContext $actor): Response
+    {
+        $this->throttle($request,'email_enroll',5);
+        (new RecoveryEmailService($this->database->connection(),new RecoveryDelivery()))
+          ->start($actor,$request);
+        return new Response(['success'=>true,'data'=>['message'=>'Verification code queued.']],202);
+    }
+    public function recoveryEmailConfirm(Request $request,AuthContext $actor): Response
+    {
+        $this->throttle($request,'email_confirm',5);
+        (new RecoveryEmailService($this->database->connection(),new RecoveryDelivery()))
+          ->confirm($actor,$request);
+        return new Response(['success'=>true,'data'=>['verified'=>true]]);
+    }
+
     public function me(Request $request, AuthContext $context): Response
     {
         return new Response(['success' => true, 'data' => $context->profile()]);

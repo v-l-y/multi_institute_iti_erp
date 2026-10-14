@@ -77,7 +77,8 @@ async function request(path, { method = "GET", body, signal, retryRefresh = true
     throw new ApiError("Server returned an invalid JSON response.", "INVALID_RESPONSE", response.status);
   }
   if (response.status === 401 && currentToken && retryRefresh &&
-      getRefreshToken() && !path.startsWith("/api/v1/auth/")) {
+      getRefreshToken() && !["/api/v1/auth/login","/api/v1/auth/refresh",
+        "/api/v1/auth/forgot-password","/api/v1/auth/reset-password"].includes(path)) {
     try {
       await refreshSession();
       return request(path, { method, body, signal, retryRefresh: false });

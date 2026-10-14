@@ -11,6 +11,19 @@ use RuntimeException;
  */
 final class MigrationRunner
 {
+    public const BASELINE = '000_canonical_schema';
+
+    public static function baselineChecksum(): string
+    {
+        $root = dirname(__DIR__, 2) . '/database/schema/';
+        $sources = [];
+        foreach (['iti_erp_schema.sql', 'integrity_guards.sql'] as $file) {
+            $sql = file_get_contents($root . $file);
+            if ($sql === false) throw new RuntimeException('Cannot read canonical schema: ' . $file);
+            $sources[] = $file . "\n" . str_replace("\r\n", "\n", $sql);
+        }
+        return hash('sha256', implode("\n", $sources));
+    }
     public static function discover(string $directory): array
     {
         $paths = glob(rtrim($directory, '/') . '/*.sql');
@@ -96,9 +109,6 @@ final class MigrationRunner
 
         try {
             $migrations = self::discover($directory);
-            if ($apply && $migrations === []) {
-                throw new RuntimeException('No reviewed numbered migration files are available. Populate and rehearse migrations before --apply.');
-            }
             $ledgerCheck = $db->query("SELECT COUNT(*) FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='iti_erp_schema_migrations'");
             $ledgerExists = (int) $ledgerCheck->fetchColumn() === 1;
@@ -109,6 +119,12 @@ final class MigrationRunner
                 }
             }
             foreach ($applied as $filename => $checksum) {
+                if ($filename === self::BASELINE) {
+                    if (!hash_equals(self::baselineChecksum(), $checksum)) {
+                        throw new RuntimeException('Canonical baseline checksum mismatch.');
+                    }
+                    continue;
+                }
                 if (!isset($migrations[$filename]) || !hash_equals($checksum, $migrations[$filename]['sha256'])) {
                     throw new RuntimeException('Migration checksum/history mismatch: ' . $filename);
                 }
@@ -116,6 +132,9 @@ final class MigrationRunner
             $pending = array_diff(array_keys($migrations), array_keys($applied));
             if (!$apply || $pending === []) {
                 return ['applied' => [], 'pending' => array_values($pending)];
+            }
+            if (!isset($applied[self::BASELINE])) {
+                throw new RuntimeException('Verified 000 baseline required; use --baseline-current on a matching canonical install.');
             }
             // Create the ledger only for an explicit, validated apply operation.
             if (!$ledgerExists) {

@@ -1,1 +1,0 @@
-CREATE TRIGGER lesson_plans_approved_update BEFORE UPDATE ON lesson_plans FOR EACH ROW BEGIN IF OLD.status='approved' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Approved lesson plans are immutable'; END IF; END;

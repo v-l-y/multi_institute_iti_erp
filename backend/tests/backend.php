@@ -87,8 +87,8 @@ $checks[] = $dstCashBounds[1] === '2026-03-09 04:00:00';
 
 $checks[] = \App\Modules\Academic\Domain\CalendarPage::integer(['page_size'=>'3'], 'page_size', 50, 100) === 3;
 $checks[] = \App\Core\MigrationRunner::singleStatement('ALTER TABLE sample ADD COLUMN value INT;') === 'ALTER TABLE sample ADD COLUMN value INT';
-$checks[] = count(\App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations')) === 14;
-$guardMigration=file_get_contents(dirname(__DIR__).'/database/migrations/011_lesson_plans_update_guard.sql');
+$checks[] = count(\App\Core\MigrationRunner::discover(dirname(__DIR__) . '/database/migrations')) === 0;
+$guardMigration='CREATE TRIGGER lesson_plans_approved_update BEFORE UPDATE ON lesson_plans FOR EACH ROW BEGIN IF OLD.status=\'approved\' THEN SIGNAL SQLSTATE \'45000\' SET MESSAGE_TEXT=\'Approved lesson plans are immutable\'; END IF; END;';
 $checks[] = str_starts_with(\App\Core\MigrationRunner::singleStatement($guardMigration),'CREATE TRIGGER');
 $checks[] = (static function () use ($guardMigration): bool {
     try { \App\Core\MigrationRunner::singleStatement($guardMigration.' DROP TABLE students;'); }

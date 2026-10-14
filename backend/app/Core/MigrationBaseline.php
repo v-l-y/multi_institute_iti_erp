@@ -27,7 +27,7 @@ final class MigrationBaseline
         }
         return ['tables'=>$tables,'triggers'=>$triggers];
     }
-    public static function run(PDO $db,string $directory,?int $through=null): array
+    public static function run(PDO $db,string $directory): array
     {
         if ($db->inTransaction()) throw new RuntimeException('Baseline requires its own connection outside a transaction.');
         $schema=(string)$db->query('SELECT DATABASE()')->fetchColumn();
@@ -38,23 +38,13 @@ final class MigrationBaseline
         $reference='iti_baseline_'.bin2hex(random_bytes(8)); $created=false;
         try {
             $migrations=MigrationRunner::discover($directory);
-            if (!$migrations) throw new RuntimeException('Reviewed migrations required.');
-            $through??=count($migrations);
-            if ($through<1 || $through>count($migrations)) throw new RuntimeException('Invalid reviewed baseline prefix.');
-            $baselineFiles=array_slice(array_keys($migrations),0,$through);
+            if ($migrations) throw new RuntimeException('Baseline registration is only supported before forward migrations are introduced.');
+            $baselineFiles=[MigrationRunner::BASELINE];
             $actual=self::snapshot($db);
             $q=$db->prepare('SELECT DEFAULT_CHARACTER_SET_NAME,DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME=?'); $q->execute([$schema]); $defaults=$q->fetch(PDO::FETCH_NUM);
             if (!$defaults || !preg_match('/^[a-z0-9_]+$/D',$defaults[0]) || !preg_match('/^[a-z0-9_]+$/D',$defaults[1])) throw new RuntimeException('Cannot verify database defaults.');
             $db->exec('CREATE DATABASE '.self::quote($reference).' CHARACTER SET '.$defaults[0].' COLLATE '.$defaults[1]); $created=true;
             $db->exec('USE '.self::quote($reference)); SchemaInstaller::install($db);
-            // Reconstruct an explicitly requested earlier additive canonical
-            // version in the disposable reference only. Never guess how to
-            // undo ALTER/data migrations or modify the application schema.
-            foreach(array_reverse(array_slice($migrations,$through,null,true)) as $migration) {
-                $sql=MigrationRunner::singleStatement($migration['sql']);
-                if (!preg_match('/\ACREATE (TABLE|TRIGGER) ([a-z0-9_]+)\b/',$sql,$object)) throw new RuntimeException('Earlier baseline cannot reverse this migration type.');
-                $db->exec('DROP '.$object[1].' '.self::quote($object[2]));
-            }
             $expected=self::snapshot($db);
             $db->exec('USE '.self::quote($schema)); $db->exec("SET time_zone='+00:00'");
             if ($actual!==$expected) {
@@ -66,13 +56,14 @@ final class MigrationBaseline
             }
             // Verify any existing ledger history before writing. Do not pretend
             // mismatched or partially applied history is a fresh installation.
-            $status=MigrationRunner::run($db,$directory,false);
-            $pending=array_values(array_intersect($status['pending'],$baselineFiles));
+            MigrationRunner::run($db,$directory,false);
+            $ledgerExists=(int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='iti_erp_schema_migrations'")->fetchColumn()===1;
+            $pending=$ledgerExists && (int)$db->query("SELECT COUNT(*) FROM iti_erp_schema_migrations WHERE filename='000_canonical_schema'")->fetchColumn()===1 ? [] : $baselineFiles;
             if (!$pending) return ['baselined'=>[]];
             $db->exec('CREATE TABLE IF NOT EXISTS iti_erp_schema_migrations (filename VARCHAR(255) NOT NULL PRIMARY KEY,checksum_sha256 CHAR(64) NOT NULL,applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
             $db->beginTransaction();
             $record=$db->prepare('INSERT INTO iti_erp_schema_migrations(filename,checksum_sha256) VALUES (?,?)');
-            foreach($pending as $file) $record->execute([$file,$migrations[$file]['sha256']]);
+            foreach($pending as $file) $record->execute([$file,MigrationRunner::baselineChecksum()]);
             $db->commit();
             return ['baselined'=>$pending];
         } finally {

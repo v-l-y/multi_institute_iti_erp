@@ -1,4 +1,4 @@
--- Bihar CTS Multi-Institute ITI ERP — Base Database Schema
+-- Bihar CTS Multi-Institute ITI ERP — Consolidated Database Baseline 000
 -- Tables, foreign keys, UNIQUE and CHECK constraints only; runtime validation pending
 
 SET NAMES utf8mb4;
@@ -2204,6 +2204,7 @@ CREATE TABLE lesson_plans (
  CHECK(planned_minutes>0 AND start_minute+planned_minutes<=1440),
  CHECK(status='draft' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL AND review_reference IS NOT NULL AND approved_by<>created_by))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE training_progress (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  institute_id BIGINT UNSIGNED NOT NULL,

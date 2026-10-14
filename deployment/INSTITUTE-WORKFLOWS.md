@@ -36,7 +36,7 @@ Run ops/backup-restore-local.ps1 for the persistent demo or add -Environment sta
 
 Each run independently restores into a unique no-port database/private volume, verifies all table row counts, trigger count, every private file hash, and private_documents size/SHA metadata, then removes only the disposable restore environment/image. Encrypted archives remain under ignored backups/. The random encryption key is in ignored .demo-private/backup-ENVIRONMENT.key. Store archive and key in separate protected recovery locations; losing the key makes recovery impossible. Off-machine copying and scheduled retention remain operator tasks.
 
-Fresh-install ledger baselining is now supported by --baseline-current; the prior 99-table canonical version can be verified with --baseline-through=008 before additive upgrade. See the migration guide.
+Fresh installations use consolidated baseline 000. All former 001–014 objects are included in the canonical schema and guard files; --baseline-current verifies them and records one 000 ledger entry. Existing demo databases are preserved and need a separate transition. See the migration guide.
 
 Draft plans can be deleted with POST /api/v1/training/plans/delete, providing plan_id and reason. Only an authorized manager or original instructor-author can delete an unapproved draft; the audit retains its content. Approved plans and progress history are preserved.
 

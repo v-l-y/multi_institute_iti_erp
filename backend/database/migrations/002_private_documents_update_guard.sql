@@ -1,1 +1,0 @@
-CREATE TRIGGER private_documents_immutable_update BEFORE UPDATE ON private_documents FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Private document metadata is immutable - archive and upload a replacement';

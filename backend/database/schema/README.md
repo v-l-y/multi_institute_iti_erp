@@ -10,7 +10,7 @@ This schema manages Bihar CTS ITI institute records. Institute state is restrict
 - [FEE_MANAGEMENT.md](FEE_MANAGEMENT.md): advanced financial model and legacy-ledger cutover boundaries.
 - [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md): source-backed service rules, local verification and manual migration of the existing database.
 
-The supported Docker engine is MariaDB 10.11. Fresh installations contain 101 application tables and 78 separately loaded record-protection triggers. Docker loads both SQL files only when its database volume is empty; rebuilding a container does not migrate an existing volume. See the [migration instructions](../migrations/README.md) for the reviewed previous-canonical-schema upgrade and verified fresh-install ledger baselining.
+The supported Docker engine is MariaDB 10.11. Fresh installations contain 101 application tables and 78 separately loaded record-protection triggers. Docker loads both SQL files only when its database volume is empty; rebuilding a container does not migrate an existing volume. See the [migration instructions](../migrations/README.md) for consolidated baseline 000 and verified fresh-install ledger registration. Former migrations 001–014 are already included in these two canonical files; do not apply them separately.
 
 ## Institute and authority boundaries
 

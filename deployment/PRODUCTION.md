@@ -106,12 +106,12 @@ The results are not a complete schema diff or permission audit.
 Review `backend/database/migrations/README.md`,
 `backend/database/schema/FEE_MANAGEMENT.md` and
 `backend/database/schema/FOUNDATION_UPGRADE.md`.
-**Numbered migrations 001–014 upgrade the previous canonical 97-table baseline.**
-They are not a complete upgrade chain for older legacy databases. Fresh installations
-already contain those objects; use the explicit DDL-verified `--baseline-current`
-workflow before future numbered upgrades. The older 99-table canonical install can
-use `--baseline-through=008` before applying 009–014. Earlier one-time fee and foundation exporters remain
-version-specific tools, not a substitute for reviewed migration history.
+**Current database baseline is 000.** Former 001–014 changes are consolidated
+into the canonical table and integrity-guard files for an empty database.
+There are no forward migrations yet. After fresh installation, use the explicit
+DDL-verified `--baseline-current` workflow to register `000_canonical_schema`.
+Previously installed demo/staging databases and their old ledgers are preserved;
+they need a separately reviewed transition. See the migration guide.
 Never re-import the create-only canonical schema into populated data, retry
 partially committed DDL blindly, or delete live Docker volumes. Review each
 transition and rehearse against a restored populated copy, including rollback

@@ -18,15 +18,22 @@ $db->exec("CREATE DATABASE `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode
 try {
     $db->exec("USE `$name`"); SchemaInstaller::install($db); $db->exec("SET time_zone='+00:00'");
     $directory=dirname(__DIR__).'/database/migrations';
-    $check(count(MigrationBaseline::run($db,$directory)['baselined'])===14,'Fresh canonical ledger baseline must record reviewed files.');
+    $check(count(MigrationBaseline::run($db,$directory)['baselined'])===1,'Fresh canonical ledger must record consolidated baseline 000.');
     $check(MigrationRunner::run($db,$directory,true)['applied']===[],'Fresh baseline must not replay CREATE statements.');
     $check(MigrationBaseline::run($db,$directory)['baselined']===[],'Baseline repeat must be idempotent.');
+    $db->exec("UPDATE iti_erp_schema_migrations SET checksum_sha256=REPEAT('0',64) WHERE filename='000_canonical_schema'");
+    try { MigrationRunner::run($db,$directory,false); throw new LogicException('Changed baseline checksum accepted.'); } catch(RuntimeException $e) { $check(str_contains($e->getMessage(),'baseline checksum mismatch'),'Changed baseline checksum must fail closed.'); }
+    $restoreChecksum=$db->prepare("UPDATE iti_erp_schema_migrations SET checksum_sha256=? WHERE filename='000_canonical_schema'");
+    $restoreChecksum->execute([MigrationRunner::baselineChecksum()]);
+    $db->exec("INSERT INTO iti_erp_schema_migrations(filename,checksum_sha256) VALUES('001_private_documents.sql',REPEAT('0',64))");
+    try { MigrationBaseline::run($db,$directory); throw new LogicException('Previous migration history accepted.'); } catch(RuntimeException $e) { $check(str_contains($e->getMessage(),'history mismatch'),'Previous ledgers must not be silently replaced.'); }
+    $db->exec("DELETE FROM iti_erp_schema_migrations WHERE filename='001_private_documents.sql'");
     $db->exec('ALTER TABLE students ADD COLUMN baseline_mismatch INT NULL');
     try { MigrationBaseline::run($db,$directory); throw new LogicException('Mismatched DDL accepted.'); } catch(RuntimeException $e) { $check(str_contains($e->getMessage(),'DDL mismatch'),'Baseline must refuse schema drift.'); }
     $db->exec('ALTER TABLE students DROP COLUMN baseline_mismatch');
     $db->exec('DROP TRIGGER training_progress_immutable_delete');
     try { MigrationBaseline::run($db,$directory); throw new LogicException('Missing immutable guard accepted.'); } catch(RuntimeException $e) { $check(str_contains($e->getMessage(),'DDL mismatch'),'Baseline must verify guard definitions, not only columns.'); }
-    $db->exec(MigrationRunner::singleStatement(file_get_contents($directory.'/014_training_progress_delete_guard.sql')));
+    $db->exec("CREATE TRIGGER training_progress_immutable_delete BEFORE DELETE ON training_progress FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Training progress is append-only'");
     $db->exec(file_get_contents(dirname(__DIR__).'/database/seeders/rbac_seed.sql'));
     $db->exec(file_get_contents(__DIR__.'/fixtures/foundation.sql'));
     $db->exec("UPDATE enrollments SET status='active' WHERE id=9101");

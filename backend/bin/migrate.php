@@ -11,20 +11,22 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 $option = $argv[1] ?? '--status';
-$prefix=preg_match('/^--baseline-through=([0-9]{3})$/D',$option,$matches)?(int)$matches[1]:null;
-if ((!in_array($option, ['--status', '--apply','--baseline-current'], true) && $prefix===null) || count($argv) > 2) {
-    fwrite(STDERR, "Usage: php bin/migrate.php [--status|--apply|--baseline-current|--baseline-through=008]\n");
+if (!in_array($option, ['--status', '--apply','--baseline-current'], true) || count($argv) > 2) {
+    fwrite(STDERR, "Usage: php bin/migrate.php [--status|--apply|--baseline-current]\n");
     exit(2);
 }
 try {
     Environment::load(dirname(__DIR__) . '/.env');
     $db = (new Database(require dirname(__DIR__) . '/config/database.php'))->connection();
-    if ($option==='--baseline-current' || $prefix!==null) {
-        $baseline=\App\Core\MigrationBaseline::run($db,dirname(__DIR__).'/database/migrations',$prefix);
+    if ($option==='--baseline-current') {
+        $baseline=\App\Core\MigrationBaseline::run($db,dirname(__DIR__).'/database/migrations');
         echo 'Verified canonical baseline: '.count($baseline['baselined']).' ledger entries recorded.'.PHP_EOL;
         exit(0);
     }
     $result = MigrationRunner::run($db, dirname(__DIR__) . '/database/migrations', $option === '--apply');
+    $ledgerExists=(int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='iti_erp_schema_migrations'")->fetchColumn()===1;
+    $registered=$ledgerExists && (int)$db->query("SELECT COUNT(*) FROM iti_erp_schema_migrations WHERE filename='000_canonical_schema'")->fetchColumn()===1;
+    echo $registered ? "Baseline 000 registered.\n" : "Baseline 000 not registered; --baseline-current verifies a canonical install.\n";
     if ($result['applied'] !== []) {
         echo 'Applied: ' . implode(', ', $result['applied']) . PHP_EOL;
     }

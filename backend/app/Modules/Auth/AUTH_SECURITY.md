@@ -37,8 +37,7 @@ AUTH_SMTP_FROM=no-reply@example.org
 
 Never check secrets into a repository. SMTP supports STARTTLS with certificate
 and hostname verification only. There is **no** plaintext socket, PHP
-\`mail()\`, or unverified-address fallback. SMTP failure is operationally
-signaled and logged without leaking whether an account exists.
+\`mail()\`, or unverified-address fallback. SMTP failure is operationally logged; password-reset responses remain generic.\nSMTP delivery is synchronous in this implementation, so latency may still\ndiffer for eligible accounts; an audited asynchronous mail queue is a\nrecommended production hardening step before exposing recovery publicly.
 \`AUTH_RECOVERY_MODE=local_outbox\` with \`AUTH_RECOVERY_OUTBOX\` remains
 available for an intentionally isolated local test environment. It writes
 sensitive delivery payloads to private files; never expose this directory as
@@ -108,7 +107,7 @@ web content.
 ## Central multi-instance throttling
 
 The \`auth_rate_limits\` database table uses atomic INSERT/UPDATE fixed
-windows by operation and salted-by-context SHA-256 IP identity keys.
+windows by operation and SHA-256-derived IP identity keys (not secret-keyed).
 Login: 30/IP/minute. Recovery/OTP enroll and confirm: 5/IP/minute.
 MFA confirmation also uses 5/account/10 minutes across all nodes.
 Refresh: 30/IP/minute. Failure to write/read the shared counters denies the

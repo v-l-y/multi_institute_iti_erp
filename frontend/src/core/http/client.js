@@ -104,7 +104,8 @@ async function request(path, { method = "GET", body, signal, retryRefresh = true
 
 
 /** Authenticated binary GET for institute documents; bearer stays in the header. */
-async function download(path, { signal, acceptedTypes = ["application/pdf", "image/png", "image/jpeg"] } = {}) {
+async function download(path, { signal, acceptedTypes = ["application/pdf", "image/png", "image/jpeg"],
+  retryRefresh = true } = {}) {
   if (typeof path !== "string" || !path.startsWith("/api/v1/") || path.startsWith("//")) {
     throw new ApiError("Invalid download path.", "INVALID_PATH");
   }
@@ -119,6 +120,18 @@ async function download(path, { signal, acceptedTypes = ["application/pdf", "ima
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     throw new ApiError("Could not download this document.");
+  }
+  if (response.status === 401 && retryRefresh && getRefreshToken()) {
+    try {
+      await refreshSession();
+      return download(path, { signal, acceptedTypes, retryRefresh: false });
+    } catch {
+      if (token === getAccessToken()) {
+        clearAccessToken();
+        window.dispatchEvent(new Event("erp:session-expired"));
+      }
+      throw new ApiError("Session expired. Sign in again.", "UNAUTHORIZED", 401);
+    }
   }
   if (!response.ok) {
     let error;

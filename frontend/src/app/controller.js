@@ -1,4 +1,4 @@
-import { api, ApiError, clearAccessToken, isSignedIn, setAccessToken } from "../core/http/client.js";
+import { api, ApiError, clearAccessToken, isSignedIn, setAccessToken, setRefreshToken } from "../core/http/client.js";
 import { pages, canAccess, currentPage } from "./routes.js";
 import { el, notice, renderSafely } from "../shared/ui/index.js";
 import { createAppShell } from "../shared/layouts/app-shell.js";
@@ -38,12 +38,13 @@ function resetToLogin(message = "") {
   renderLogin(root, { message, onLogin: login });
 }
 
-async function login(username, password, instituteId) {
+async function login(username, password, instituteId, otpCode = "", recoveryCode = "") {
   const attempt = ++authEpoch;
   try {
-    const session = await api.login(username, password, instituteId);
+    const session = await api.login(username, password, instituteId, otpCode, recoveryCode);
     if (attempt !== authEpoch) return;
     setAccessToken(session.access_token);
+    setRefreshToken(session.refresh_token);
     const profile = await api.me();
     if (attempt !== authEpoch) return;
     if (!profile || !Array.isArray(profile.permissions) || !Array.isArray(profile.roles) ||

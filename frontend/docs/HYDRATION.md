@@ -10,7 +10,7 @@ preferences after client navigation, and preventing stale asynchronous work
 from modifying the wrong view.
 
 The application still requires sign-in after a full browser reload. It does
-**not** cache institute records, student data, credentials, documents, fee
+**not** cache institute or student record payloads, credentials, documents, fee
 details, password drafts or API responses in localStorage/sessionStorage.
 
 ## Layers

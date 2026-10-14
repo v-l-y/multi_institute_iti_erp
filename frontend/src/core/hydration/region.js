@@ -63,8 +63,17 @@ export function createHydrationRegion(container) {
     return true;
   }
 
+  function reset() {
+    if (disposed) return;
+    pending?.abort();
+    pending = null;
+    hasData = false;
+    container.replaceChildren();
+    setState("idle", false);
+  }
+
   return {
-    container, begin, isCurrent, commit, fail, end, update,
+    container, begin, isCurrent, commit, fail, end, update, reset,
     get busy() { return pending !== null; },
     get hydrated() { return hasData; },
     dispose() {

@@ -158,23 +158,22 @@ final class AuthService
                 $this->db->commit();
                 $this->unauthorized();
             }
-            $session=$this->query("SELECT s.id,s.user_id,s.institute_id,s.refresh_expires_at,
-                u.* FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
+            $session=$this->query("SELECT s.id AS refresh_session_id,s.refresh_expires_at,u.* FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
                 AND u.tenant_key=s.tenant_key WHERE s.refresh_token_hash=?
                 AND s.revoked_at IS NULL AND s.refresh_expires_at>UTC_TIMESTAMP()
                 AND u.status='active' AND (u.locked_until IS NULL OR u.locked_until<=UTC_TIMESTAMP())
                 FOR UPDATE",[$hash])->fetch(PDO::FETCH_ASSOC);
             if(!$session){$this->db->rollBack();$this->unauthorized();}
             // Re-evaluate current roles, institute and identity links.
-            $context=$this->context($session,(int)$session['id']);
+            $context=$this->context($session,(int)$session['refresh_session_id']);
             $access=bin2hex(random_bytes(32));$refresh=bin2hex(random_bytes(32));
             $this->query('INSERT INTO auth_refresh_replays
               (old_token_hash,session_id,expires_at) VALUES (?,?,?)',
-              [$hash,$session['id'],$session['refresh_expires_at']]);
+              [$hash,$session['refresh_session_id'],$session['refresh_expires_at']]);
             $this->query('UPDATE auth_sessions SET session_token_hash=?,
               refresh_token_hash=?,expires_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE),
               updated_at=UTC_TIMESTAMP() WHERE id=?',
-              [hash('sha256',$access),hash('sha256',$refresh),$session['id']]);
+              [hash('sha256',$access),hash('sha256',$refresh),$session['refresh_session_id']]);
             $this->db->commit();
             return ['access_token'=>$access,'refresh_token'=>$refresh,
               'token_type'=>'Bearer','expires_in'=>3600,'user'=>$context->profile()];

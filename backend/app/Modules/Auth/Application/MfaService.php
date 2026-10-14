@@ -94,6 +94,10 @@ final readonly class MfaService
                   ->execute([$actor->userId,hash('sha256',$recovery)]);
                 $codes[]=$recovery;
             }
+            // A session created before MFA activation must not remain usable.
+            $this->db->prepare('UPDATE auth_sessions SET revoked_at=UTC_TIMESTAMP()
+              WHERE user_id=? AND id<>? AND revoked_at IS NULL')
+              ->execute([$actor->userId,$actor->sessionId]);
             $this->db->prepare('INSERT INTO auth_audit_log
               (user_id,institute_id,event_type,event_data_json,occurred_at)
               VALUES (?,?,\'mfa_enabled\',\'{}\',UTC_TIMESTAMP())')

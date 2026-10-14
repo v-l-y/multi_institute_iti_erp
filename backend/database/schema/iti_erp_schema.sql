@@ -2250,7 +2250,7 @@ CREATE TABLE auth_recovery_emails (
  user_id BIGINT UNSIGNED PRIMARY KEY,
  email VARCHAR(254) NOT NULL,
  verified_at DATETIME NULL,
- challenge_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ challenge_hash VARCHAR(255) NULL,
  challenge_expires_at DATETIME NULL,
  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -69,6 +69,14 @@ return static function (Router $router, Database $database): void {
     $router->get('/api/v1/documents/download',$guard->wrap([$documents,'download'],'document.view'));
     $router->get('/api/v1/documents/download/me',$guard->wrap([$documents,'ownDownload'],'document.view.own'));
     $router->post('/api/v1/auth/login', [$auth, 'login']);
+    $router->post('/api/v1/auth/refresh', [$auth, 'refresh']);
+    $router->get('/api/v1/auth/mfa', $guard->wrap([$auth,'mfaStatus']));
+    $router->post('/api/v1/auth/mfa/enroll', $guard->wrap([$auth,'mfaEnroll']));
+    $router->post('/api/v1/auth/mfa/confirm', $guard->wrap([$auth,'mfaConfirm']));
+    $router->post('/api/v1/auth/mfa/disable', $guard->wrap([$auth,'mfaDisable']));
+    $router->get('/api/v1/auth/recovery-email', $guard->wrap([$auth,'recoveryEmailStatus']));
+    $router->post('/api/v1/auth/recovery-email/start', $guard->wrap([$auth,'recoveryEmailStart']));
+    $router->post('/api/v1/auth/recovery-email/confirm', $guard->wrap([$auth,'recoveryEmailConfirm']));
     $router->post('/api/v1/auth/forgot-password', [$auth,'forgotPassword']);
     $router->post('/api/v1/auth/reset-password', [$auth,'resetPassword']);
     $router->get('/api/v1/auth/me', $guard->wrap([$auth, 'me'], allowPasswordChange: true));

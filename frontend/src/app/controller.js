@@ -7,6 +7,7 @@ import { renderDashboard } from "../modules/dashboard/view.js";
 import { renderInstituteProfile } from "../modules/institutes/profile.js";
 import { createRegistryView } from "../modules/registry/register-view.js";
 import { createWorkspaceView } from "../modules/workspace/view.js";
+import { sessionUiState } from "../core/hydration/session-state.js";
 
 const root = document.getElementById("app");
 if (!root) throw new Error("ERP application root not found.");
@@ -15,15 +16,21 @@ let user = null;
 let shell = null;
 let activeView = null;
 let authEpoch = 0;
+let currentRouteId = null;
 
 function disposeView() {
+  if (currentRouteId && typeof activeView?.snapshot === "function") {
+    sessionUiState.remember(currentRouteId, activeView.snapshot());
+  }
   activeView?.dispose();
   activeView = null;
+  currentRouteId = null;
 }
 
 function resetToLogin(message = "") {
   authEpoch++;
   disposeView();
+  sessionUiState.clear();
   shell?.dispose();
   clearAccessToken();
   user = null;
@@ -83,8 +90,10 @@ async function logout() {
 
 function renderRoute() {
   if (!user || !shell) return;
-  disposeView();
   const page = currentPage();
+  // A hash query edit must not rebuild the same route and lose input focus.
+  if (page && activeView && currentRouteId === page.id) return;
+  disposeView();
   if (!page || !canAccess(page, user)) {
     shell.showRestricted();
     shell.main.replaceChildren(
@@ -98,6 +107,7 @@ function renderRoute() {
   }
 
   shell.setPage(page);
+  currentRouteId = page.id;
   shell.focusContent();
   if (page.id === "dashboard") {
     renderSafely(shell.main,
@@ -115,9 +125,10 @@ function renderRoute() {
     return;
   }
 
+  const initialState = sessionUiState.restore(page.id);
   activeView = page.type === "workspace"
-    ? createWorkspaceView(page, shell.main, user)
-    : createRegistryView(page, shell.main, user);
+    ? createWorkspaceView(page, shell.main, user, { initialState })
+    : createRegistryView(page, shell.main, user, { initialState });
   void activeView.mount();
 }
 

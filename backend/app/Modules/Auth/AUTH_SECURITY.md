@@ -8,13 +8,13 @@ configures it. Never use production credentials in Git.
 ## Deployment order — mandatory
 
 1. Back up the populated database and rehearse migration in an isolated copy.
-   Apply reviewed migrations **015–020** using \`php bin/migrate.php --status\`
-   followed by an explicit \`php bin/migrate.php --apply\` (when the ledger is
+   Apply reviewed migrations **015–020** using `php bin/migrate.php --status`
+   followed by an explicit `php bin/migrate.php --apply` (when the ledger is
    already present). Fresh schema installs contain these objects; use
-   \`--baseline-current\` only on a truly matching fresh canonical installation.
+   `--baseline-current` only on a truly matching fresh canonical installation.
 2. **Do not enable traffic before schema migration.** The database throttle
    deliberately returns HTTP 503 instead of falling back to worker-local
-   counters if \`auth_rate_limits\` does not exist.
+   counters if `auth_rate_limits` does not exist.
 3. Configure HTTPS and trusted reverse proxy client IP handling.
    All nodes must use the same database and (for MFA) the same immutable
    32-byte encryption key.
@@ -23,7 +23,7 @@ configures it. Never use production credentials in Git.
 
 ### Production environment values
 
-\`\`\`dotenv
+```dotenv
 # Generate locally: php -r "echo base64_encode(random_bytes(32)), PHP_EOL;"
 AUTH_MFA_ENCRYPTION_KEY=<base64-of-32-secure-random-bytes>
 
@@ -33,12 +33,15 @@ AUTH_SMTP_PORT=587
 AUTH_SMTP_USER=<smtp-username>
 AUTH_SMTP_PASSWORD=<secret-from-deployment-vault>
 AUTH_SMTP_FROM=no-reply@example.org
-\`\`\`
+```
 
 Never check secrets into a repository. SMTP supports STARTTLS with certificate
 and hostname verification only. There is **no** plaintext socket, PHP
-\`mail()\`, or unverified-address fallback. SMTP failure is operationally logged; password-reset responses remain generic.\nSMTP delivery is synchronous in this implementation, so latency may still\ndiffer for eligible accounts; an audited asynchronous mail queue is a\nrecommended production hardening step before exposing recovery publicly.
-\`AUTH_RECOVERY_MODE=local_outbox\` with \`AUTH_RECOVERY_OUTBOX\` remains
+`mail()`, or unverified-address fallback. SMTP failure is operationally logged; password-reset responses remain generic.
+SMTP delivery is synchronous in this implementation, so latency may still
+differ for eligible accounts; an audited asynchronous mail queue is a
+recommended production hardening step before exposing recovery publicly.
+`AUTH_RECOVERY_MODE=local_outbox` with `AUTH_RECOVERY_OUTBOX` remains
 available for an intentionally isolated local test environment. It writes
 sensitive delivery payloads to private files; never expose this directory as
 web content.
@@ -47,16 +50,16 @@ web content.
 
 - Authenticator-app RFC 6238 TOTP: **30-second steps, SHA1, six digits,
   current ±1 step**. The server stores encrypted keys using libsodium
-  secretbox under \`AUTH_MFA_ENCRYPTION_KEY\`. Access requires this same key on
+  secretbox under `AUTH_MFA_ENCRYPTION_KEY`. Access requires this same key on
   all instances. Losing the key makes already enrolled accounts unable to
   authenticate: securely back it up, and plan controlled key rotation.
-- Account Security → \`POST /api/v1/auth/mfa/enroll\` verifies the current
+- Account Security → `POST /api/v1/auth/mfa/enroll` verifies the current
   password, returns the one-time setup secret/otpauth URI to the authenticated
-  user. Complete enrollment with \`POST /api/v1/auth/mfa/confirm\` and the
+  user. Complete enrollment with `POST /api/v1/auth/mfa/confirm` and the
   6-digit TOTP within 10 minutes. Recovery codes are returned only on success
   (8 random 12-hex codes, SHA-256 hashes only stored); save them offline.
-- A verified TOTP-enabled account must submit \`otp_code\` or one unused
-  \`recovery_code\` together with password at \`POST /api/v1/auth/login\`.
+- A verified TOTP-enabled account must submit `otp_code` or one unused
+  `recovery_code` together with password at `POST /api/v1/auth/login`.
   Replaying a previous TOTP time-step or used recovery code is rejected.
   Failed MFA counts against account lockout and centralized throttles.
 - Other sessions are revoked on enrollment confirmation. Disabling requires
@@ -69,21 +72,21 @@ web content.
 
 ## Refresh token rotation
 
-- Login returns \`access_token\` and \`refresh_token\`, each 64 hex chars.
+- Login returns `access_token` and `refresh_token`, each 64 hex chars.
   The raw tokens are never stored by backend; only SHA-256 hashes are stored.
 - Access session expires after 60 minutes, or after 15 minutes of inactivity
-  without an authorized access request. \`POST /api/v1/auth/refresh\` accepts
-  JSON \`{ "refresh_token":"..." }\` and returns replacement tokens.
+  without an authorized access request. `POST /api/v1/auth/refresh` accepts
+  JSON `{ "refresh_token":"..." }` and returns replacement tokens.
 - Each refresh obtains a database row lock, logs the old refresh hash in
-  \`auth_refresh_replays\`, rotates both session credentials, and keeps the
+  `auth_refresh_replays`, rotates both session credentials, and keeps the
   initial **7-day absolute refresh expiry** unchanged. Old-token reuse revokes
   that entire session. Concurrent refresh requests must deduplicate client-
   side; one token cannot be consumed twice.
 - Frontend keeps both tokens **in JavaScript memory only**. No refresh cookie,
   localStorage, sessionStorage, token in URL, or long-lived browser persistence.
-  Reload still requires login. This means a continuously open session can
-  renew within seven days: product/operations should explicitly approve this
-  session policy before production.
+  Reload still requires login. Refresh also checks the existing 15-minute
+  idle deadline; it never bypasses an idle-expired session. Active sessions
+  can renew within the original seven-day absolute refresh deadline.
 - Logout/password changes/account disable revoke matching sessions. Changing
   permissions still takes effect on the next authenticated request or refresh.
 
@@ -91,10 +94,10 @@ web content.
 
 - Users open **Account Security**, enter a recovery email and current password.
   A six-digit verification challenge is sent via secure delivery. Confirm
-  within ten minutes via \`/auth/recovery-email/confirm\`. Five failed
+  within ten minutes via `/auth/recovery-email/confirm`. Five failed
   confirmations expire the opportunity.
-- Only a **verified** \`auth_recovery_emails\` address is eligible for
-  \`POST /auth/forgot-password\`. Response stays generic whether the username
+- Only a **verified** `auth_recovery_emails` address is eligible for
+  `POST /auth/forgot-password`. Response stays generic whether the username
   exists, is unverified, or is throttled.
 - A 64-hex one-time reset token is sent to that verified inbox, expires in
   30 minutes and is stored SHA-256 hashed. Reset invalidates all sessions.
@@ -106,7 +109,7 @@ web content.
 
 ## Central multi-instance throttling
 
-The \`auth_rate_limits\` database table uses atomic INSERT/UPDATE fixed
+The `auth_rate_limits` database table uses atomic INSERT/UPDATE fixed
 windows by operation and SHA-256-derived IP identity keys (not secret-keyed).
 Login: 30/IP/minute. Recovery/OTP enroll and confirm: 5/IP/minute.
 MFA confirmation also uses 5/account/10 minutes across all nodes.
@@ -116,10 +119,10 @@ request (503), never downgrades to local files.
 Operator must schedule retention maintenance, for example **during an
 approved maintenance window** (not via public API):
 
-\`\`\`sql
+```sql
 DELETE FROM auth_rate_limits WHERE updated_at < UTC_TIMESTAMP() - INTERVAL 2 DAY;
 DELETE FROM auth_refresh_replays WHERE expires_at < UTC_TIMESTAMP() - INTERVAL 1 DAY;
-\`\`\`
+```
 
 Ensure the external reverse proxy replaces X-Forwarded-For; only trusted proxy
 CIDRs may supply client IP to the application. DB-based throttling protects
@@ -127,14 +130,14 @@ multiple PHP instances only when they point to the **same transactional DB**.
 
 ## Route summary
 
-- Public: \`POST /auth/login\`, \`POST /auth/refresh\`,
-  \`POST /auth/forgot-password\`, \`POST /auth/reset-password\`.
-- Authenticated: \`GET /auth/mfa\`, \`POST /auth/mfa/enroll\`,
-  \`POST /auth/mfa/confirm\`, \`POST /auth/mfa/disable\`,
-  \`GET /auth/recovery-email\`, \`POST /auth/recovery-email/start\`,
-  \`POST /auth/recovery-email/confirm\`.
+- Public: `POST /auth/login`, `POST /auth/refresh`,
+  `POST /auth/forgot-password`, `POST /auth/reset-password`.
+- Authenticated: `GET /auth/mfa`, `POST /auth/mfa/enroll`,
+  `POST /auth/mfa/confirm`, `POST /auth/mfa/disable`,
+  `GET /auth/recovery-email`, `POST /auth/recovery-email/start`,
+  `POST /auth/recovery-email/confirm`.
 
-All routes use the \`/api/v1\` prefix; MFA and recovery-email management
+All routes use the `/api/v1` prefix; MFA and recovery-email management
 require an active authenticated account. Authenticated routes remain blocked
 during mandatory initial password change except the existing documented
 password-change/logout/profile exceptions.

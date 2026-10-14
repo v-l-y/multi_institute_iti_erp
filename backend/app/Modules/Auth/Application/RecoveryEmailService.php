@@ -6,6 +6,7 @@ use App\Http\HttpException;
 use App\Http\Request;
 use App\Modules\Auth\Domain\AuthContext;
 use App\Modules\Auth\Infrastructure\RecoveryDelivery;
+use App\Modules\Auth\Infrastructure\PasswordHasher;
 use PDO;
 use Throwable;
 
@@ -49,7 +50,7 @@ final readonly class RecoveryEmailService
               VALUES (?,?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 10 MINUTE),0)
               ON DUPLICATE KEY UPDATE email=VALUES(email),challenge_hash=VALUES(challenge_hash),
               challenge_expires_at=VALUES(challenge_expires_at),attempts=0,verified_at=NULL')
-              ->execute([$actor->userId,$email,hash('sha256',$code)]);
+              ->execute([$actor->userId,$email,PasswordHasher::hash($code)]);
             $this->db->commit();
         }catch(Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
         $this->delivery->send($email,'ITI ERP recovery email verification',
@@ -71,7 +72,7 @@ final readonly class RecoveryEmailService
                strtotime($row['challenge_expires_at'].' UTC')<time() || (int)$row['attempts']>=5){
                 throw new HttpException('INVALID_VERIFICATION','Verification expired.',401);
             }
-            if(!hash_equals((string)$row['challenge_hash'],hash('sha256',$code))){
+            if(!password_verify($code,(string)$row['challenge_hash'])){
                 $this->db->prepare('UPDATE auth_recovery_emails SET attempts=LEAST(5,attempts+1)
                   WHERE user_id=?')->execute([$actor->userId]);
                 $this->db->commit();

@@ -75,6 +75,8 @@ final readonly class AuthController
     public function mfaConfirm(Request $request,AuthContext $actor): Response
     {
         $this->throttle($request,'mfa_confirm',5);
+        (new DatabaseThrottle($this->database->connection()))->check(
+          'mfa_account',null,5,600,(string)$actor->userId);
         return new Response(['success'=>true,'data'=>
           (new MfaService($this->database->connection()))->confirm($actor,$request)]);
     }

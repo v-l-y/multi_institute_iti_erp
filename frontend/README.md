@@ -132,3 +132,25 @@ See [complete route coverage and lifecycle](docs/HYDRATION.md).
 The frontend now includes permission-scoped **Fees**, **Attendance**, **OJT**, **Formative assessments**, **CTS Syllabus/Curriculum**, and **Student Documents** workspaces. They use actual PHP GET/POST contract fields, backend pagination cursors, and real user permissions. Documents use the PHP JSON/base64 upload contract and authenticated binary downloads. Financial statement totals are exclusively calculated by the backend.
 
 See [API integration contracts, authorization and verification boundaries](docs/API_INTEGRATION.md). The new backend-only read endpoints are documented there. No live integration execution, CI, Docker, or automated tests were run in this pass.
+
+
+## Enhanced account authentication
+
+The login form now accepts a **6-digit authenticator OTP** or a one-time
+backup recovery code for accounts with enrolled MFA. After login, the
+**Account security** control in the app shell supports authenticator
+enrollment/confirmation, MFA disable, and verified recovery-email setup.
+The **Forgot password?** screen requests verified-email recovery and accepts
+the emailed 30-minute reset token.
+
+The API client holds both access and rotating refresh credentials in memory
+only. It deduplicates concurrent refresh calls and retries authorized reads
+once after a token refresh; closing/reloading the browser still requires
+login. None of these features bypass PHP role, institute or source checks.
+
+**Deploy database migrations 015–020 before using the new auth endpoints.**
+For encryption-key setup, TLS-only SMTP delivery, operating prerequisites and
+security caveats see
+[backend auth security instructions](../backend/app/Modules/Auth/AUTH_SECURITY.md).
+Production activation and end-to-end/browser verification have not yet been
+performed.

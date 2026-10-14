@@ -10,9 +10,9 @@ export function openSecurityCenter() {
   const secrets=el("div",{ className:"form-feedback" });
   const section=el("div",{ className:"stack-form" },status,feedback,secrets);
   function form(title, fields, path, onSuccess) {
-    const inputs=fields.map(([name,label,type="text"])=>el("label",{ className:"field" },
+    const inputs=fields.map(([name,label,type="text",required=true])=>el("label",{ className:"field" },
       el("span",{},label),
-      el("input",{name,type,required:true,autocomplete:type==="password"?"current-password":"off",
+      el("input",{name,type,required,autocomplete:type==="password"?"current-password":"off",
         ...(name.endsWith("code")?{maxlength:12}:{} )})));
     const submit=el("button",{type:"submit",className:"button button-secondary"},title);
     const node=el("form",{className:"stack-form"},
@@ -54,7 +54,8 @@ export function openSecurityCenter() {
     });
   const disable=form("Disable authenticator (requires password and OTP)",
     [["current_password","Current password","password"],
-      ["otp_code","Authenticator code (or use recovery code)"]],
+      ["otp_code","Authenticator code (optional if using recovery code)","text",false],
+      ["recovery_code","One-time recovery code (alternative)","text",false]],
     "/api/v1/auth/mfa/disable",()=>secrets.replaceChildren());
   const startEmail=form("Add verified recovery email",
     [["email","Recovery email","email"],["current_password","Current password","password"]],

@@ -173,6 +173,25 @@ expose hidden fields. Domain modules must supply verified read/write routes
 before enabling other shared patterns; library availability alone is **not**
 proof that the corresponding ERP workflow is implemented.
 
+
+## Hydration architecture (all current routes)
+
+This project has no SSR, so "hydration" is client-side DOM/data hydration rather
+than attaching React/Vue handlers to server-rendered markup. The authenticated
+app shell/nav persists between routes. Async pages keep a stable heading and
+toolbars, using \`src/core/hydration/region.js\` to reconcile each API result
+into its dedicated content region. Prior requests are aborted, obsolete results
+cannot commit, and refresh never rebuilds the app shell.
+
+\`src/core/hydration/session-state.js\` stores bounded route-presentation
+preferences in JavaScript memory only. Both generic registers and all newer
+fees/academic/syllabus/document workspaces snapshot and restore approved
+search/sort, visible columns and pagination position, then always re-fetch
+authorized API rows. Authentication forms and modal/write drafts are never
+persisted. Session expiry and logout clear this state.
+
+See [full hydration contract and current-route coverage](HYDRATION.md).
+
 ## Shared UI completion
 
 The dependency-free shared component catalog, module exports and styling are implemented. Refer to [src/shared/ui/README.md](../src/shared/ui/README.md) for exact APIs and limits. Existing registers and Staff/Student creation dialogs use these shared primitives. Additional controls (tabs, date ranges, file selection, confirmations, accordion) are library-ready, but **not** tied to unfinished module endpoints.

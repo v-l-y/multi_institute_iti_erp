@@ -114,7 +114,8 @@ export function createWorkspaceView(page, main, user, { initialState = null } = 
     if(Array.isArray(history) && history.length>0 && history.length<=100 &&
         history.every(cursor=>cursor && typeof cursor==="object" &&
           Object.entries(cursor).every(([key,value])=>
-            /^[a-z_]{1,40}$/.test(key) && /^[a-zA-Z0-9_-]{1,100}$/.test(String(value))))) {
+            /^after_(?:id|session_id|enrollment_id|batch_year_id|item_code)$/.test(key) &&
+            typeof value === "string" && value.length <= 160 && !/[\x00-\x1f\x7f]/.test(value)))) {
       cursorHistory=history;
       if(Number.isSafeInteger(remembered.pageIndex) && remembered.pageIndex>=0 &&
           remembered.pageIndex<history.length) pageIndex=remembered.pageIndex;

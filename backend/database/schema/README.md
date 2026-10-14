@@ -10,7 +10,7 @@ This schema manages Bihar CTS ITI institute records. Institute state is restrict
 - [FEE_MANAGEMENT.md](FEE_MANAGEMENT.md): advanced financial model and legacy-ledger cutover boundaries.
 - [FOUNDATION_UPGRADE.md](FOUNDATION_UPGRADE.md): source-backed service rules, local verification and manual migration of the existing database.
 
-The supported Docker engine is MariaDB 10.11. Fresh installations contain 101 application tables and 78 separately loaded record-protection triggers. Docker loads both SQL files only when its database volume is empty; rebuilding a container does not migrate an existing volume. See the [migration instructions](../migrations/README.md) for the reviewed previous-canonical-schema upgrade and verified fresh-install ledger baselining.
+The supported Docker engine is MariaDB 10.11. Fresh installations contain 106 application tables and 78 separately loaded record-protection triggers. Docker loads both SQL files only when its database volume is empty; rebuilding a container does not migrate an existing volume. See the [migration instructions](../migrations/README.md) for the reviewed previous-canonical-schema upgrade and verified fresh-install ledger baselining.
 
 ## Institute and authority boundaries
 
@@ -90,3 +90,6 @@ The agent did not run the new tests. Previous passing results predate this harde
 - [DGT CTS trade-specific syllabi](https://dgt.gov.in/en/cts-details)
 - [DGT Exam Corner](https://dgt.gov.in/en/exam-corner)
 - [Bihar BCECEB ITICAT notices](https://bceceboard.bihar.gov.in/ITICATIndex.php)
+
+
+Authentication security: fresh schemas include encrypted MFA enrollment, hashed recovery codes, verified recovery email identities, database-wide rate limit counters and refresh token replay tracking. Populated systems must apply reviewed migrations 015–020 rather than importing this create-only schema. See [Auth Security](../../app/Modules/Auth/AUTH_SECURITY.md).

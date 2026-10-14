@@ -143,10 +143,12 @@ export const api = Object.freeze({
   get: (path, options) => request(path, options),
   download,
   post: (path, body, options = {}) => request(path, { ...options, method: "POST", body }),
-  login: (username, password, instituteId) =>
+  login: (username, password, instituteId, otpCode = "", recoveryCode = "") =>
     request("/api/v1/auth/login", {
       method: "POST",
-      body: { username, password, institute_id: instituteId }
+      body: { username, password, institute_id: instituteId,
+        ...(otpCode ? { otp_code: otpCode } : {}),
+        ...(recoveryCode ? { recovery_code: recoveryCode } : {}) }
     }),
   me: () => request("/api/v1/auth/me"),
   refresh: refreshSession

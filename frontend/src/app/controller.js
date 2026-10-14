@@ -110,10 +110,12 @@ function renderRoute() {
   currentRouteId = page.id;
   shell.focusContent();
   if (page.id === "dashboard") {
-    renderSafely(shell.main,
+    const displayed = renderSafely(shell.main,
       () => renderDashboard(shell.main, user,
         pages.filter(route => route.id !== "dashboard" && canAccess(route, user))),
       { onRetry: renderRoute });
+    shell.main.dataset.hydration = displayed ? "ready" : "error";
+    shell.main.setAttribute("aria-busy", "false");
     return;
   }
 

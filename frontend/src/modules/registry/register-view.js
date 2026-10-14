@@ -24,6 +24,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
   let activeDialog = null;
   let rows = [];
   let nextCursor = null;
+  let loadError = false;
 
   const count = el("span", { className: "muted", "aria-live": "polite" });
   const dataArea = el("div", { "aria-busy": "false" });
@@ -41,6 +42,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
     onPrevious: () => {
       if (cursorIndex === 0 || inFlight || disposed) return;
       cursorIndex--;
+      rows = []; region.reset();
       void load();
     },
     onNext: () => {
@@ -49,6 +51,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
       cursors = cursors.slice(0, cursorIndex + 1);
       cursors.push(nextCursor);
       cursorIndex++;
+      rows = []; region.reset();
       void load();
     }
   });
@@ -89,7 +92,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
   }
 
   function renderRows() {
-    if (disposed) return;
+    if (disposed || loadError) return;
     const filtered = filterRows(rows, {
       ...filters.read(),
       searchKeys: columns.getColumns().map(([key]) => key)
@@ -129,6 +132,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
     });
     if (!controller) return;
     inFlight = controller;
+    loadError = false;
     nextCursor = null;
     updatePaging(true);
 
@@ -152,6 +156,7 @@ export function createRegistryView(page, main, user, { initialState = null } = {
     } catch (error) {
       if (error.name === "AbortError" || disposed || inFlight !== controller) return;
       rows = [];
+      loadError = true;
       count.textContent = "Records unavailable";
       region.fail(controller, errorPanel(
         error.message || "Please try again.", { title: "Unable to load records", onRetry: () => void load() }));

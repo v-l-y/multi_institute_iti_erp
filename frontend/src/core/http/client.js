@@ -80,7 +80,8 @@ async function request(path, { method = "GET", body, signal, retryRefresh = true
       getRefreshToken() && !["/api/v1/auth/login","/api/v1/auth/refresh",
         "/api/v1/auth/forgot-password","/api/v1/auth/reset-password"].includes(path)) {
     try {
-      await refreshSession();
+      // Another request may already have completed rotation.
+      if (currentToken === getAccessToken()) await refreshSession();
       return request(path, { method, body, signal, retryRefresh: false });
     } catch {
       if (currentToken === getAccessToken()) {
@@ -123,7 +124,7 @@ async function download(path, { signal, acceptedTypes = ["application/pdf", "ima
   }
   if (response.status === 401 && retryRefresh && getRefreshToken()) {
     try {
-      await refreshSession();
+      if (token === getAccessToken()) await refreshSession();
       return download(path, { signal, acceptedTypes, retryRefresh: false });
     } catch {
       if (token === getAccessToken()) {

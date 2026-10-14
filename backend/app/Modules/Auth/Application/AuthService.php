@@ -161,6 +161,7 @@ final class AuthService
             $session=$this->query("SELECT s.id AS refresh_session_id,s.refresh_expires_at,u.* FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
                 AND u.tenant_key=s.tenant_key WHERE s.refresh_token_hash=?
                 AND s.revoked_at IS NULL AND s.refresh_expires_at>UTC_TIMESTAMP()
+                AND s.updated_at>DATE_SUB(UTC_TIMESTAMP(),INTERVAL 15 MINUTE)
                 AND u.status='active' AND (u.locked_until IS NULL OR u.locked_until<=UTC_TIMESTAMP())
                 FOR UPDATE",[$hash])->fetch(PDO::FETCH_ASSOC);
             if(!$session){$this->db->rollBack();$this->unauthorized();}

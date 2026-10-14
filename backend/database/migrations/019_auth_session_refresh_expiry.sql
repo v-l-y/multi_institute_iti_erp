@@ -1,1 +1,1 @@
-ALTER TABLE auth_sessions ADD COLUMN refresh_expires_at DATETIME NULL;
+ALTER TABLE auth_sessions ADD COLUMN refresh_expires_at DATETIME NULL AFTER refresh_token_hash;

@@ -1,7 +1,7 @@
 import { el } from "../ui/dom.js";
 
 /** Presentation-only layout. PHP remains authoritative for every permission. */
-export function createAppShell(root, user, onLogout, pages, canAccess) {
+export function createAppShell(root, user, onLogout, pages, canAccess, onSecurity) {
   const mobile = window.matchMedia("(max-width: 780px)");
   const permitted = pages.filter(page => canAccess(page, user));
   let currentId = "";
@@ -40,6 +40,8 @@ export function createAppShell(root, user, onLogout, pages, canAccess) {
         el("span", { className: "crumb-parent" }, "WORKSPACE /"), crumb)),
     el("div", { className: "topbar-right" },
       el("span", { className: "account-scope" }, scope),
+      el("button", {type:"button",className:"button button-ghost",
+        onClick:onSecurity},"Account security"),
       el("span", {
         className: "avatar", title: user.username,
         "aria-label": "Signed in as " + user.username

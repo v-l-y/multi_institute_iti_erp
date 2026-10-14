@@ -1738,6 +1738,7 @@ CREATE TABLE auth_sessions (
  user_id BIGINT UNSIGNED NOT NULL,
  session_token_hash CHAR(64) NOT NULL,
  refresh_token_hash CHAR(64) NULL,
+ refresh_expires_at DATETIME NULL,
  issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  expires_at DATETIME NOT NULL,
  revoked_at DATETIME NULL,
@@ -2231,3 +2232,50 @@ CREATE TABLE training_progress (
  CHECK(attended_minutes>0),
  CHECK(supersedes_id IS NULL OR correction_reason IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- BEGIN AUTH SECURITY HARDENING: MFA / RECOVERY / CENTRAL RATE LIMIT / TOKEN ROTATION
+CREATE TABLE auth_mfa_credentials (
+ user_id BIGINT UNSIGNED PRIMARY KEY,
+ secret_cipher TEXT NULL,
+ pending_cipher TEXT NULL,
+ pending_at DATETIME NULL,
+ verified_at DATETIME NULL,
+ last_counter BIGINT NOT NULL DEFAULT -1,
+ FOREIGN KEY(user_id) REFERENCES auth_users(id) ON DELETE CASCADE,
+ CHECK ((secret_cipher IS NULL AND verified_at IS NULL) OR (secret_cipher IS NOT NULL AND verified_at IS NOT NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE auth_recovery_emails (
+ user_id BIGINT UNSIGNED PRIMARY KEY,
+ email VARCHAR(254) NOT NULL,
+ verified_at DATETIME NULL,
+ challenge_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+ challenge_expires_at DATETIME NULL,
+ attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ FOREIGN KEY(user_id) REFERENCES auth_users(id) ON DELETE CASCADE,
+ CHECK(attempts<=5)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE auth_rate_limits (
+ operation_code VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ identity_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ bucket_start BIGINT UNSIGNED NOT NULL,
+ attempts SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(operation_code,identity_hash,bucket_start),
+ INDEX(updated_at),
+ CHECK(attempts>=1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE auth_refresh_replays (
+ old_token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ session_id BIGINT UNSIGNED NOT NULL,
+ rotated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ expires_at DATETIME NOT NULL,
+ FOREIGN KEY(session_id) REFERENCES auth_sessions(id) ON DELETE CASCADE,
+ INDEX(expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- END AUTH SECURITY HARDENING

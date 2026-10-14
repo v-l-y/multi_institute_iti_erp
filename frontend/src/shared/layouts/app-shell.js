@@ -109,16 +109,28 @@ export function createAppShell(root, user, onLogout, pages, canAccess) {
     }
   }
 
+  // Hydrate navigation once: preserve sidebar nodes, scroll and keyboard focus.
+  const links = new Map();
   function renderNavigation() {
-    const groups = [...new Set(permitted.map(page => page.group))];
-    nav.replaceChildren(...groups.map(group => el("div", { className: "nav-group" },
-      el("p", { className: "nav-group-title" }, group),
-      ...permitted.filter(page => page.group === group).map(page => el("a", {
-        href: "#/" + page.id,
-        className: "nav-link" + (page.id === currentId ? " is-active" : ""),
-        ...(page.id === currentId ? { "aria-current": "page" } : {})
-      }, el("span", { className: "nav-icon", "aria-hidden": "true" }, page.icon),
-        el("span", {}, page.label))))));
+    if (!links.size) {
+      const groups = [...new Set(permitted.map(page => page.group))];
+      nav.replaceChildren(...groups.map(group => el("div", { className: "nav-group" },
+        el("p", { className: "nav-group-title" }, group),
+        ...permitted.filter(page => page.group === group).map(page => {
+          const link = el("a", {
+            href: "#/" + page.id, className: "nav-link"
+          }, el("span", { className: "nav-icon", "aria-hidden": "true" }, page.icon),
+            el("span", {}, page.label));
+          links.set(page.id, link);
+          return link;
+        }))));
+    }
+    for (const [id, link] of links) {
+      const active = id === currentId;
+      link.classList.toggle("is-active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    }
   }
 
   document.addEventListener("keydown", onKeydown);

@@ -7,6 +7,7 @@ import { workspace } from "./contracts.js";
 import { permittedAction, openActionDialog } from "./action-dialog.js";
 import { openUploadDialog, downloadDocument } from "./documents.js";
 import { feeReceiptTools, feeStatementExport } from "./fee-receipts.js";
+import { createHydrationRegion } from "../../core/hydration/region.js";
 
 const positive = value => Number.isSafeInteger(Number(value)) && Number(value)>0;
 function allowed(user, item) {
@@ -17,16 +18,19 @@ function allowed(user, item) {
 }
 const encodeQuery = entries => new URLSearchParams(entries).toString();
 
-export function createWorkspaceView(page, main, user) {
+export function createWorkspaceView(page, main, user, { initialState = null } = {}) {
   const config=workspace[page.workspace];
   if (!config) throw new Error("Unknown workspace");
   const datasets=config.datasets.filter(item=>allowed(user,item));
   const actions=config.actions.filter(item=>permittedAction(user,item));
-  let active=datasets[0]||null;
+  let active=datasets.find(item => item.id === initialState?.activeId) || datasets[0] || null;
+  const saved = new Map(Object.entries(initialState?.datasets || {}).filter(([id]) =>
+    datasets.some(item => item.id === id)));
   let rows=[],cursorHistory=[{}],pageIndex=0,nextCursor=null;
   let pending=null,disposed=false,modal=null,downloadPending=null;
   const count=el("span",{className:"muted","aria-live":"polite"});
   const panel=el("div",{"aria-busy":"false"});
+  const region=createHydrationRegion(panel);
   const feedback=el("div",{"aria-live":"polite"});
   const summary=el("div");
   const refresh=button("Refresh",{onClick:()=>void load()});
@@ -76,6 +80,14 @@ export function createWorkspaceView(page, main, user) {
   });
   let filter=null,columns=null;
   let requiredInput=null;
+  function rememberActive(){
+    if(!active || !filter || !columns)return;
+    saved.set(active.id,{
+      filters:filter.read(),visibleColumns:columns.getState(),
+      cursorHistory:cursorHistory.slice(0,100),pageIndex,
+      requiredValue:requiredInput?.value || ""
+    });
+  }
   const tools=el("div",{className:"register-tools"},
     datasets.length?el("label",{className:"field"},el("span",{},"Register"),chooser)
       :el("p",{className:"muted"},"No register permission has been granted."),
@@ -89,18 +101,31 @@ export function createWorkspaceView(page, main, user) {
 
   function resetControls(){
     rows=[];nextCursor=null;cursorHistory=[{}];pageIndex=0;
+    region.reset();
     summary.replaceChildren();
     filterSlot.replaceChildren();requiredSlot.replaceChildren();
     requiredInput=null;
     if(exportSlot.firstElementChild) exportSlot.hidden=!["statement","own-statement"].includes(active?.id);
     if(!active)return;
-    filter=tableFilters({columns:active.columns,onChange:()=>render()});
-    columns=columnChooser(active.columns,{requiredKeys:["id"],onChange:()=>render()});
+    const remembered=saved.get(active.id)||{};
+    const history=remembered.cursorHistory;
+    if(Array.isArray(history) && history.length>0 && history.length<=100 &&
+        history.every(cursor=>cursor && typeof cursor==="object" &&
+          Object.entries(cursor).every(([key,value])=>
+            /^[a-z_]{1,40}$/.test(key) && /^[a-zA-Z0-9_-]{1,100}$/.test(String(value))))) {
+      cursorHistory=history;
+      if(Number.isSafeInteger(remembered.pageIndex) && remembered.pageIndex>=0 &&
+          remembered.pageIndex<history.length) pageIndex=remembered.pageIndex;
+    }
+    filter=tableFilters({columns:active.columns,initialState:remembered.filters,onChange:()=>render()});
+    columns=columnChooser(active.columns,{requiredKeys:["id"],
+      initialKeys:remembered.visibleColumns,onChange:()=>render()});
     filterSlot.append(filter.node,columns.node);
     if(active.requiredQuery) {
       const q=active.requiredQuery;
       requiredInput=el("input",{type:"number",min:"1",step:"1",className:"search-input",
         placeholder:q.label,"aria-label":q.label});
+      if(positive(remembered.requiredValue)) requiredInput.value=String(remembered.requiredValue);
       const loadButton=button("Load statement",{onClick:()=>{
         if(!positive(requiredInput.value)){feedback.replaceChildren(
           notice("Student ID required","Enter a valid student ID to retrieve a statement.","error"));return;}
@@ -147,7 +172,7 @@ export function createWorkspaceView(page, main, user) {
     const chosen=columns.getColumns();
     const visible=filterRows(rows,{...filter.read(),searchKeys:chosen.map(([key])=>key)});
     count.textContent=visible.length+" of "+rows.length+" records on this page";
-    panel.replaceChildren(visible.length?
+    region.update(visible.length?
       dataTable(visible,chosen,{caption:active.label+" current page",rowActions})
       :emptyState(rows.length?"No matching records":"No records returned",
         rows.length?"Adjust the current-page filters.":"No source-backed records in this page."));
@@ -161,16 +186,19 @@ export function createWorkspaceView(page, main, user) {
 
   async function load(){
     if(disposed||!active)return;
-    pending?.abort();
     if(requiredInput&&!positive(requiredInput.value)){
-      panel.replaceChildren(emptyState("Student ID required",
+      region.reset();
+      region.update(emptyState("Student ID required",
         "Enter the student ID and select Load statement."));
       count.textContent="";nextCursor=null;refreshPager();
       return;
     }
-    const controller=new AbortController();pending=controller;
-    nextCursor=null;refreshPager(true);panel.setAttribute("aria-busy","true");
-    panel.replaceChildren(skeleton({rows:5,columns:Math.min(active.columns.length,6)}));
+    const controller=region.begin({
+      placeholder:skeleton({rows:5,columns:Math.min(active.columns.length,6)})
+    });
+    if(!controller)return;
+    pending=controller;
+    nextCursor=null;refreshPager(true);
     feedback.replaceChildren();
     const q={page_size:"25",...(active.query||{}),...cursorHistory[pageIndex]};
     if(requiredInput)q[active.requiredQuery.key]=String(requiredInput.value);
@@ -200,25 +228,34 @@ export function createWorkspaceView(page, main, user) {
     }catch(error){
       if(error?.name==="AbortError"||disposed||pending!==controller)return;
       rows=[];count.textContent="Records unavailable";
-      panel.replaceChildren(errorPanel(error?.message||"Request failed.",
+      region.fail(controller,errorPanel(error?.message||"Request failed.",
         {onRetry:()=>void load()}));
     }finally{
       if(pending===controller){
-        pending=null;panel.setAttribute("aria-busy","false");refreshPager();
+        pending=null;region.end(controller);refreshPager();
       }
     }
   }
   chooser.addEventListener("change",()=>{
+    rememberActive();
     if(pending)pending.abort();
     pending=null;
     active=datasets.find(item=>item.id===chooser.value)||null;
     resetControls();void load();
   });
+  chooser.value=active?.id||"";
   resetControls();refreshPager();
   return {
     mount(){return load();},
+    snapshot(){
+      rememberActive();
+      return {
+        activeId:active?.id||"",
+        datasets:Object.fromEntries(saved)
+      };
+    },
     dispose(){
-      disposed=true;pending?.abort();downloadPending?.abort();exportController.abort();
+      disposed=true;region.dispose();pending?.abort();downloadPending?.abort();exportController.abort();
       if(modal?.open)modal.close();
     }
   };

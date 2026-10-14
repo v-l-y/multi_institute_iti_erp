@@ -52,6 +52,7 @@ export function renderLogin(root, { message = "", onLogin }) {
         el("p", { className: "muted" }, "Sign in with your institute or platform account."),
         form,
         el("p", { className: "security-note" }, "Sessions are kept in browser memory, not persistent storage. Refreshing the page requires a new sign-in.")))));
+  root.dataset.hydration = "ready";
   username.focus();
 }
 
@@ -86,4 +87,5 @@ export function renderPasswordChange(root, { onChangePassword, onLogout }) {
       el("h1", {}, "Change your password"),
       el("p", { className: "muted" }, "Your institute requires a password change before you can access registers."),
       form, el("button", { className: "button button-ghost", type: "button", onClick: onLogout }, "Sign out"))));
+  root.dataset.hydration = "ready";
 }

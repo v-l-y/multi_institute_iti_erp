@@ -52,8 +52,14 @@ final class MigrationBaseline
             // undo ALTER/data migrations or modify the application schema.
             foreach(array_reverse(array_slice($migrations,$through,null,true)) as $migration) {
                 $sql=MigrationRunner::singleStatement($migration['sql']);
-                if (!preg_match('/\ACREATE (TABLE|TRIGGER) ([a-z0-9_]+)\b/',$sql,$object)) throw new RuntimeException('Earlier baseline cannot reverse this migration type.');
-                $db->exec('DROP '.$object[1].' '.self::quote($object[2]));
+                if (preg_match('/\ACREATE (TABLE|TRIGGER) ([a-z0-9_]+)\b/',$sql,$object)) {
+                    $db->exec('DROP '.$object[1].' '.self::quote($object[2]));
+                } elseif ($sql==='ALTER TABLE auth_sessions ADD COLUMN refresh_expires_at DATETIME NULL AFTER refresh_token_hash') {
+                    // Reverse only the reviewed additive auth column in the disposable reference.
+                    $db->exec('ALTER TABLE auth_sessions DROP COLUMN refresh_expires_at');
+                } else {
+                    throw new RuntimeException('Earlier baseline cannot reverse this migration type.');
+                }
             }
             $expected=self::snapshot($db);
             $db->exec('USE '.self::quote($schema)); $db->exec("SET time_zone='+00:00'");

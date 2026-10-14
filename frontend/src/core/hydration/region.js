@@ -8,8 +8,10 @@ export function createHydrationRegion(container) {
   let pending = null;
   let disposed = false;
   let hasData = false;
+  let status = "idle";
 
   function setState(state, busy) {
+    status = state;
     container.dataset.hydration = state;
     container.setAttribute("aria-busy", String(busy));
   }
@@ -51,7 +53,7 @@ export function createHydrationRegion(container) {
   function end(task) {
     if (!isCurrent(task)) return false;
     pending = null;
-    setState(hasData ? "ready" : "idle", false);
+    setState(status === "error" ? "error" : hasData ? "ready" : "idle", false);
     return true;
   }
 

@@ -2,7 +2,8 @@ import { api, ApiError, clearAccessToken, isSignedIn, setAccessToken, setRefresh
 import { pages, canAccess, currentPage } from "./routes.js";
 import { el, notice, renderSafely } from "../shared/ui/index.js";
 import { createAppShell } from "../shared/layouts/app-shell.js";
-import { renderLogin, renderPasswordChange } from "../modules/auth/views.js";
+import { renderLogin, renderPasswordChange, renderPasswordRecovery } from "../modules/auth/views.js";
+import { openSecurityCenter } from "../modules/auth/security-center.js";
 import { renderDashboard } from "../modules/dashboard/view.js";
 import { renderInstituteProfile } from "../modules/institutes/profile.js";
 import { createRegistryView } from "../modules/registry/register-view.js";
@@ -16,6 +17,7 @@ let user = null;
 let shell = null;
 let activeView = null;
 let authEpoch = 0;
+let securityDialog = null;
 let currentRouteId = null;
 
 function disposeView() {
@@ -30,12 +32,32 @@ function disposeView() {
 function resetToLogin(message = "") {
   authEpoch++;
   disposeView();
+  if(securityDialog?.open)securityDialog.close();
+  securityDialog=null;
   sessionUiState.clear();
   shell?.dispose();
   clearAccessToken();
   user = null;
   shell = null;
-  renderLogin(root, { message, onLogin: login });
+  showLogin(message);
+}
+
+function showLogin(message = "") {
+  renderLogin(root, {message,onLogin:login,onForgot:showRecovery});
+}
+function showRecovery() {
+  renderPasswordRecovery(root, {
+    onRequest: values => api.post("/api/v1/auth/forgot-password",values),
+    onReset: values => api.post("/api/v1/auth/reset-password",values),
+    onBack: () => showLogin()
+  });
+}
+function showSecurity() {
+  if(securityDialog?.open)securityDialog.close();
+  securityDialog=openSecurityCenter();
+  securityDialog.addEventListener("close",()=>{
+    securityDialog=null;
+  },{once:true});
 }
 
 async function login(username, password, instituteId, otpCode = "", recoveryCode = "") {
@@ -56,7 +78,7 @@ async function login(username, password, instituteId, otpCode = "", recoveryCode
     if (profile.must_change_password) {
       renderPasswordChange(root, { onChangePassword: changePassword, onLogout: logout });
     } else {
-      shell = createAppShell(root, user, logout, pages, canAccess);
+      shell = createAppShell(root, user, logout, pages, canAccess, showSecurity);
       renderRoute();
     }
   } catch (error) {
